@@ -1,0 +1,7 @@
+EURGBP  1d  1000d
+EURJPY  1d  200d
+USDJPY  60m 50d
+
+
+Generating new .csv files based on these settings overwrite the old csv files.
+Saved as "EURGBP-1d-1000d.csv".

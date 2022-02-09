@@ -1,0 +1,19 @@
+
+Separate logic into the different util files
+
+DataRetrievalUtil downloads data from many files into static. What it downloads is based on a text file.
+DataTestingUtil tests based on data retrieved. Text File is used as reference (or just use every file in folder)
+
+
+1) Store signals as DataFrame - Type, Vol, SMA-Fail, MACD-Fail, Start, End
+                                Short, 10 (lots), False, False (True, True for both), Start, End
+2) DRU downloads data into static from options txt file
+
+
+
+
+
+
+
+
+10) Lag Signals
