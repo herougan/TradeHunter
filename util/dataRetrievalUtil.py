@@ -101,3 +101,20 @@ def load_df_list():
     # Get list of files that end with .csv
     df_list = [f for f in listdir(path) if isfile(join(path, f)) and f.endswith('.csv')]
     return df_list
+
+
+def load_df_list(ds_name: str):
+    folder = F'../datasetdef'
+    if not ds_name.endswith('.csv'):
+        ds_name += '.csv'
+    # load df_list from list of paths
+    ds = pd.read_csv(F'{folder}/{ds_name}.csv')
+    return ds
+
+
+def load_dataset_list():
+    path = F'../datasetdef/'
+    # Get list of files that end with .csv
+    df_list = [f for f in listdir(path) if isfile(join(path, f)) and f.endswith('.csv')]
+    return df_list
+

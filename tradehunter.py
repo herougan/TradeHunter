@@ -32,11 +32,9 @@ def main():
 
 
 def data_management_window():
-
     # Load datasets
 
     # Display datasets in list
-
 
     ### UI ###
 
@@ -48,7 +46,6 @@ def data_management_window():
         pass
 
     def modify_dataset():
-
         # List of valid intervals
         # List of suggested periods
 
@@ -73,11 +70,22 @@ def data_management_window():
 
         # Instrument custom text
 
+    def modify_instrument():
+        pass
 
 
 def bot_management_window():
     pass
 
+
 class trade_hunter_app:
     def __init__(self):
         pass
+
+################ Purpose ################
+#
+# Create and Modify data set definitions - each containing lists of instruments, intervals and periods (tuple) to
+# measure.
+# Then, data can be downloaded according to the data set definitions. Finally, robots can be evaluated against
+# these set definitions (if they are downloaded) and the results will be saved.
+# These results can be viewed and graphics can be loaded for more information.
