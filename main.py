@@ -1,28 +1,35 @@
 # Custom packages
 import sys
 from datetime import date, timedelta
+
+import tradehunter
+
 sys.path.append('util')
-from util.dataRetrievalUtil import retrieve
+from util.dataRetrievalUtil import retrieve, load_df, load_df_list
 import yfinance as yf
 from matplotlib import pyplot as plt
 import matplotlib as mpl
 import talib
 import pandas as pd
 from util.langUtil import strtoyahootimestr
-import mplfinance as mpf
 
 
 # Util
 
 
 def test_3():
-    sym = "AAPL"
-    period = timedelta(weeks=100)
-    interval = strtoyahootimestr('1h')
-    end = date.now()
-    start = end - period
-    df = retrieve(sym, start, end, interval)
-    print(df)
+    # sym = "AAPL"
+    # period = timedelta(weeks=100)
+    # interval = strtoyahootimestr('1h')
+    # end = date.today()
+    # start = end - period
+    # df = retrieve(sym, start, end, interval, True)
+    # df_list = load_df_list()
+    # for df_path in df_list:
+    #     print(load_df(df_path))
+
+    tradehunter.main()
+
 
 def test_2():
     mpl.use('TkAgg')
@@ -62,9 +69,9 @@ def test_2():
     sma5 = talib.SMA(data, timeperiod=2)
     sma200 = talib.SMA(data, timeperiod=200)
     macd_df = pd.DataFrame(index=df.index,
-                              data={"macd": macd,
-                                    "macd_signal": macdsignal,
-                                    "macdhist": macdhist, })
+                           data={"macd": macd,
+                                 "macd_signal": macdsignal,
+                                 "macdhist": macdhist, })
     profit = {
         'main': [0] * len(macd),
         'fail': {
@@ -233,23 +240,10 @@ def test_2():
     #     x_tick_labels.append(_date.strftime(date_format_dict[interval]))
 
 
-
-
-
-
-
-
-#-----------
-
-
-
-
-
-
+# -----------
 
 
 def test_1():
-
     # Data Retrieval
     # r = retrieve('AAPL', '2019-01-01', '2021-06-12', False)
     mpl.use('TkAgg')

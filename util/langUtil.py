@@ -11,19 +11,19 @@ def strtotime(s: str):
         (d, a) = drsplit(_s)
         if d is None:
             pass
-        elif a == "M" or "minutes".casefold().contains(a.casefold):
+        elif a == "M" or a.casefold() in "minutes".casefold():
             t += timedelta(minutes=d)
-        elif a == "H" or "hours".casefold().contains(a.casefold):
+        elif a == "H" or a.casefold() in "hours".casefold():
             t += timedelta(hours=d)
-        elif a == "d" or "days".casefold().contains(a.casefold):
+        elif a == "d" or a.casefold() in "days".casefold():
             t += timedelta(hours=d)
-        elif a == "w" or "weeks".casefold().contains(a.casefold):
+        elif a == "w" or a.casefold() in "weeks".casefold():
             t += timedelta(weeks=d)
-        elif a == "m" or "months".casefold().contains(a.casefold):
+        elif a == "m" or a.casefold() in "months".casefold():
             t += timedelta(weeks=d * 4)
-        elif a == "y" or "years".casefold().contains(a.casefold):
+        elif a == "y" or a.casefold() in "years".casefold():
             t += timedelta(weeks=d * 48)
-        elif a == "s" or "seconds".casefold().contains(a.casefold):
+        elif a == "s" or a.casefold() in "seconds".casefold():
             t += timedelta(seconds=d)
     return t
 
@@ -72,3 +72,23 @@ def drsplit(s: str):
     if not digit:
         digit = 0
     return int(digit), alpha
+
+
+def timedeltatosigstr(s: timedelta):
+    """Takes in datetime and returns string containing only one significant time denomination without spaces"""
+    if s.days > 0:
+        return F'{s.days}d'
+    elif s.seconds >= 60 * 60:
+        return F'{s.seconds // (60 * 60)}h'
+    elif s.seconds > 60:
+        return F'{s.seconds // 60}M'
+    else:
+        return F"{s.seconds}s"
+
+
+def to_dataname():
+    return F'{s}-{interval}-{timedeltatosigstr(period)}-{start.year}-{end.year}'
+
+
+def from_dataname():
+    return (s, interval, period, start, end)

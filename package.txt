@@ -1,7 +1,7 @@
 yahoofinancials
-yfinance https://pypi.org/project/yfinance/
+yfinance
 pandas
-matplotlib https://machinelearningmastery.com/time-series-data-visualization-with-python/
-TA-Lib https://github.com/mrjbq7/ta-lib
-mplfinance
+matplotlib
+TA-Lib
 ipython
+PyQt5
