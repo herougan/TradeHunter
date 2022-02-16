@@ -92,3 +92,7 @@ def to_dataname():
 
 def from_dataname():
     return (s, interval, period, start, end)
+
+
+def normify_name(s: str):
+    return s.replace(' ', '_')

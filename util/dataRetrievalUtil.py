@@ -13,11 +13,11 @@ from os import listdir
 from os.path import isfile, join
 import glob
 # Custom Utils
-from statMathUtil import date_to_string as datestring
-from langUtil import strtotime, timedeltatosigstr
+from util.statMathUtil import date_to_string as datestring
+from util.langUtil import strtotime, timedeltatosigstr
 
 
-# Retrieval from yfinance
+#   DataFrame
 
 def retrieve(s: str, start: str, end: str, progress: bool = False):
     df = yf.download(s,
@@ -111,6 +111,16 @@ def load_df_list(ds_name: str):
     ds = pd.read_csv(F'{folder}/{ds_name}.csv')
     return ds
 
+#   DataSet
+
+def load_dataset(ds_name: str):
+    folder = F'../datasetdef'
+    if not ds_name.endswith('.csv'):
+        ds_name += '.csv'
+    dsf = pd.read_csv(F'{folder}/{ds_name}')
+    print(F'Reading {folder}/{ds_name}')
+    return dsf
+
 
 def load_dataset_list():
     path = F'../datasetdef/'
@@ -118,3 +128,137 @@ def load_dataset_list():
     df_list = [f for f in listdir(path) if isfile(join(path, f)) and f.endswith('.csv')]
     return df_list
 
+
+def save_dataset(ds_name, dsf):
+    folder = F'../datasetdef'
+    if not ds_name.endswith('.csv'):
+        ds_name += '.csv'
+    # save new dsf into ds_name
+    dsf.to_csv(F'{folder}/{ds_name}.csv')
+    print(F'Saving into {folder}/{ds_name}.csv')
+
+
+def write_dataset(ds_name, dsf):
+    folder = F'../datasetdef'
+    os.makedirs(folder, exist_ok=True)
+    dsf.to_csv(F'{folder}/{ds_name}.csv')
+    print(F'Creating dataset {folder}/{ds_name}.csv')
+
+
+def write_new_dataset(ds_name, dsf):
+    """This function writes the dataset but also notes it as a change"""
+    write_dataset(ds_name, dsf)
+    add_as_dataset_change(ds_name)
+
+
+def write_new_empty_dataset(ds_name):
+    """Same as above but dataset is empty"""
+    data = {
+        'symbol': [],
+        'interval': [],
+        'period': [],
+    }
+    dsf =pd.DataFrame(data)
+    write_dataset(ds_name, dsf)
+    add_as_dataset_change(ds_name)
+
+
+
+# Dataset-Changes
+
+def get_dataset_changes():
+    path = F'../static/common/datasetchanges.txt'
+    dsc = pd.read_csv(path)
+    return dsc
+
+
+def update_all_dataset_changes():
+    dsc = get_dataset_changes()
+    pass
+
+
+def update_specific_dataset_change():
+    pass
+
+
+def add_as_dataset_change(ds_name:str):
+    '''Changes to any instrument signature contained within the dataset or addition/subtraction of instruments
+    count as a dataset change.'''
+    path = F'../static/common/datasetchanges.txt'
+    dsc = pd.read_csv(path)
+
+    _new = pd.DataFrame({
+        'name': [ds_name]
+    })
+    dsc.append(_new)
+    return dsc
+
+
+def remove_dataset_change(ds_name: str):
+    dsc = get_dataset_changes()
+    dsc.drop(name=ds_name)
+    set_dataset_changes(dsc)
+
+
+def set_dataset_changes(dsc: pd.DataFrame):
+    path = F'../datasetdef/datasetchanges.txt'
+    dsc.to_csv(path)
+
+
+# List of instrument
+
+def load_interval_suggestions():
+    pass
+
+
+def write_interval_suggestions(isdf: pd.DataFrame):
+    pass
+
+
+def add_interval_suggestion():
+    isdf = load_interval_suggestions()
+    write_interval_suggestions(isdf)
+
+
+def load_period_suggestions():
+    pass
+
+
+def write_period_suggestions(isdf: pd.DataFrame):
+    pass
+
+
+def add_period_suggestion():
+    isdf = load_interval_suggestions()
+    write_interval_suggestions(isdf)
+
+
+def load_symbol_suggestions():
+    pass
+
+
+def write_symbol_suggestions(isdf: pd.DataFrame):
+    pass
+
+
+def add_symbol_suggestion():
+    isdf = load_interval_suggestions()
+    write_interval_suggestions(isdf)
+
+# Check
+def is_valid_dataset():
+    return True
+
+
+def is_valid_df():
+    return True
+
+# Get bots
+
+
+def load_trade_advisor(ta_name: str):
+    pass
+
+def load_trade_advisor_list():
+    folder = ''
+    pass

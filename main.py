@@ -2,19 +2,23 @@
 import sys
 from datetime import date, timedelta
 
-import tradehunter
+# UI
+import UI.tradehunter
 
+# Custom Util
 sys.path.append('util')
 from util.dataRetrievalUtil import retrieve, load_df, load_df_list
+from util.langUtil import strtoyahootimestr
+
+# Settings
+import settings
+
+# Packages
 import yfinance as yf
 from matplotlib import pyplot as plt
 import matplotlib as mpl
 import talib
 import pandas as pd
-from util.langUtil import strtoyahootimestr
-
-
-# Util
 
 
 def test_3():
@@ -27,8 +31,8 @@ def test_3():
     # df_list = load_df_list()
     # for df_path in df_list:
     #     print(load_df(df_path))
-
-    tradehunter.main()
+    app = UI.tradehunter.MainApp()
+    app.__open__()
 
 
 def test_2():

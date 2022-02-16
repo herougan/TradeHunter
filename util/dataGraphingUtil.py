@@ -17,7 +17,18 @@ def profit_graph(ax, df, ls):
 
 
 def load_signals(ax, sdf):
+    """Loads buy signatures onto time series"""
+    for datum in sdf:
+        id = datum['id']
+        datum_close = next(d for d in sdf if d['id'] == id and d['date'] != datum['date'])
+        # Remove datums
+        if not datum_close:
+            sdf.drop([id])
+        else:
+            sdf.drop[id, datum_close['id']]
 
+
+        pass
     # Number of "error" keys
 
     # Fetch successful shorts
