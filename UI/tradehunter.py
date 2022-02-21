@@ -7,412 +7,432 @@ from PyQt5.QtWidgets import (QApplication, QCheckBox, QComboBox, QDateTimeEdit,
                              QVBoxLayout, QWidget, QMessageBox, QBoxLayout, QListWidget, QMainWindow, QListWidgetItem)
 
 # Settings
+import sys
 import settings
+from UI.QTUtil import get_sheet
 from util.dataRetrievalUtil import load_trade_advisor_list, get_dataset_changes, update_specific_dataset_change, \
-    write_new_empty_dataset
+    write_new_empty_dataset, load_dataset_list, save_dataset, add_as_dataset_change
 from util.langUtil import normify_name
 
 
-class MainApp:
+class TradeHunterApp():
+
     def __init__(self):
-        # self.main_window = 0
-        # self.data_management_window = 1
-        # self.trade_advisor_window = 2
-        # self.data_do_something_window = 11
-        # self.bot_detail_window = 21
-        # self.bot_testing_suite = 22
-
-        self.save = False
-        self.curr_window = -1
-        self.options = -1
-
-        self.app = QApplication([])
-        pass
-
-    def __open__(self):
-        self.curr_window = 0
-        self.main_window()
-
-    def main_window(self):
-        main_window = QWidget()
-        layout = QVBoxLayout()
-
-        dm_button = QPushButton('Data Management')
-        ta_button = QPushButton('Trade Advisor')
-
-        def on_dm_click():
-            self.window = self.data_management_window()
-            self.window.show()
-            main_window.close()
-
-        def on_ta_click():
-            self.window = self.trade_advisor_window()
-            self.window.show()
-            main_window.close()
-
-        dm_button.clicked.connect(on_dm_click)
-        ta_button.clicked.connect(on_ta_click)
-        layout.addWidget(dm_button)
-        layout.addWidget(ta_button)
-
-        main_window.setLayout(layout)
-        main_window.setWindowTitle('Trade Hunter')
-        main_window.show()
+        self.app = QApplication(sys.argv)
+        main = self.MainWindow()
+        main.show()
         self.app.exec()
 
-        return main_window
+    class MainWindow(QWidget):
 
-    def data_management_window(self):
+        def __init__(self):
+            self.keyPressed = QtCore.pyqtSignal(QtCore.QEvent)
+            super().__init__()
+            self.window()
 
-        keyPressed = QtCore.pyqtSignal(QtCore.QEvent)
+        def keyPressEvent(self, event):
+            if event.key() == Qt.Key_Space:
+                pass
+            print(event.key())
 
-        # Save variables
-        self.save = False
-
-        window = QWidget()
-        head_body_tail = QVBoxLayout()
-        head = QHBoxLayout()
-        body = QHBoxLayout()
-        tail = QHBoxLayout()
-        head_body_tail.addLayout(head)
-        head_body_tail.addLayout(body)
-        head_body_tail.addLayout(tail)
-
-        def build_dataset_list():
-            pass
-
-        def build_dataset_table():
-            pass
-
-        def dataset_pane():
+        def window(self):
             layout = QVBoxLayout()
 
-            dataset_select = QListWidget()
-            dataset_label = QLabel('Dataset')
-            for i in range(10):
-                item = QListWidgetItem(F'{i}', dataset_select)
-            select_layout = QHBoxLayout()
-            select_layout.addWidget(dataset_label)
-            select_layout.addWidget(dataset_select)
-            layout.addLayout(select_layout)
+            dm_button = QPushButton('Data Management')
+            ta_button = QPushButton('Trade Advisor')
 
-            mid = QHBoxLayout()
-            mid_left = QVBoxLayout()
-            mid_right = QVBoxLayout()
-            mid_mid = QVBoxLayout()
-            # Mid left - Labels
-            mid_left.addWidget(QLabel('Symbols'))
-            mid_left.addWidget(QLabel('Interval'))
-            mid_left.addWidget(QLabel('Period'))
-            mid_left.addWidget(QLabel(''))
-            # Mid mid - list widgets
-            symbol_list = QListWidget()
-            interval_list = QListWidget()
-            period_list = QListWidget()
-            mid_mid.addWidget(symbol_list)
-            mid_mid.addWidget(interval_list)
-            mid_mid.addWidget(period_list)
-            # Mid right - text widgets -> values to add
-            symbol_text = QTextEdit()
-            interval_text = QTextEdit()
-            period_text = QTextEdit()
-            mid_right.addWidget(symbol_text)
-            mid_right.addWidget(interval_text)
-            mid_right.addWidget(period_text)
+            def on_dm_click():
+                self.dm_window = TradeHunterApp.DataManagementPage()
+                self.dm_window.show()
+                self.close()
 
+            def on_ta_click():
+                self.ta_window = TradeHunterApp.TradeAdvisorPage()
+                self.ta_window.show()
+                self.close()
 
-            add_instrument_button = QPushButton('Add')
-            cancel_instrument_button = QPushButton('Reset')
-            mid_mid.addWidget(add_instrument_button)
-            mid_right.addWidget(cancel_instrument_button)
-            mid.addLayout(mid_left)
-            mid.addLayout(mid_mid)
-            mid.addLayout(mid_right)
-            layout.addLayout(mid)
+            dm_button.clicked.connect(on_dm_click)
+            ta_button.clicked.connect(on_ta_click)
+            layout.addWidget(dm_button)
+            layout.addWidget(ta_button)
 
+            self.setLayout(layout)
+            self.setWindowTitle('Trade Hunter')
+            self.show()
+
+    class DataManagementPage(QWidget):
+        def __init__(self):
+            self.keyPressed = QtCore.pyqtSignal(QtCore.QEvent)
+            super().__init__()
+            self.window()
+            self.windowTitle = 'Data Management'
+
+            self.datasetpane = None
+            self.datatablepane = None
+
+        def keyPressEvent(self, event):
+            if event.key() == Qt.Key_Space:
+                pass
+            elif event.key() == Qt.Key_Escape:
+
+                pass
+            print(event.key())
+
+        def window(self):
+
+            head_body_tail = QVBoxLayout()
+            head = QHBoxLayout()
+            body = QHBoxLayout()
             tail = QHBoxLayout()
-            create_button = QPushButton('New')
-            save_button = QPushButton('Save')
-            create_button.clicked.connect(create_button_clicked)
-            save_button.clicked.connect(save_button_clicked)
-            tail.addWidget(create_button)
-            tail.addWidget(save_button)
-            layout.addLayout(tail)
+            head_body_tail.addLayout(head)
+            head_body_tail.addLayout(body)
+            head_body_tail.addLayout(tail)
 
-            return layout
+            def build_dataset_list():
+                pass
 
-        def datatable_pane():
-            layout = QVBoxLayout()
-            layout.addWidget(QLabel('List of Instruments'))
-            table = QTableWidget(20, 3)
-            layout.addWidget(table)
-            return layout
+            def build_dataset_table():
+                pass
 
-        def create_button_clicked():
-            pass
-
-        def save_button_clicked():
-            pass
-
-        def back_button_clicked():
-            back()
-
-        def back():
-            new_window = self.main_window()
-            new_window.show()
-            window.close()
-
-        left = dataset_pane()
-        right = datatable_pane()
-        body.addLayout(left)
-        body.addLayout(right)
-        body.setStretchFactor(left, 0.5)
-        body.setStretchFactor(right, 4)
-
-        def create_dataset():
-            keyPressed = QtCore.pyqtSignal(QtCore.QEvent)
-
-            window = QWidget()
-            layout = QVBoxLayout()
-
-            name_entry = QLineEdit()
-            name_entry.setFocus()
-            layout.addWidget(name_entry.get)
-
-            select_button = QPushButton()
-            cancel_button = QPushButton()
-
-            def on_name_select():
-                write_new_empty_dataset(normify_name(name_entry.text()))
-                back()
-
-            def on_cancel():
+            def back_button_clicked():
                 back()
 
             def back():
-                window.close()
+                window = TradeHunterApp.MainWindow()
+                window.show()
+                self.close()
 
-            def back_key(event):
-                print(event.key())
-                if event.key() == QtCore.Qt.Key_0:
-                    back()
+            # window.keyPressEvent(back)
 
-            keyPressed.connect(back_key)
-            select_button.clicked.connect(on_name_select)
-            name_entry.editingFinished.connect(on_name_select)
-            cancel_button.clicked.connect(on_cancel)
+            left = TradeHunterApp.DataManagementPage.DatasetPane()
+            self.datasetpane = left
+            right = TradeHunterApp.DataManagementPage.DatatablePane()
+            self.datatablepane = right
+            left.bind(right.table)
 
-            window.setLayout(layout)
-            window.setWindowTitle('Select a name')
-            window.show()
+            body.addLayout(left)
+            body.addLayout(right)
+            body.setStretchFactor(left, 0.5)
+            body.setStretchFactor(right, 4)
 
-        update_all_button = QPushButton('Update All')
-        back_button = QPushButton('Back')
-        tail.addWiget(back_button)
-        tail.addWidget(update_all_button)
+            update_all_button = QPushButton('Update All')
+            back_button = QPushButton('Back')
+            back_button.clicked.connect(back)
+            tail.addWidget(back_button)
+            tail.addWidget(update_all_button)
 
-        window.setLayout(head_body_tail)
-        window.windowTitle = 'Data Management'
+            self.setLayout(head_body_tail)
 
-        return window
+        class DatasetPane(QVBoxLayout):
+            def __init__(self):
+                super().__init__()
+                self.table = None
+                self.select = None
+                self.window()
 
-    def trade_advisor_window(self):
-        window = QWidget()
-        layout = QVBoxLayout()
+            def window(self):
 
-        head = QHBoxLayout()
-        body = QVBoxLayout()
-        bottom_body = QHBoxLayout()
-        tail = QHBoxLayout()
+                dataset_select = QListWidget()
+                dataset_label = QLabel('Dataset')
 
-        robot_row = QHBoxLayout()
-        input_row = QHBoxLayout()
-        button_row = QHBoxLayout()
+                self.select = dataset_select
+                self.build_dataset_list()
 
-        robot_row.addWidget(QLabel('Robot'))
-        robot_input = QTextEdit()
-        robot_row.addWidget(robot_input)
+                def load_selected_dataset(event):
+                    if event:
+                        print("Current item changed", event.text)
+                        self.build_dataset_instruments(event.text)
+                    else:
+                        print("Current item is cringe!")
+                        self.build_dataset_instruments(None)
+                dataset_select.currentItemChanged.connect(load_selected_dataset)
 
-        input_row.addWidget(QLabel('Variables'))
-        input_input = QTextEdit()
-        new_input_button = QPushButton('New')
-        input_row.addWidget(input_input)
-        input_row.addWidget(new_input_button)
+                select_layout = QHBoxLayout()
+                select_layout.addWidget(dataset_label)
+                select_layout.addWidget(dataset_select)
+                self.addLayout(select_layout)
 
-        test_button = QPushButton('Test')
-        optimise_button = QPushButton('Optimise')
-        button_row.addWidget(test_button)
-        button_row.addWidget(optimise_button)
+                mid = QHBoxLayout()
+                mid_left = QVBoxLayout()
+                mid_right = QVBoxLayout()
+                mid_mid = QVBoxLayout()
+                # Mid left - Labels
+                mid_left.addWidget(QLabel('Symbols'))
+                mid_left.addWidget(QLabel('Interval'))
+                mid_left.addWidget(QLabel('Period'))
+                mid_left.addWidget(QLabel(''))
+                # Mid mid - list widgets
+                symbol_list = QListWidget()
+                interval_list = QListWidget()
+                period_list = QListWidget()
+                mid_mid.addWidget(symbol_list)
+                mid_mid.addWidget(interval_list)
+                mid_mid.addWidget(period_list)
+                # Mid right - text widgets -> values to add
+                symbol_text = QTextEdit()
+                interval_text = QTextEdit()
+                period_text = QTextEdit()
+                mid_right.addWidget(symbol_text)
+                mid_right.addWidget(interval_text)
+                mid_right.addWidget(period_text)
 
-        body.addLayout(robot_row)
-        body.addLayout(input_row)
-        body.addLayout(button_row)
+                add_instrument_button = QPushButton('Add')
+                cancel_instrument_button = QPushButton('Reset')
+                mid_mid.addWidget(add_instrument_button)
+                mid_right.addWidget(cancel_instrument_button)
+                mid.addLayout(mid_left)
+                mid.addLayout(mid_mid)
+                mid.addLayout(mid_right)
+                self.addLayout(mid)
 
-        bottom_body.addLayout(self.trade_advisor_details_pane(), 2)
+                def create_button_clicked():
+                    self.create_window = self.CreateDatasetWindow()
+                    self.create_window.bind_rebuild(self.build_dataset_list)
+                    self.create_window.show()
 
-        # left = QVBoxLayout()
-        # right = QVBoxLayout()
-        # layout.addLayout(left)
-        # layout.addLayout(right)
+                def save_button_clicked():
+                    dsf = get_sheet(self.table)
+                    save_dataset(dataset_select.currentItem().text(), dsf)
 
-        layout.addLayout(head)
-        layout.addLayout(body)
-        layout.addLayout(bottom_body)
-        layout.addLayout(tail)
+                create_button = QPushButton('New')
+                save_button = QPushButton('Save')
+                create_button.clicked.connect(create_button_clicked)
+                save_button.clicked.connect(save_button_clicked)
 
-        window.setWindowTitle('Trade Advisors')
-        window.setLayout(layout)
+                tail = QHBoxLayout()
+                tail.addWidget(create_button)
+                tail.addWidget(save_button)
 
-        return window
+                self.addLayout(tail)
 
-    def trade_advisor_details_pane(self):
-        layout = QVBoxLayout()
+            def bind(self, table: QTableWidget):
+                self.table = table
+                self.table.cellChanged.connect(self.build_dataset_instruments)
 
-        layout.addWidget(QLabel('Details'))
-        details_layout = QHBoxLayout()
-        details_layout.addWidget(QLabel('None'))
+            def build_dataset_list(self):
+                self.select.clear()
+                dataset_list = load_dataset_list()
+                for dataset in dataset_list:
+                    item = QListWidgetItem(F'{dataset}', self.select)
 
-        layout.addLayout(details_layout)
-        return layout
+            def build_dataset_instruments(self, ds_name):
+                if ds_name is None:
+                    # Zero off self.table
+                    pass
+                else:
+                    add_as_dataset_change(ds_name)
+                    df = load_dataset_list(ds_name)
+                    # TODO self.table -> df
 
-    def create_dataset_window(self):
-        window = QWidget()
-        layout = QVBoxLayout()
-        pass
+            class CreateDatasetWindow(QWidget):
+                def __init__(self):
+                    super().__init__()
+                    self.window()
+                    self.setWindowTitle('Create new Dataset')
+                    self.rebuild_f = None
 
-    def add_instrument_window(self):
-        window = QWidget()
-        layout = QVBoxLayout()
-        pass
+                def bind_rebuild(self, rebuild_f):
+                    self.rebuild_f = rebuild_f
 
-    # Minor windows
+                def window(self):
+                    main_layout = QVBoxLayout()
+                    body = QHBoxLayout()
+                    tail = QHBoxLayout()
 
-    def generic_context_window(self, args, previous_window):
-        window = QWidget()
-        layout = QVBoxLayout()
-        self.options = -1
+                    name = QTextEdit()
+                    name_label = QLabel('Name')
 
-        for i in range(args):
-            def option_click(self):
-                self.options = i
-                previous_window.show()
-                window.destroy()
+                    cancel_button = QPushButton('Cancel')
+                    select_button = QPushButton('Select')
 
-            button = QPushButton(args[i])
-            button.clicked.connect(option_click)
-            layout.addWidget(button)
+                    def create():
+                        if name.document().toPlainText():
+                            write_new_empty_dataset(F'{name.document().toPlainText()}')
+                            back()
+                        else:
+                            alert = QMessageBox('The name cannot be empty!')
+                            alert.show()
 
-        window.setLayout(layout)
-        window.setWindowTitle('Select an Option')
-        window.show()
+                    def back():
+                        self.rebuild_f()
+                        self.close()
 
-    def select_trade_advisor_window(self):
-        window = QWidget()
-        layout = QBoxLayout()
+                    cancel_button.clicked.connect(back)
+                    select_button.clicked.connect(create)
 
-        select_list = QListWidget()
-        select_list.items(load_trade_advisor_list())
-        layout.addWidget(select_list)
+                    body.addWidget(name_label)
+                    body.addWidget(name)
 
-        window.setLayout(layout)
-        window.setWindowTitle('Select a trade advisor')
-        window.show()
+                    tail.addWidget(cancel_button)
+                    tail.addWidget(select_button)
 
-    def select_dataset_window(self):
-        window = QWidget()
-        layout = QBoxLayout()
+                    main_layout.addLayout(body)
+                    main_layout.addLayout(tail)
 
-        select_list = QListWidget()
-        select_list.items(load_trade_advisor_list())
-        layout.addWidget(select_list)
+                    self.setLayout(main_layout)
 
-        window.setLayout(layout)
-        window.setWindowTitle('Select a trade advisor')
-        window.show()
+                def back(self):
+                    self.close()
 
-    def update_all_with_progress_bar(self, title):
-        """Redownload data according to updated datasets.
-        Returns to data management window."""
-        dsc = get_dataset_changes()
+        class DatatablePane(QVBoxLayout):
+            def __init__(self):
+                super().__init__()
+                self.table = None
+                self.pane()
 
-        window = QWidget()
-        layout = QBoxLayout()
+            def pane(self):
+                self.addWidget(QLabel('List of Instruments'))
+                self.table = QTableWidget(20, 3)
 
-        progress_bar = QProgressBar()
-        layout.addWidget(progress_bar)
+                # def on_edit(event):
+                #     print("On Edit", get_sheet(self.table))
+                #
+                # self.table.cellChanged.connect(on_edit)
+                self.addWidget(self.table)
 
-        window.setLayout(layout)
-        window.setWindowTitle(title)
-        window.show()
+                def size_up(n: int):
+                    pass
 
-        l = len(dsc['index'])
-        progress_bar.setMinimum(0)
-        progress_bar.setMaximum(l)
-        for i in range(dsc['index']):
-            update_specific_dataset_change(dsc['index'][i])
-            progress_bar.setValue(i)
+    class TradeAdvisorPage(QWidget):
 
+        def __init__(self):
+            self.keyPressed = QtCore.pyqtSignal(QtCore.QEvent)
+            super().__init__()
+            self.window()
 
-def main():
-    app = QApplication([])
+        def keyPressEvent(self, event):
+            if event.key() == Qt.Key_Space:
+                pass
+            print(event.key())
 
-    window = QWidget()
-    layout = QVBoxLayout()
+        def window(self):
+            layout = QVBoxLayout()
 
-    def on_data_clicked():
-        alert = QMessageBox()
-        alert.setText('You clicked the button!')
+            head = QHBoxLayout()
+            body = QVBoxLayout()
+            bottom_body = QHBoxLayout()
+            tail = QHBoxLayout()
 
-        def on_alert_clicked():
-            window.show()
+            robot_row = QHBoxLayout()
+            input_row = QHBoxLayout()
+            button_row = QHBoxLayout()
 
-        alert.buttonClicked.connect(on_alert_clicked)
-        window.hide()
-        alert.exec()
+            robot_row.addWidget(QLabel('Robot'))
+            robot_input = QTextEdit()
+            robot_row.addWidget(robot_input)
 
-    def on_bot_clicked():
-        alert = QMessageBox()
-        alert.setText('You clicked the button!')
-        alert.exec()
-        window.hide()
+            input_row.addWidget(QLabel('Variables'))
+            input_input = QTextEdit()
+            new_input_button = QPushButton('New')
+            input_row.addWidget(input_input)
+            input_row.addWidget(new_input_button)
 
-    data_button = QPushButton('Data Management')
-    data_button.clicked.connect(on_data_clicked)
-    bot_button = QPushButton('Trade Advisors')
-    bot_button.clicked.connect(on_bot_clicked)
+            test_button = QPushButton('Test')
+            optimise_button = QPushButton('Optimise')
+            button_row.addWidget(test_button)
+            button_row.addWidget(optimise_button)
 
-    layout.addWidget(data_button)
-    layout.addWidget(bot_button)
+            body.addLayout(robot_row)
+            body.addLayout(input_row)
+            body.addLayout(button_row)
 
-    # table = QTableWidget(20, 3)
-    # layout.addWidget(table)
-    window.windowTitle = 'Trade Hunter'
+            details_pane = TradeHunterApp.TradeAdvisorPage.TradeAdvisorDetailsPane()
+            bottom_body.addLayout(details_pane, 2)
 
-    # title = QLabel('Trade Hunter py')
-    # layout.addWidget(title)
+            def on_back_button_pressed():
+                back()
+
+            def back():
+                window = TradeHunterApp.MainWindow()
+                window.show()
+                self.close()
+
+            back_button = QPushButton('Back')
+            tail.addWidget(back_button)
+            back_button.clicked.connect(back)
+
+            layout.addLayout(head)
+            layout.addLayout(body)
+            layout.addLayout(bottom_body)
+            layout.addLayout(tail)
+
+            self.setWindowTitle('Trade Advisors')
+            self.setLayout(layout)
+
+        class TradeAdvisorDetailsPane(QVBoxLayout):
+
+            def __init__(self):
+                super().__init__()
+                self.pane()
+
+            def pane(self):
+                self.addWidget(QLabel('Details'))
+                details_layout = QHBoxLayout()
+                details_layout.addWidget(QLabel('None'))
+                self.addLayout(details_layout)
+
+    class TestingChamberPage(QWidget):
+
+        def __init__(self):
+            super().__init__()
+
+    class AnalysisWindow(QWidget):
+
+        def __init__(self):
+            super().__init__()
+
+    # def create_dataset_window(self):
+    #     window = QWidget()
+    #     layout = QVBoxLayout()
+    #     pass
     #
-    # button = QPushButton('Click')
-    # button.clicked.connect(on_button_clicked)
-    # layout.addWidget(button)
+    # def add_instrument_window(self):
+    #     window = QWidget()
+    #     layout = QVBoxLayout()
+    #     pass
     #
-    # layout.addWidget(QPushButton('Top'))
-    # layout.addWidget(QPushButton('Bottom'))
+    # # Minor windows
     #
-    # table = QTableWidget(20, 3)
-    # layout.addWidget(table)
+    # def generic_context_window(self, args, previous_window):
+    #     window = QWidget()
+    #     layout = QVBoxLayout()
+    #     self.options = -1
     #
-    # e1button = QPushButton('Extra1')
-    # e2button = QPushButton('Extra2')
+    #     for i in range(args):
+    #         def option_click(self):
+    #             self.options = i
+    #             previous_window.show()
+    #             window.destroy()
     #
-    # sub_layout = QHBoxLayout()
-    # sub_layout.addWidget(e1button)
-    # sub_layout.addWidget(e2button)
-    # layout.addLayout(sub_layout)
-
-    window.setLayout(layout)
-    window.show()
-
-    app.exec()
+    #         button = QPushButton(args[i])
+    #         button.clicked.connect(option_click)
+    #         layout.addWidget(button)
+    #
+    #     window.setLayout(layout)
+    #     window.setWindowTitle('Select an Option')
+    #     window.show()
+    #
+    # def update_all_with_progress_bar(self, title):
+    #     """Redownload data according to updated datasets.
+    #     Returns to data management window."""
+    #     dsc = get_dataset_changes()
+    #
+    #     window = QWidget()
+    #     layout = QBoxLayout()
+    #
+    #     progress_bar = QProgressBar()
+    #     layout.addWidget(progress_bar)
+    #
+    #     window.setLayout(layout)
+    #     window.setWindowTitle(title)
+    #     window.show()
+    #
+    #     l = len(dsc['index'])
+    #     progress_bar.setMinimum(0)
+    #     progress_bar.setMaximum(l)
+    #     for i in range(dsc['index']):
+    #         update_specific_dataset_change(dsc['index'][i])
+    #         progress_bar.setValue(i)
 
 ################ Purpose ################
 #
@@ -421,3 +441,5 @@ def main():
 # Then, data can be downloaded according to the data set definitions. Finally, robots can be evaluated against
 # these set definitions (if they are downloaded) and the results will be saved.
 # These results can be viewed and graphics can be loaded for more information.
+
+

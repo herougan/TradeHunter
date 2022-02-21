@@ -3,11 +3,13 @@ import sys
 from datetime import date, timedelta
 
 # UI
+from PyQt5.QtWidgets import QApplication
+
 import UI.tradehunter
 
 # Custom Util
 sys.path.append('util')
-from util.dataRetrievalUtil import retrieve, load_df, load_df_list
+from util.dataRetrievalUtil import retrieve, load_df, load_df_list, init_common
 from util.langUtil import strtoyahootimestr
 
 # Settings
@@ -22,17 +24,9 @@ import pandas as pd
 
 
 def test_3():
-    # sym = "AAPL"
-    # period = timedelta(weeks=100)
-    # interval = strtoyahootimestr('1h')
-    # end = date.today()
-    # start = end - period
-    # df = retrieve(sym, start, end, interval, True)
-    # df_list = load_df_list()
-    # for df_path in df_list:
-    #     print(load_df(df_path))
-    app = UI.tradehunter.MainApp()
-    app.__open__()
+
+    # init_common()
+    th = UI.tradehunter.TradeHunterApp()
 
 
 def test_2():

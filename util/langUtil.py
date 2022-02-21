@@ -25,6 +25,8 @@ def strtotime(s: str):
             t += timedelta(weeks=d * 48)
         elif a == "s" or a.casefold() in "seconds".casefold():
             t += timedelta(seconds=d)
+        elif s == "max":
+            return s
     return t
 
 

@@ -1,3 +1,5 @@
+import os
+
 DATASET_CHANGES_PATH = F''
 COMMON_SYMBOLS_PATH = F''
 COMMON_INTERVALS_PATH = F''
@@ -11,4 +13,4 @@ ROBOTS_FOLDER = F''
 BUILDER_FOLDER = F''
 
 ROOT = F''
-STATIC = F''
+STATIC = F'{os.getcwd()}'
