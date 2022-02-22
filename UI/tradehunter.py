@@ -9,13 +9,14 @@ from PyQt5.QtWidgets import (QApplication, QCheckBox, QComboBox, QDateTimeEdit,
 # Settings
 import sys
 import settings
-from UI.QTUtil import get_sheet
+from UI.QTUtil import get_datatable_sheet, set_datatable_sheet, clear_table
 from util.dataRetrievalUtil import load_trade_advisor_list, get_dataset_changes, update_specific_dataset_change, \
-    write_new_empty_dataset, load_dataset_list, save_dataset, add_as_dataset_change
+    write_new_empty_dataset, load_dataset_list, save_dataset, add_as_dataset_change, load_dataset, \
+    load_symbol_suggestions, load_interval_suggestions, load_period_suggestions
 from util.langUtil import normify_name
 
 
-class TradeHunterApp():
+class TradeHunterApp:
 
     def __init__(self):
         self.app = QApplication(sys.argv)
@@ -28,12 +29,23 @@ class TradeHunterApp():
         def __init__(self):
             self.keyPressed = QtCore.pyqtSignal(QtCore.QEvent)
             super().__init__()
+
+            self.dm_window = None
+            self.ta_window = None
             self.window()
 
         def keyPressEvent(self, event):
-            if event.key() == Qt.Key_Space:
-                pass
-            print(event.key())
+            if event.key() == Qt.Key_D:
+                self.dm_window = TradeHunterApp.DataManagementPage()
+                self.dm_window.show()
+                self.close()
+            elif event.key() == Qt.Key_T:
+                self.ta_window = TradeHunterApp.TradeAdvisorPage()
+                self.ta_window.show()
+                self.close()
+            elif event.key() == Qt.Key_Escape:
+                self.close()
+            print("Main Window keypress", event.key())
 
         def window(self):
             layout = QVBoxLayout()
@@ -61,6 +73,7 @@ class TradeHunterApp():
             self.show()
 
     class DataManagementPage(QWidget):
+
         def __init__(self):
             self.keyPressed = QtCore.pyqtSignal(QtCore.QEvent)
             super().__init__()
@@ -74,9 +87,8 @@ class TradeHunterApp():
             if event.key() == Qt.Key_Space:
                 pass
             elif event.key() == Qt.Key_Escape:
-
                 pass
-            print(event.key())
+            print("Data Management Window keypress", event.key())
 
         def window(self):
 
@@ -88,21 +100,10 @@ class TradeHunterApp():
             head_body_tail.addLayout(body)
             head_body_tail.addLayout(tail)
 
-            def build_dataset_list():
-                pass
-
-            def build_dataset_table():
-                pass
-
-            def back_button_clicked():
-                back()
-
             def back():
                 window = TradeHunterApp.MainWindow()
                 window.show()
                 self.close()
-
-            # window.keyPressEvent(back)
 
             left = TradeHunterApp.DataManagementPage.DatasetPane()
             self.datasetpane = left
@@ -112,8 +113,8 @@ class TradeHunterApp():
 
             body.addLayout(left)
             body.addLayout(right)
-            body.setStretchFactor(left, 0.5)
-            body.setStretchFactor(right, 4)
+            body.setStretchFactor(left, 1)
+            body.setStretchFactor(right, 1.5)
 
             update_all_button = QPushButton('Update All')
             back_button = QPushButton('Back')
@@ -124,8 +125,10 @@ class TradeHunterApp():
             self.setLayout(head_body_tail)
 
         class DatasetPane(QVBoxLayout):
+
             def __init__(self):
                 super().__init__()
+                self.saved = True
                 self.table = None
                 self.select = None
                 self.window()
@@ -138,13 +141,24 @@ class TradeHunterApp():
                 self.select = dataset_select
                 self.build_dataset_list()
 
+                def on_symbol_select(event):
+                    print("Symbol", event.text())
+
+                def on_interval_select(event):
+                    print("Interval", event.text())
+
+                def on_period_select(event):
+                    print("Period", event.text())
+
                 def load_selected_dataset(event):
                     if event:
-                        print("Current item changed", event.text)
-                        self.build_dataset_instruments(event.text)
+                        print("Selected ", event.text())
+                        self.build_dataset_instruments(event.text())
                     else:
-                        print("Current item is cringe!")
+                        print("Selected None")
                         self.build_dataset_instruments(None)
+                    self.saved = True
+
                 dataset_select.currentItemChanged.connect(load_selected_dataset)
 
                 select_layout = QHBoxLayout()
@@ -152,37 +166,41 @@ class TradeHunterApp():
                 select_layout.addWidget(dataset_select)
                 self.addLayout(select_layout)
 
-                mid = QHBoxLayout()
-                mid_left = QVBoxLayout()
-                mid_right = QVBoxLayout()
-                mid_mid = QVBoxLayout()
+                mid = QVBoxLayout()
+
+                floor1 = QHBoxLayout()
+                floor2 = QHBoxLayout()
+                floor3 = QHBoxLayout()
+
                 # Mid left - Labels
-                mid_left.addWidget(QLabel('Symbols'))
-                mid_left.addWidget(QLabel('Interval'))
-                mid_left.addWidget(QLabel('Period'))
-                mid_left.addWidget(QLabel(''))
+                floor1.addWidget(QLabel('Symbols'), 0.5)
+                floor2.addWidget(QLabel('Interval'), 0.5)
+                floor3.addWidget(QLabel('Period'), 0.5)
+
                 # Mid mid - list widgets
                 symbol_list = QListWidget()
                 interval_list = QListWidget()
                 period_list = QListWidget()
-                mid_mid.addWidget(symbol_list)
-                mid_mid.addWidget(interval_list)
-                mid_mid.addWidget(period_list)
-                # Mid right - text widgets -> values to add
-                symbol_text = QTextEdit()
-                interval_text = QTextEdit()
-                period_text = QTextEdit()
-                mid_right.addWidget(symbol_text)
-                mid_right.addWidget(interval_text)
-                mid_right.addWidget(period_text)
 
-                add_instrument_button = QPushButton('Add')
-                cancel_instrument_button = QPushButton('Reset')
-                mid_mid.addWidget(add_instrument_button)
-                mid_right.addWidget(cancel_instrument_button)
-                mid.addLayout(mid_left)
-                mid.addLayout(mid_mid)
-                mid.addLayout(mid_right)
+                # Build listwidget items
+                for string in load_symbol_suggestions():
+                    item = QListWidgetItem(string, symbol_list)
+                for string in load_interval_suggestions():
+                    item = QListWidgetItem(string, interval_list)
+                for string in load_period_suggestions():
+                    item = QListWidgetItem(string, period_list)
+
+                symbol_list.currentItemChanged.connect(on_symbol_select)
+                interval_list.currentItemChanged.connect(on_interval_select)
+                period_list.currentItemChanged.connect(on_period_select)
+
+                floor1.addWidget(symbol_list, 2)
+                floor2.addWidget(interval_list, 2)
+                floor3.addWidget(period_list, 2)
+
+                mid.addLayout(floor1)
+                mid.addLayout(floor2)
+                mid.addLayout(floor3)
                 self.addLayout(mid)
 
                 def create_button_clicked():
@@ -191,8 +209,17 @@ class TradeHunterApp():
                     self.create_window.show()
 
                 def save_button_clicked():
-                    dsf = get_sheet(self.table)
-                    save_dataset(dataset_select.currentItem().text(), dsf)
+                    dsf = get_datatable_sheet(self.table)
+                    ds_name = dataset_select.currentItem().text()
+                    if self.saved:
+                        print("Already up to date, skip saving.")
+                        return
+                    # Save
+                    save_dataset(ds_name, dsf)
+                    # Mark as change - updates will re-download all files in dataset marked by "change"
+                    add_as_dataset_change(ds_name)
+                    # Rebuild instrument list (e.g. Bad rows will be deleted)
+                    self.build_dataset_instruments(ds_name)
 
                 create_button = QPushButton('New')
                 save_button = QPushButton('Save')
@@ -207,7 +234,8 @@ class TradeHunterApp():
 
             def bind(self, table: QTableWidget):
                 self.table = table
-                self.table.cellChanged.connect(self.build_dataset_instruments)
+                self.table.cellChanged.connect(self.on_cell_change)
+                self.table.currentItemChanged.connect(self.on_cell_change)
 
             def build_dataset_list(self):
                 self.select.clear()
@@ -215,14 +243,16 @@ class TradeHunterApp():
                 for dataset in dataset_list:
                     item = QListWidgetItem(F'{dataset}', self.select)
 
+            def on_cell_change(self, event):
+                self.saved = False
+
             def build_dataset_instruments(self, ds_name):
                 if ds_name is None:
-                    # Zero off self.table
-                    pass
+                    clear_table(self.table)
                 else:
-                    add_as_dataset_change(ds_name)
-                    df = load_dataset_list(ds_name)
-                    # TODO self.table -> df
+                    print("Building dataset instruments", ds_name)
+                    df = load_dataset(ds_name)
+                    set_datatable_sheet(self.table, df)
 
             class CreateDatasetWindow(QWidget):
                 def __init__(self):
@@ -282,16 +312,8 @@ class TradeHunterApp():
 
             def pane(self):
                 self.addWidget(QLabel('List of Instruments'))
-                self.table = QTableWidget(20, 3)
-
-                # def on_edit(event):
-                #     print("On Edit", get_sheet(self.table))
-                #
-                # self.table.cellChanged.connect(on_edit)
+                self.table = QTableWidget(100, 3)
                 self.addWidget(self.table)
-
-                def size_up(n: int):
-                    pass
 
     class TradeAdvisorPage(QWidget):
 
@@ -303,10 +325,18 @@ class TradeHunterApp():
         def keyPressEvent(self, event):
             if event.key() == Qt.Key_Space:
                 pass
-            print(event.key())
+            print("Trade Advisor keypress", event.key())
 
         def window(self):
             layout = QVBoxLayout()
+
+            test_robot_button = QPushButton('Test')
+            optimise_robot_button = QPushButton('Optimise')
+            optimise_dataset_button = QPushButton('Analyse Data')
+
+            layout.addWidget(test_robot_button)
+            layout.addWidget(optimise_robot_button)
+            layout.addWidget(optimise_dataset_button)
 
             head = QHBoxLayout()
             body = QVBoxLayout()
@@ -318,11 +348,11 @@ class TradeHunterApp():
             button_row = QHBoxLayout()
 
             robot_row.addWidget(QLabel('Robot'))
-            robot_input = QTextEdit()
+            robot_input = QListWidget()
             robot_row.addWidget(robot_input)
 
             input_row.addWidget(QLabel('Variables'))
-            input_input = QTextEdit()
+            input_input = QListWidget()
             new_input_button = QPushButton('New')
             input_row.addWidget(input_input)
             input_row.addWidget(new_input_button)
@@ -371,6 +401,19 @@ class TradeHunterApp():
                 details_layout.addWidget(QLabel('None'))
                 self.addLayout(details_layout)
 
+        def test_robot_window(self):
+
+            robot_select = QListWidget()
+            tr_window = QWidget()
+            layout = QVBoxLayout
+
+            pass
+
+        def optimise_robot_window(self):
+            pass
+
+
+
     class TestingChamberPage(QWidget):
 
         def __init__(self):
@@ -380,66 +423,3 @@ class TradeHunterApp():
 
         def __init__(self):
             super().__init__()
-
-    # def create_dataset_window(self):
-    #     window = QWidget()
-    #     layout = QVBoxLayout()
-    #     pass
-    #
-    # def add_instrument_window(self):
-    #     window = QWidget()
-    #     layout = QVBoxLayout()
-    #     pass
-    #
-    # # Minor windows
-    #
-    # def generic_context_window(self, args, previous_window):
-    #     window = QWidget()
-    #     layout = QVBoxLayout()
-    #     self.options = -1
-    #
-    #     for i in range(args):
-    #         def option_click(self):
-    #             self.options = i
-    #             previous_window.show()
-    #             window.destroy()
-    #
-    #         button = QPushButton(args[i])
-    #         button.clicked.connect(option_click)
-    #         layout.addWidget(button)
-    #
-    #     window.setLayout(layout)
-    #     window.setWindowTitle('Select an Option')
-    #     window.show()
-    #
-    # def update_all_with_progress_bar(self, title):
-    #     """Redownload data according to updated datasets.
-    #     Returns to data management window."""
-    #     dsc = get_dataset_changes()
-    #
-    #     window = QWidget()
-    #     layout = QBoxLayout()
-    #
-    #     progress_bar = QProgressBar()
-    #     layout.addWidget(progress_bar)
-    #
-    #     window.setLayout(layout)
-    #     window.setWindowTitle(title)
-    #     window.show()
-    #
-    #     l = len(dsc['index'])
-    #     progress_bar.setMinimum(0)
-    #     progress_bar.setMaximum(l)
-    #     for i in range(dsc['index']):
-    #         update_specific_dataset_change(dsc['index'][i])
-    #         progress_bar.setValue(i)
-
-################ Purpose ################
-#
-# Create and Modify data set definitions - each containing lists of instruments, intervals and periods (tuple) to
-# measure.
-# Then, data can be downloaded according to the data set definitions. Finally, robots can be evaluated against
-# these set definitions (if they are downloaded) and the results will be saved.
-# These results can be viewed and graphics can be loaded for more information.
-
-

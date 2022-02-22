@@ -9,7 +9,7 @@ import UI.tradehunter
 
 # Custom Util
 sys.path.append('util')
-from util.dataRetrievalUtil import retrieve, load_df, load_df_list, init_common
+from util.dataRetrievalUtil import retrieve, load_df, load_df_list, init_common, force_overwrite_common
 from util.langUtil import strtoyahootimestr
 
 # Settings
@@ -24,8 +24,9 @@ import pandas as pd
 
 
 def test_3():
+    init_common()
+    # force_overwrite_common()
 
-    # init_common()
     th = UI.tradehunter.TradeHunterApp()
 
 
@@ -236,9 +237,6 @@ def test_2():
     # x_tick_labels = []
     # for _date in dates:
     #     x_tick_labels.append(_date.strftime(date_format_dict[interval]))
-
-
-# -----------
 
 
 def test_1():

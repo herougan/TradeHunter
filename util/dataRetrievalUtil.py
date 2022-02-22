@@ -13,6 +13,7 @@ from os import listdir
 from os.path import isfile, join
 import glob
 # Custom Utils
+import settings
 from util.statMathUtil import date_to_string as datestring
 from util.langUtil import strtotime, timedeltatosigstr, normify_name
 
@@ -36,7 +37,8 @@ def retrieve(s: str, period: str, interval: str, write: bool = False, progress: 
 
 def retrieve(s: str, start: datetime, end: datetime, interval: str, write: bool = False, progress: bool = False):
     period = end - start
-    name = F'{s}-{interval}-{timedeltatosigstr(period)}-{start.year}-{end.year}'
+    # name = F'{s}-{interval}-{timedeltatosigstr(period)}-{start.year}-{end.year}'
+    name = F'{s}-{interval}-{timedeltatosigstr(period)}'
     print(F'Retrieving {name}')
     # Similar retrievals will overwrite each other unless they start or end in different years.
 
@@ -79,16 +81,20 @@ def retrieve(s: str, start: datetime, end: datetime, interval: str, write: bool 
     return final
 
 
+def retrieve(ds_name: str, write: bool = True, progress: bool = False):
+    pass
+
+
 # Read/Write from local
 def write_df(df, name: str):
-    folder = F'/static/data'
+    folder = F'static/data'
     os.makedirs(folder, exist_ok=True)
     df.to_csv(F'{folder}/{name}.csv')
     print(F'Creating {folder}/{name}.csv')
 
 
 def load_df(name: str):
-    folder = F'/static/data'
+    folder = F'static/data'
     if not name.endswith('.csv'):
         name += '.csv'
     df = pd.read_csv(F'{folder}/{name}')
@@ -97,14 +103,14 @@ def load_df(name: str):
 
 
 def load_df_list():
-    path = F'/static/data/'
+    path = F'static/data/'
     # Get list of files that end with .csv
     df_list = [f for f in listdir(path) if isfile(join(path, f)) and f.endswith('.csv')]
     return df_list
 
 
 def load_df_list(ds_name: str):
-    folder = F'/static/datasetdef'
+    folder = F'static/datasetdef'
     if not ds_name.endswith('.csv'):
         ds_name += '.csv'
     # load df_list from list of paths
@@ -115,7 +121,7 @@ def load_df_list(ds_name: str):
 #   DataSet
 
 def load_dataset(ds_name: str):
-    folder = F'/static/datasetdef'
+    folder = F'static/datasetdef'
     if not ds_name.endswith('.csv'):
         ds_name += '.csv'
     dsf = pd.read_csv(F'{folder}/{ds_name}')
@@ -169,6 +175,29 @@ def write_new_empty_dataset(ds_name):
     print(F'Creating new dataset {ds_name}.csv')
 
 
+# Dataset Files
+
+def load_dataset_data_list(ds_name: str) -> List[str]:
+    folder = 'static/data/'
+
+    ds_df = load_df(ds_name)
+    d_list = []
+    for index, row in ds_df.iterrows():
+        # Form d_name (SYM_INT_PER)
+        d_name = F'{row["symbol"]}_{row["interval"]}_{row["period"]}'
+        d_list.append(d_name)
+
+    return d_list
+
+
+def load_dataset_data(d_list: List[str]) -> List[pd.DataFrame]:
+    all_data = []
+    for d_name in d_list:
+        all_data.append(load_dataset(d_name))
+
+    return all_data
+
+
 # Dataset-Changes
 
 def get_dataset_changes() -> pd.DataFrame:
@@ -180,33 +209,56 @@ def get_dataset_changes() -> pd.DataFrame:
 def update_all_dataset_changes():  # Downloading
     dsc = get_dataset_changes()
     print(F'Updating all datasets...')
-    pass
+    for index, row in iter(dsc):
+        retrieve(row['name'])
+    clear_dataset_changes()
 
 
 def update_specific_dataset_change(ds_name):  # Downloading
     print(F'Updating dataset {ds_name}')
 
-    pass
+    # Removing specific dataset change flag
+    dsc = get_dataset_changes()
+    for index, row in iter(dsc):
+        if row['name'] == ds_name:
+            dsc.drop([ds_name])
+            # download data
+            retrieve(ds_name)
 
 
 def add_as_dataset_change(ds_name: str):
     '''Changes to any instrument signature contained within the dataset or addition/subtraction of instruments
     count as a dataset change.'''
     path = F'/static/common/datasetchanges.txt'
-    dsc = pd.read_csv(F'{os.getcwd()}{path}')
+    dsc = pd.read_csv(F'{os.getcwd()}{path}', index_col=0)
+    print("---------------")
+    if ds_name in dsc['name']:
+        print(F'Overwriting dataset {ds_name} - Already most updated')
+    else:
+        _new = pd.DataFrame([[ds_name]], columns=['name'], index=[len(dsc.index)])
+        dsc = dsc.append(_new)
+        print(F'Overwriting dataset {ds_name}')
+        write_dataset_change(dsc)
 
-    _new = pd.DataFrame({
-        'name': [ds_name]
-    })
-    dsc.append(_new)
-    print(F'Overwriting dataset {ds_name}')
-    return dsc
+
+def write_dataset_change(dsc_df: pd.DataFrame):
+    path = F'static/common/datasetchanges.txt'
+
+    print(F'Noting changes in datasetchanges.txt')
+    dsc_df.to_csv(path)
 
 
 def remove_dataset_change(ds_name: str):
     dsc = get_dataset_changes()
     dsc.drop(name=ds_name)
     set_dataset_changes(dsc)
+
+
+def clear_dataset_changes():
+    path = F'static/common/datasetchanges.txt'
+
+    df = pd.DataFrame(columns=['name'])
+    df.to_csv(path)
 
 
 def set_dataset_changes(dsc: pd.DataFrame):
@@ -216,43 +268,53 @@ def set_dataset_changes(dsc: pd.DataFrame):
 
 # List of instrument
 
+def load_symbol_suggestions() -> pd.DataFrame:
+    common_symbols = F'static/common/common_symbols.txt'
+    ss_df = pd.read_csv(common_symbols)
+    return ss_df['symbol']
+
+
+def write_symbol_suggestions(ss_df: pd.DataFrame):
+    common_symbols = F'static/common/common_symbols.txt'
+    ss_df.to_csv(common_symbols)
+
+
+def add_symbol_suggestion(ss_add):
+    ss_df = load_symbol_suggestions()
+    ss_df.append(ss_add)
+    write_symbol_suggestions(ss_df)
+
+
 def load_interval_suggestions():
-    pass
+    common_intervals = F'static/common/common_intervals.txt'
+    is_df = pd.read_csv(common_intervals)
+    return is_df['interval']
 
 
-def write_interval_suggestions(isdf: pd.DataFrame):
-    pass
+def write_interval_suggestions(is_df: pd.DataFrame):
+    common_intervals = F'static/common/common_intervals.txt'
+    is_df.to_csv(common_intervals)
 
 
 def add_interval_suggestion():
-    isdf = load_interval_suggestions()
-    write_interval_suggestions(isdf)
+    is_df = load_interval_suggestions()
+    write_interval_suggestions(is_df)
 
 
 def load_period_suggestions():
-    pass
+    common_periods = F'static/common/common_periods.txt'
+    ps_df = pd.read_csv(common_periods)
+    return ps_df['period']
 
 
-def write_period_suggestions(isdf: pd.DataFrame):
-    pass
+def write_period_suggestions(ps_df: pd.DataFrame):
+    common_periods = F'static/common/common_periods.txt'
+    ps_df.to_csv(common_periods)
 
 
 def add_period_suggestion():
-    isdf = load_interval_suggestions()
-    write_interval_suggestions(isdf)
-
-
-def load_symbol_suggestions():
-    pass
-
-
-def write_symbol_suggestions(isdf: pd.DataFrame):
-    pass
-
-
-def add_symbol_suggestion():
-    isdf = load_interval_suggestions()
-    write_interval_suggestions(isdf)
+    ps_df = load_interval_suggestions()
+    write_period_suggestions(ps_df)
 
 
 # Check
@@ -292,18 +354,13 @@ def dataframe_to_table(df):
 
 
 def init_common():
-
     datasetchanges = F'{os.getcwd()}/static/common/datasetchanges.txt'
     common_intervals = F'{os.getcwd()}/static/common/common_intervals.txt'
     common_periods = F'{os.getcwd()}/static/common/common_periods.txt'
     common_symbols = F'{os.getcwd()}/static/common/common_symbols.txt'
 
     if not file_exists(datasetchanges) or file_is_empty(datasetchanges):
-        data = {
-            'name': [],
-            'date': []
-        }
-        df = pd.DataFrame(data)
+        df = pd.DataFrame(columns=['name'])
         df.to_csv(datasetchanges)
     if not file_exists(common_intervals) or file_is_empty(common_intervals):
         data = {
@@ -313,16 +370,27 @@ def init_common():
         df.to_csv(common_intervals)
     if not file_exists(common_periods) or file_is_empty(common_periods):
         data = {
-            'period': ['1wk', '1m', '3m', '6m', '1y', '2y', '5y', 'max'],
+            'period': settings.SUGGESTIONS['periods'],
         }
         df = pd.DataFrame(data)
         df.to_csv(common_periods)
     if not file_exists(common_symbols) or file_is_empty(common_symbols):
         data = {
-            'symbol': []
+            'symbol': [
+                'AAPL', 'TLSA', 'GOOGL', 'INTC', 'MSFT',
+            ]
         }
         df = pd.DataFrame(data)
         df.to_csv(common_symbols)
+
+
+def force_overwrite_common():
+    common_symbols = F'{os.getcwd()}/static/common/common_symbols.txt'
+    data = {
+        'symbol': settings.SUGGESTIONS['symbols']
+    }
+    df = pd.DataFrame(data)
+    df.to_csv(common_symbols)
 
 
 def file_exists(path) -> bool:

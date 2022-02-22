@@ -1,12 +1,12 @@
 import pandas as pd
-from PyQt5.QtWidgets import QTableWidget
+from PyQt5.QtWidgets import QTableWidget, QTableWidgetItem
 
 
-def get_sheet(table: QTableWidget):
+def get_datatable_sheet(table: QTableWidget):
+
     map = []
     for i in range(table.rowCount()):
         row = []
-
         for u in range(table.columnCount()):
             if table.item(i, u):
                 row.append(table.item(i, u).text())
@@ -25,16 +25,22 @@ def get_sheet(table: QTableWidget):
     return df
 
 
-def set_sheet(table: QTableWidget, dataset_df: pd.DataFrame):
+def set_datatable_sheet(table: QTableWidget, dataset_df: pd.DataFrame):
+    clear_table(table)
 
-    # Get rows
-    print(dataset_df.columns)
+    columns = dataset_df.columns
 
-    for i in range(dataset_df.count()):
-        for u in range(dataset_df.count()):
-            for index, row in dataset_df.iterrows():
-                print(row['c1'], row['c2'])
-    pass
+    for i in range(len(dataset_df.index)):  # rows
+        for u in range(len(columns) - 1):
+            data_item = QTableWidgetItem(dataset_df[columns[u+1]][i])
+            table.setItem(i, u, data_item)
+
+
+def clear_table(table: QTableWidget):
+    for i in range(table.rowCount()):
+        for u in range(table.columnCount()):
+            item = QTableWidgetItem("")
+            table.setItem(i, u, item)
 
 
 def full_only(map):
