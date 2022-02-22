@@ -31,7 +31,7 @@ def retrieve(s: str, start: str, end: str, progress: bool = False):
     return df
 
 
-def retrieve(s: str, period: str, interval: str, write: bool = False, progress: bool = False):
+def retrieve(s: str, interval: str, period: str, write: bool = False, progress: bool = False):
     return retrieve(s, datetime.now() - strtotime(period), datetime.now(), interval, write, progress)
 
 
@@ -81,8 +81,10 @@ def retrieve(s: str, start: datetime, end: datetime, interval: str, write: bool 
     return final
 
 
-def retrieve(ds_name: str, write: bool = True, progress: bool = False):
-    pass
+def retrieve_ds(ds_name: str, write: bool = True, progress: bool = False):
+    df = load_dataset(ds_name)
+    for index, row in df.iterrows():
+        retrieve(row['symbol'], row['interval'], row['period'], write, progress)
 
 
 # Read/Write from local
@@ -209,8 +211,8 @@ def get_dataset_changes() -> pd.DataFrame:
 def update_all_dataset_changes():  # Downloading
     dsc = get_dataset_changes()
     print(F'Updating all datasets...')
-    for index, row in iter(dsc):
-        retrieve(row['name'])
+    for index, row in dsc.iterrows(dsc):
+        retrieve_ds(row['name'])
     clear_dataset_changes()
 
 
@@ -223,7 +225,7 @@ def update_specific_dataset_change(ds_name):  # Downloading
         if row['name'] == ds_name:
             dsc.drop([ds_name])
             # download data
-            retrieve(ds_name)
+            retrieve_ds(ds_name)
 
 
 def add_as_dataset_change(ds_name: str):
@@ -335,7 +337,8 @@ def load_trade_advisor(ta_name: str):
 
 def load_trade_advisor_list():
     folder = ''
-    pass
+    ta_list = []
+    return ta_list
 
 
 # Data Transformation Util
