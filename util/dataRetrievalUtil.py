@@ -224,8 +224,9 @@ def update_specific_dataset_change(ds_name):  # Downloading
     for index, row in iter(dsc):
         if row['name'] == ds_name:
             dsc.drop([ds_name])
-            # download data
+            # Download data
             retrieve_ds(ds_name)
+            remove_dataset_change(ds_name)
 
 
 def add_as_dataset_change(ds_name: str):
@@ -252,7 +253,7 @@ def write_dataset_change(dsc_df: pd.DataFrame):
 
 def remove_dataset_change(ds_name: str):
     dsc = get_dataset_changes()
-    dsc.drop(name=ds_name)
+    dsc.drop(dsc[dsc.name == ds_name].index)
     set_dataset_changes(dsc)
 
 
@@ -328,19 +329,6 @@ def is_valid_df():
     return True
 
 
-# Get bots
-
-
-def load_trade_advisor(ta_name: str):
-    pass
-
-
-def load_trade_advisor_list():
-    folder = ''
-    ta_list = []
-    return ta_list
-
-
 # Data Transformation Util
 
 def table_to_dataframe(data):
@@ -351,6 +339,27 @@ def dataframe_to_table(df):
     table = []
 
     return table
+
+
+# Trade Advisors/Robots
+
+
+# Get bots
+
+
+def load_trade_advisor(ta_name: str):
+    pass
+
+
+def load_trade_advisor_list():
+    path = F'robot'
+    # Get list of files that end with .py
+    robot_list = [os.path.splitext(f)[0] for f in listdir(path) if isfile(join(path, f)) and f.endswith('.py')]
+    return robot_list
+
+
+def init_robot(robot):
+    pass
 
 
 # Init basic files
