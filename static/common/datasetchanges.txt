@@ -1,3 +1,1 @@
 ,name
-0,Data_Set.csv
-1,trijkia_dijkstra.csv

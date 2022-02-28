@@ -13,7 +13,8 @@ import settings
 from UI.QTUtil import get_datatable_sheet, set_datatable_sheet, clear_table
 from util.dataRetrievalUtil import load_trade_advisor_list, get_dataset_changes, update_specific_dataset_change, \
     write_new_empty_dataset, load_dataset_list, save_dataset, add_as_dataset_change, load_dataset, \
-    load_symbol_suggestions, load_interval_suggestions, load_period_suggestions, update_all_dataset_changes, retrieve_ds
+    load_symbol_suggestions, load_interval_suggestions, load_period_suggestions, update_all_dataset_changes, \
+    retrieve_ds, clear_dataset_changes, load_df_list
 from util.langUtil import normify_name
 
 
@@ -33,6 +34,7 @@ class TradeHunterApp:
 
             self.dm_window = None
             self.ta_window = None
+            self.sp_window = None
             self.window()
 
         def keyPressEvent(self, event):
@@ -53,6 +55,7 @@ class TradeHunterApp:
 
             dm_button = QPushButton('Data Management')
             ta_button = QPushButton('Trade Advisor')
+            sp_button = QPushButton('Simple Plotter')
 
             def on_dm_click():
                 self.dm_window = TradeHunterApp.DataManagementPage()
@@ -64,14 +67,45 @@ class TradeHunterApp:
                 self.ta_window.show()
                 self.close()
 
+            def on_sp_click():
+                self.sp_window = TradeHunterApp.SimplePlotterPage()
+                self.sp_windhow.show()
+                self.close()
+
             dm_button.clicked.connect(on_dm_click)
             ta_button.clicked.connect(on_ta_click)
+            sp_button.clicked.connect(on_sp_click)
             layout.addWidget(dm_button)
             layout.addWidget(ta_button)
+            layout.addWidget(sp_button)
 
             self.setLayout(layout)
             self.setWindowTitle('Trade Hunter')
             self.show()
+
+    class SimplePlotterPage(QWidget):
+        def __init__(self):
+            self.window()
+
+        def window(self):
+
+
+            layout = QVBoxLayout()
+
+            body = QVBoxLayout()
+            df_select = QListWidget()
+            for df_path in load_df_list():
+                item = QListWidgetItem(df_path, df_select)
+
+            body.addWidget(df_select)
+            layout.addLayout(body)
+
+            def back():
+                pass
+
+            self.setLayout(layout)
+
+            pass
 
     class DataManagementPage(QWidget):
 
@@ -81,6 +115,8 @@ class TradeHunterApp:
             self.window()
             self.windowTitle = 'Data Management'
 
+            self.p_window = None
+            self.download_progress = None
             self.datasetpane = None
             self.datatablepane = None
 
@@ -102,29 +138,41 @@ class TradeHunterApp:
             head_body_tail.addLayout(tail)
 
             def progress_window(n_files: int) -> QProgressBar:
-                progress_window = QWidget()
+                print("Update Progress Bar initialised!")
+                _progress_window = QWidget()
 
                 p_layout = QVBoxLayout()
                 download_progress = QProgressBar()
                 download_progress.setMinimum(0)
                 download_progress.setMaximum(n_files)
+                download_progress.setValue(0)
                 p_layout.addWidget(download_progress)
 
-                progress_window.setLayout(p_layout)
+                _progress_window.setLayout(p_layout)
 
-                return progress_window
+                self.p_window = _progress_window
+                self.download_progress = download_progress
 
+                return _progress_window, download_progress
 
             def update_all():
+                print("----------------------------------")
+                print("Preparing to update changed files")
 
                 files_df = get_dataset_changes()
-                self.p_window = progress_window(len(files_df.index))
-                self.p_window.show()
-                self.p_window.start_download()
-
                 for index, row in files_df.iterrows():
-                    retrieve_ds(row['name'])
-                    self.p_window.setValue(self.p_window.value() + 1)
+                    print(F"File: {row['name']}")
+
+                progress_window(len(files_df.index))
+                self.p_window.show()
+
+                print("Updating...")
+                for index, row in files_df.iterrows():
+                    self.p_window.setWindowTitle(F"Downloading {row['name']}")
+                    retrieve_ds(row['name'], True)
+                    self.download_progress.setValue(self.download_progress.value() + 1)
+
+                clear_dataset_changes()
 
                 self.p_window.close()
 
@@ -397,7 +445,8 @@ class TradeHunterApp:
                             QMessageBox('You have not selected a robot')
                         else:
                             print("Select:", robot_select.currentItem().text())
-                            self.test_chamber_window = TradeHunterApp.TestingChamberPage(robot_select.currentItem().text())
+                            self.test_chamber_window = TradeHunterApp.TestingChamberPage(
+                                robot_select.currentItem().text())
                             self.test_chamber_window.show()
                         self.close()
 
@@ -560,6 +609,7 @@ class TradeHunterApp:
 
             def on_back_button_pressed():
                 back()
+
             back_button.clicked.connect(on_back_button_pressed)
 
             def back():
@@ -574,13 +624,11 @@ class TradeHunterApp:
         def __init__(self, robot_name):
             super().__init__()
             self.robot_name = robot_name
+            self.setWindowTitle(robot_name)
+            self.window()
 
         def window(self):
-
             layout = QVBoxLayout()
-
-            robot_label = self.robot_name
-            layout.addWidget(robot_label)
 
             dataset_layout = QHBoxLayout()
             ivar_layout = QHBoxLayout()
@@ -604,11 +652,9 @@ class TradeHunterApp:
             tail_layout.addWidget(test_button)
             tail_layout.addWidget(optimise_button)
 
-
             layout.addLayout(tail_layout)
             self.setLayout(layout)
             self.show()
-
 
         def back(self):
             self.tr_window = TradeHunterApp.TradeAdvisorPage()
@@ -621,7 +667,6 @@ class TradeHunterApp:
 
         def window(self):
             pass
-
 
     class OptimisationPage(QWidget):
 

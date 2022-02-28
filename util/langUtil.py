@@ -1,3 +1,4 @@
+import math
 from datetime import timedelta, datetime
 import re
 import unicodedata
@@ -16,7 +17,7 @@ def strtotime(s: str):
         elif a == "H" or a.casefold() in "hours".casefold():
             t += timedelta(hours=d)
         elif a == "d" or a.casefold() in "days".casefold():
-            t += timedelta(hours=d)
+            t += timedelta(days=d)
         elif a == "w" or a.casefold() in "weeks".casefold():
             t += timedelta(weeks=d)
         elif a == "m" or a.casefold() in "months".casefold():
@@ -68,6 +69,75 @@ def strtoyahootimestr(s: str):
     return interval[idx]
 
 
+def yahoolimitperiod(period: timedelta, interval: str):
+    """Divides period into smaller chunks depending on the interval. Outputs new_period, n_loop"""
+    n_loop = 1
+    loop_period = period
+
+    min_dict = {
+        '1M': '7d',
+        '2M': '7d',
+        '5M': '7d',
+        '15M': '60d',
+        '30M': '60d',
+        '60M': '60d',
+        '90M': '60d',
+        '1h': '60d',
+    }
+
+    eff_interval = '1M'
+    diff = strtotime(eff_interval) - strtotime(interval)
+    for key in min_dict.keys():
+        _diff = strtotime(key) - strtotime(interval)
+        if timedelta() > _diff > diff:
+            diff = _diff
+            eff_interval = key
+
+    max_period = strtotime(min_dict[eff_interval])
+
+    if period > max_period:
+        n_loop = math.ceil(period / max_period)
+        eff_period = period / n_loop
+        return eff_period, n_loop
+    return period, 1
+
+
+def yahoolimitperiod_leftover(period: timedelta, interval: str):
+    """Divides period into smaller defined chunks, depending on the interval.
+    Outputs new_period, n_loop and period_leftover"""
+    n_loop = 1
+    loop_period = period
+
+    min_dict = {
+        '1M': '7d',
+        '2M': '7d',
+        '5M': '7d',
+        '15M': '60d',
+        '30M': '60d',
+        '60M': '60d',
+        '90M': '60d',
+        '1h': '60d',
+    }
+
+    eff_interval = '1M'
+    diff = strtotime(eff_interval) - strtotime(interval)
+    for key in min_dict.keys():
+        _diff = strtotime(key) - strtotime(interval)
+        if timedelta() > _diff > diff:
+            diff = _diff
+            eff_interval = key
+
+    max_period = strtotime(min_dict[eff_interval])
+
+    if period > max_period:
+        n_loop = math.floor(period / max_period)
+        leftover = period - max_period * n_loop
+        if leftover < strtotime(interval):
+            leftover = strtotime(interval)
+        return max_period, n_loop, leftover
+    return period, 1, timedelta(0)
+
+
 def drsplit(s: str):
     alpha = s.lstrip('0123456789')
     digit = s[:len(s) - len(alpha)]
@@ -88,13 +158,51 @@ def timedeltatosigstr(s: timedelta):
         return F"{s.seconds}s"
 
 
-def to_dataname():
-    return F'{s}-{interval}-{timedeltatosigstr(period)}-{start.year}-{end.year}'
+def to_dataname(s, interval, period):
+    return F'{s}-{interval}-{timedeltatosigstr(period)}'
 
 
-def from_dataname():
-    return (s, interval, period, start, end)
+def from_dataname(s: str):
+    arr = s.split('-')
+    if len(arr) < 3:
+        return ('Str_Error', '', '')
+    return (arr[0], arr[1], arr[2])
 
 
 def normify_name(s: str):
     return s.replace(' ', '_')
+
+# data = yf.download(  # or pdr.get_data_yahoo(...
+#         # tickers list or string as well
+#         tickers = "SPY AAPL MSFT",
+#
+#         # use "period" instead of start/end
+#         # valid periods: 1d,5d,1mo,3mo,6mo,1y,2y,5y,10y,ytd,max
+#         # (optional, default is '1mo')
+#         period = "ytd",
+#
+#         # fetch data by interval (including intraday if period < 60 days)
+#         # valid intervals: 1m,2m,5m,15m,30m,60m,90m,1h,1d,5d,1wk,1mo,3mo
+#         # (optional, default is '1d')
+#         interval = "1m",
+#
+#         # group by ticker (to access via data['SPY'])
+#         # (optional, default is 'column')
+#         group_by = 'ticker',
+#
+#         # adjust all OHLC automatically
+#         # (optional, default is False)
+#         auto_adjust = True,
+#
+#         # download pre/post regular market hours data
+#         # (optional, default is False)
+#         prepost = True,
+#
+#         # use threads for mass downloading? (True/False/Integer)
+#         # (optional, default is True)
+#         threads = True,
+#
+#         # proxy URL scheme use use when downloading?
+#         # (optional, default is None)
+#         proxy = None
+#     )

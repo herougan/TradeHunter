@@ -9,6 +9,9 @@ DataTestingUtil tests based on data retrieved. Text File is used as reference (o
                                 Short, 10 (lots), False, False (True, True for both), Start, End
 2) DRU downloads data into static from options txt file
 
+3) Copy-and-pasted files contingency: When updating datasets/re-downloading data, if file does not exit,
+try download again (once), continue.
+
 
 
 

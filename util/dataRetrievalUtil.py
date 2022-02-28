@@ -1,4 +1,6 @@
 # Stats Imports
+import math
+
 import pandas as pd
 
 # Data Brokers
@@ -15,76 +17,81 @@ import glob
 # Custom Utils
 import settings
 from util.statMathUtil import date_to_string as datestring
-from util.langUtil import strtotime, timedeltatosigstr, normify_name
+from util.langUtil import strtotime, timedeltatosigstr, normify_name, yahoolimitperiod, yahoolimitperiod_leftover
 
 
 #   DataFrame
 
-def retrieve(s: str, start: str, end: str, progress: bool = False):
-    df = yf.download(s,
-                     start=start,
-                     end=end,
-                     progress=progress,
-                     )
-    df.head()
+# def retrieve(s: str, start: str, end: str, progress: bool = False):
+#     df = yf.download(s,
+#                      start=start,
+#                      end=end,
+#                      progress=progress,
+#                      )
+#     df.head()
+#
+#     return df
 
-    return df
 
-
-def retrieve(s: str, interval: str, period: str, write: bool = False, progress: bool = False):
+def retrieve_str(s: str,
+                 interval: str,
+                 period: str,
+                 write: bool = False,
+                 progress: bool = False):
     return retrieve(s, datetime.now() - strtotime(period), datetime.now(), interval, write, progress)
 
 
-def retrieve(s: str, start: datetime, end: datetime, interval: str, write: bool = False, progress: bool = False):
+def retrieve(
+        s: str,
+        start: datetime,
+        end: datetime,
+        interval: str,
+        write: bool = False,
+        progress: bool = False):
     period = end - start
-    # name = F'{s}-{interval}-{timedeltatosigstr(period)}-{start.year}-{end.year}'
     name = F'{s}-{interval}-{timedeltatosigstr(period)}'
-    print(F'Retrieving {name}')
-    # Similar retrievals will overwrite each other unless they start or end in different years.
+    print(F'Retrieving {name}, write: {write}')
+    # todo are other intervals such as '3M' allowed in yfinance?
 
     # Loop through smaller time periods if period is too big for given interval (denied by yfinance)
-    n_loop = 1
-    loop_period = period
-    min_dict = {
-        '1m': '7d',
-        '2m': '7d',
-        '5m': '7d',
-        '15m': '60d',
-        '30m': '60d',
-        '60m': '60d',
-        '90m': '60d',
-        '1h': '60d',
-    }
-    max_period = strtotime(min_dict[interval])
-    if interval in min_dict:
-        if period > max_period:
-            n_loop = max_period // period + 1
-            loop_period = period / n_loop
+    loop_period, n_loop, leftover = yahoolimitperiod_leftover(period, interval)
 
     df_array = []
     # Retrieve data slowly...
-    for i in range(n_loop):
-        df = yf.download(s,
-                         start=start,
-                         end=start + loop_period,
-                         interval=interval,
-                         progress=progress)
-        df_array.append(df)
-        # Next starting date
-        start += loop_period
+    for i in range(n_loop + 1):
+        if i == n_loop:
+            _loop_period = leftover
+        else:
+            _loop_period = loop_period
+
+        if _loop_period > timedelta(minutes=1):
+            df = yf.download(s,
+                             start=start,
+                             end=start + _loop_period,
+                             interval=interval,
+                             progress=progress)
+            df_array.append(df)
+            # Next starting date
+            start += _loop_period
 
     final = pd.concat(df_array)
 
-    if write:
+    success = True
+    if len(final.index) <= 1:
+        success = False
+
+    if write and success:
         write_df(final, name)
 
-    return final
+    return final, success
 
 
-def retrieve_ds(ds_name: str, write: bool = True, progress: bool = False):
+def retrieve_ds(ds_name: str, write: bool = False, progress: bool = False):
     df = load_dataset(ds_name)
     for index, row in df.iterrows():
-        retrieve(row['symbol'], row['interval'], row['period'], write, progress)
+        df, suc = retrieve_str(row['symbol'], row['interval'], row['period'], write, progress)
+        if not suc:
+            remove_from_dataset(ds_name, row['symbol'], row['interval'], row['period'])
 
 
 # Read/Write from local
@@ -109,15 +116,6 @@ def load_df_list():
     # Get list of files that end with .csv
     df_list = [f for f in listdir(path) if isfile(join(path, f)) and f.endswith('.csv')]
     return df_list
-
-
-def load_df_list(ds_name: str):
-    folder = F'static/datasetdef'
-    if not ds_name.endswith('.csv'):
-        ds_name += '.csv'
-    # load df_list from list of paths
-    ds = pd.read_csv(F'{folder}/{ds_name}.csv')
-    return ds
 
 
 #   DataSet
@@ -177,6 +175,12 @@ def write_new_empty_dataset(ds_name):
     print(F'Creating new dataset {ds_name}.csv')
 
 
+def remove_from_dataset(ds_name, symbol, interval, period):
+    dsf = load_dataset(ds_name)
+    dsf.drop(dsf[dsf.symbol == symbol and dsf.interval == interval and dsf.period == period].index)
+    write_dataset(ds_name, dsf)
+
+
 # Dataset Files
 
 def load_dataset_data_list(ds_name: str) -> List[str]:
@@ -203,7 +207,7 @@ def load_dataset_data(d_list: List[str]) -> List[pd.DataFrame]:
 # Dataset-Changes
 
 def get_dataset_changes() -> pd.DataFrame:
-    path = F'/static/common/datasetchanges.txt'
+    path = F'static/common/datasetchanges.txt'
     dsc = pd.read_csv(path)
     return dsc
 
@@ -419,3 +423,9 @@ def file_is_df_csv(path) -> bool:
         return True
     except:
         return False
+
+
+def dataframe_ok(df: pd.DataFrame) -> bool:
+    if len(df.index):
+        return True
+    return False
