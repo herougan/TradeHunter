@@ -69,6 +69,44 @@ def strtoyahootimestr(s: str):
     return interval[idx]
 
 
+def timedeltatoyahootimestr(_interval: timedelta):
+    """XM X minutes, XH X hours, Xd X days, Xw X weeks, Xm X months, all separated by a space
+    Interval closest to '1m,2m,5m,15m,30m,60m,90m,1h,1d,5d,1wk,1mo,3mo' will be chosen."""
+    interval = ['1M', '2M', '5M', '15M', '30M', '60M', '1h', '90M', '1d', '5d', '1wk', '1m', '3m']
+    idx, prev_idx = len(interval) // 2, 0
+    left, right = 0, len(interval)
+    chosen_interval = _interval
+
+    while not (right - left) < 2:
+        prev_idx = idx
+        diff = strtotime(interval[idx]) - chosen_interval
+        # Check if chosen interval is smaller or greater than measured interval, move boundaries accordingly
+        if diff > timedelta(0):
+            right = idx
+            idx = (idx + left) // 2
+        elif diff == timedelta(0):
+            return interval[idx]
+        else:
+            left = idx
+            idx = (idx + right) // 2
+
+    # Compare which is better
+    diff1 = strtotime(interval[idx]) - chosen_interval
+    diff2 = strtotime(interval[prev_idx]) - chosen_interval
+    if diff1 > timedelta(0):
+        # interval_1 is larger than chosen interval, so interval_2 is smaller (diff2 is negative)
+        if diff1 + diff2 > timedelta(0):
+            # diff1 is larger than diff2, and so chosen interval is closer to interval_2
+            idx = prev_idx
+    else:
+        # interval_1 is smaller than chosen interval, so interval_2 is bigger (diff2 is positive, diff1 is negative)
+        if diff1 + diff2 < timedelta(0):
+            # diff2 (positive) is not large enough to compensate for diff1 and so chosen interval is closer to interval_2
+            idx = prev_idx
+
+    return interval[idx]
+
+
 def yahoolimitperiod(period: timedelta, interval: str):
     """Divides period into smaller chunks depending on the interval. Outputs new_period, n_loop"""
     n_loop = 1
@@ -171,6 +209,7 @@ def from_dataname(s: str):
 
 def normify_name(s: str):
     return s.replace(' ', '_')
+
 
 # data = yf.download(  # or pdr.get_data_yahoo(...
 #         # tickers list or string as well

@@ -8,13 +8,18 @@ from PyQt5.QtWidgets import (QApplication, QCheckBox, QComboBox, QDateTimeEdit,
                              QVBoxLayout, QWidget, QMessageBox, QBoxLayout, QListWidget, QMainWindow, QListWidgetItem)
 
 # Settings
+from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg, NavigationToolbar2QT as NavigationToolbar
 import sys
+
+from matplotlib.figure import Figure
+
 import settings
 from UI.QTUtil import get_datatable_sheet, set_datatable_sheet, clear_table
+from util.dataGraphingUtil import plot_single, candlestick, init_plot
 from util.dataRetrievalUtil import load_trade_advisor_list, get_dataset_changes, update_specific_dataset_change, \
     write_new_empty_dataset, load_dataset_list, save_dataset, add_as_dataset_change, load_dataset, \
     load_symbol_suggestions, load_interval_suggestions, load_period_suggestions, update_all_dataset_changes, \
-    retrieve_ds, clear_dataset_changes, load_df_list
+    retrieve_ds, clear_dataset_changes, load_df_list, load_df, load_ivar_list
 from util.langUtil import normify_name
 
 
@@ -69,7 +74,7 @@ class TradeHunterApp:
 
             def on_sp_click():
                 self.sp_window = TradeHunterApp.SimplePlotterPage()
-                self.sp_windhow.show()
+                self.sp_window.show()
                 self.close()
 
             dm_button.clicked.connect(on_dm_click)
@@ -85,27 +90,80 @@ class TradeHunterApp:
 
     class SimplePlotterPage(QWidget):
         def __init__(self):
+            super().__init__()
             self.window()
 
         def window(self):
 
-
             layout = QVBoxLayout()
 
             body = QVBoxLayout()
+
+            df_layout = QHBoxLayout()
             df_select = QListWidget()
             for df_path in load_df_list():
                 item = QListWidgetItem(df_path, df_select)
 
-            body.addWidget(df_select)
-            layout.addLayout(body)
+            df_layout.addWidget(QLabel('Data file:'))
+            df_layout.addWidget(df_select)
 
-            def back():
-                pass
+            body.addLayout(df_layout)
+
+            tail = QVBoxLayout()
+            button_layout = QHBoxLayout()
+
+            back_button = QPushButton('Back')
+            test_button = QPushButton('Plot')
+
+            def test_button_clicked():
+                if not df_select.currentItem():
+                    QMessageBox('You have not selected a data file')
+                else:
+                    print("Select:", df_select.currentItem().text())
+                    self.plot(df_select.currentItem().text())
+
+            # This window does not close upon plotting.
+            back_button.clicked.connect(self.back)
+            test_button.clicked.connect(test_button_clicked)
+
+            button_layout.addWidget(back_button)
+            button_layout.addWidget(test_button)
+            tail.addLayout(button_layout)
+
+            layout.addLayout(body)
+            layout.addLayout(tail)
 
             self.setLayout(layout)
+            self.show()
 
-            pass
+        def back(self):
+            window = TradeHunterApp.MainWindow()
+            window.show()
+            self.close()
+
+        def plot(self, name):
+            df = load_df(name)
+            # f, ax = plot_single()
+            # candlestick(ax, df)
+
+            c = TradeHunterApp.MplCanvas(self, width=5, height=4, dpi=100)
+            c.axes.plot([0, 1, 2, 3, 4], [10, 1, 20, 3, 40])
+
+            self.p_window = self.plot_window(c, F"{name}")
+            self.p_window.show()
+
+        def plot_window(self, canvas: FigureCanvasQTAgg, name: str) -> QWidget:
+
+            p_window = QWidget()
+
+            layout = QVBoxLayout()
+            layout.addWidget(canvas)
+
+            p_window.setLayout(layout)
+
+            p_window.setWindowTitle(name)
+
+            return p_window
 
     class DataManagementPage(QWidget):
 
@@ -176,6 +234,9 @@ class TradeHunterApp:
 
                 self.p_window.close()
 
+            def import_clicked():
+                pass
+
             def back():
                 window = TradeHunterApp.MainWindow()
                 window.show()
@@ -192,11 +253,17 @@ class TradeHunterApp:
             body.setStretchFactor(left, 1)
             body.setStretchFactor(right, 1.5)
 
-            update_all_button = QPushButton('Update All')
+            # Window buttons
             back_button = QPushButton('Back')
+            import_button = QPushButton('Import')
+            update_all_button = QPushButton('Update All')
+
             back_button.clicked.connect(back)
+            import_button.clicked.connect(import_clicked)
             update_all_button.clicked.connect(update_all)
+
             tail.addWidget(back_button)
+            tail.addWidget(import_button)
             tail.addWidget(update_all_button)
 
             self.setLayout(head_body_tail)
@@ -448,7 +515,7 @@ class TradeHunterApp:
                             self.test_chamber_window = TradeHunterApp.TestingChamberPage(
                                 robot_select.currentItem().text())
                             self.test_chamber_window.show()
-                        self.close()
+                        on_cancel()
 
                     def on_cancel():
                         tr_window.close()
@@ -627,6 +694,8 @@ class TradeHunterApp:
             self.setWindowTitle(robot_name)
             self.window()
 
+            self.ta_window = None
+
         def window(self):
             layout = QVBoxLayout()
 
@@ -635,11 +704,16 @@ class TradeHunterApp:
 
             dataset_label = QLabel('Dataset')
             dataset_select = QListWidget()
+            for ds_name in load_dataset_list():
+                item = QListWidgetItem(ds_name, dataset_select)
             dataset_layout.addWidget(dataset_label)
             dataset_layout.addWidget(dataset_select)
 
             ivar_label = QLabel('Initial Variables')
-            ivar_select = QListWidget()  # Including Default
+            ivar_select = QListWidget()
+            _item = QListWidgetItem("*Default", ivar_select)  # Including Default
+            for ivar in load_ivar_list(self.robot_name):
+                item = QListWidgetItem(ivar, ivar_select)
             ivar_layout.addWidget(ivar_label)
             ivar_layout.addWidget(ivar_select)
 
@@ -647,18 +721,30 @@ class TradeHunterApp:
             layout.addLayout(ivar_layout)
 
             tail_layout = QHBoxLayout()
+            back_button = QPushButton("Back")
             test_button = QPushButton("Test")
             optimise_button = QPushButton("Optimise")
+
+            back_button.clicked.connect(self.back)
+
             tail_layout.addWidget(test_button)
             tail_layout.addWidget(optimise_button)
+            tail_layout.addWidget(back_button)
 
             layout.addLayout(tail_layout)
             self.setLayout(layout)
             self.show()
 
         def back(self):
-            self.tr_window = TradeHunterApp.TradeAdvisorPage()
+            # self.ta_window = TradeHunterApp.TradeAdvisorPage()
+            # self.ta_window.show()
             self.close()
+
+        def to_test(self, ivar):
+            pass
+
+        def to_optimise(self, ivar):
+            pass
 
     class ResultAnalysisPage(QWidget):
 
@@ -680,3 +766,15 @@ class TradeHunterApp:
 
         def __init__(self):
             super().__init__()
+
+    class MplCanvas(FigureCanvasQTAgg):
+
+        def __init__(self, parent=None, width=5, height=4, dpi=100):
+            fig = Figure(figsize=(width, height), dpi=dpi)
+            self.axes = fig.add_subplot(111)
+            print(fig.axes)
+            super(TradeHunterApp.MplCanvas, self).__init__(fig)
+
+
+        def get_axes(self):
+            return self.axes

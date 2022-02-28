@@ -429,3 +429,10 @@ def dataframe_ok(df: pd.DataFrame) -> bool:
     if len(df.index):
         return True
     return False
+
+
+# Robot methods
+
+
+def load_ivar_list(ds_name: str):
+    return []

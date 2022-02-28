@@ -4,6 +4,7 @@ from datetime import date, timedelta
 
 # UI
 from PyQt5.QtWidgets import QApplication
+from pandas import to_datetime
 
 import UI.tradehunter
 
