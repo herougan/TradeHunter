@@ -8,7 +8,7 @@ ARGS_STR = ['stop_loss', 'take_profit']
 ARGS_DEFAULT = [1, 1.5]
 
 
-class FMACDRobot(robot):
+class FilterRobot(robot):
 
     def __init__(self, r3):
         self.r3 = r3

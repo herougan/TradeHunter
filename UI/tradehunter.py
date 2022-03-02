@@ -19,8 +19,9 @@ from util.dataGraphingUtil import plot_single, candlestick, init_plot
 from util.dataRetrievalUtil import load_trade_advisor_list, get_dataset_changes, update_specific_dataset_change, \
     write_new_empty_dataset, load_dataset_list, save_dataset, add_as_dataset_change, load_dataset, \
     load_symbol_suggestions, load_interval_suggestions, load_period_suggestions, update_all_dataset_changes, \
-    retrieve_ds, clear_dataset_changes, load_df_list, load_df, load_ivar_list
+    retrieve_ds, clear_dataset_changes, load_df_list, load_df, load_ivar_list, get_test_steps, step_test_robot
 from util.langUtil import normify_name
+from robot import *
 
 
 class TradeHunterApp:
@@ -88,6 +89,7 @@ class TradeHunterApp:
             self.setWindowTitle('Trade Hunter')
             self.show()
 
+    # Main Pages
     class SimplePlotterPage(QWidget):
         def __init__(self):
             super().__init__()
@@ -101,6 +103,7 @@ class TradeHunterApp:
 
             df_layout = QHBoxLayout()
             df_select = QListWidget()
+            df_select.setFixedHeight(20)
             for df_path in load_df_list():
                 item = QListWidgetItem(df_path, df_select)
 
@@ -146,8 +149,8 @@ class TradeHunterApp:
             # f, ax = plot_single()
             # candlestick(ax, df)
 
-            c = TradeHunterApp.MplCanvas(self, width=5, height=4, dpi=100)
-            c.axes.plot([0, 1, 2, 3, 4], [10, 1, 20, 3, 40])
+            c = TradeHunterApp.MplCanvas(self, width=12, height=6, dpi=100)
+            candlestick(c.axes, df)
 
             self.p_window = self.plot_window(c, F"{name}")
             self.p_window.show()
@@ -221,7 +224,7 @@ class TradeHunterApp:
                 for index, row in files_df.iterrows():
                     print(F"File: {row['name']}")
 
-                progress_window(len(files_df.index))
+                self.p_window, self.d_progress = progress_window(len(files_df.index))
                 self.p_window.show()
 
                 print("Updating...")
@@ -231,8 +234,7 @@ class TradeHunterApp:
                     self.download_progress.setValue(self.download_progress.value() + 1)
 
                 clear_dataset_changes()
-
-                self.p_window.close()
+                # self.p_window.close() # todo
 
             def import_clicked():
                 pass
@@ -280,6 +282,7 @@ class TradeHunterApp:
             def window(self):
 
                 dataset_select = QListWidget()
+                dataset_select.setFixedHeight(20)
                 dataset_label = QLabel('Dataset')
 
                 self.select = dataset_select
@@ -333,6 +336,10 @@ class TradeHunterApp:
                     item = QListWidgetItem(string, interval_list)
                 for string in load_period_suggestions():
                     item = QListWidgetItem(string, period_list)
+
+                symbol_list.setFixedHeight(20)
+                interval_list.setFixedHeight(20)
+                period_list.setFixedHeight(20)
 
                 symbol_list.currentItemChanged.connect(on_symbol_select)
                 interval_list.currentItemChanged.connect(on_interval_select)
@@ -495,6 +502,7 @@ class TradeHunterApp:
                     select_layout = QHBoxLayout()
                     robot_label = QLabel('Robot')
                     robot_select = QListWidget()
+                    robot_select.setFixedHeight(20)
                     select_layout.addWidget(robot_label)
                     select_layout.addWidget(robot_select)
 
@@ -549,6 +557,7 @@ class TradeHunterApp:
 
                     for ta in load_trade_advisor_list():
                         item = QListWidgetItem(ta, robot_select)
+                    robot_select.setFixedHeight(15)
 
                     layout = QVBoxLayout()
 
@@ -596,6 +605,7 @@ class TradeHunterApp:
 
                     for ta in load_trade_advisor_list():
                         item = QListWidgetItem(ta, robot_select)
+                    robot_select.setFixedHeight(15)
 
                     layout = QVBoxLayout()
 
@@ -641,6 +651,8 @@ class TradeHunterApp:
                     select_layout.addWidget(robot_label)
                     select_layout.addWidget(robot_select)
 
+                    robot_select.setFixedHeight(15)
+
                     layout = QVBoxLayout()
 
                     button_layout = QHBoxLayout()
@@ -652,8 +664,7 @@ class TradeHunterApp:
                         if not robot_select.currentItem():
                             QMessageBox('You have not selected a robot')
                         else:
-                            print("Select:", robot_select.currentItem().text())
-                        self.test_chamber_window = TradeHunterApp.TestingChamberPage()
+                            self.test_chamber_window = TradeHunterApp.TestingChamberPage()
 
                     def on_cancel():
                         od_window.close()
@@ -686,6 +697,7 @@ class TradeHunterApp:
 
             self.setLayout(layout)
 
+    # - Trade Advisor Pages
     class TestingChamberPage(QWidget):
 
         def __init__(self, robot_name):
@@ -699,6 +711,9 @@ class TradeHunterApp:
         def window(self):
             layout = QVBoxLayout()
 
+            panes = QHBoxLayout()
+
+            # Left
             dataset_layout = QHBoxLayout()
             ivar_layout = QHBoxLayout()
 
@@ -708,14 +723,16 @@ class TradeHunterApp:
                 item = QListWidgetItem(ds_name, dataset_select)
             dataset_layout.addWidget(dataset_label)
             dataset_layout.addWidget(dataset_select)
+            dataset_select.setFixedHeight(20)
 
             ivar_label = QLabel('Initial Variables')
             ivar_select = QListWidget()
-            _item = QListWidgetItem("*Default", ivar_select)  # Including Default
+            # _item = QListWidgetItem("*Default", ivar_select)  # Including Default
             for ivar in load_ivar_list(self.robot_name):
                 item = QListWidgetItem(ivar, ivar_select)
             ivar_layout.addWidget(ivar_label)
             ivar_layout.addWidget(ivar_select)
+            ivar_select.setFixedHeight(20)
 
             layout.addLayout(dataset_layout)
             layout.addLayout(ivar_layout)
@@ -725,11 +742,67 @@ class TradeHunterApp:
             test_button = QPushButton("Test")
             optimise_button = QPushButton("Optimise")
 
+            robot_name = self.robot_name
+
+            def progress_bar_window():
+                p_window = QProgressBar()
+                return p_window
+
+            def to_test():
+                if not ivar_select.currentItem() or not dataset_select.currentItem():
+                    self.alert_window = QWidget()
+                    alert_layout = QVBoxLayout()
+                    alert = QMessageBox(self.alert_window)
+                    alert.setText('IVar or Dataset not selected!')
+                    alert.show()
+
+                    alert_layout.addWidget(alert)
+
+                    self.alert_window.setLayout(alert_layout)
+                    # self.alert_window.show()
+                    return self.alert_window
+                ivar = ivar_select.currentItem().text()
+                robot = robot_name
+                dataset = dataset_select.currentItem().text()
+
+                p_window = QWidget()
+                p_layout = QVBoxLayout()
+
+                p_bar = progress_bar_window()
+                p_window.setLayout(p_layout)
+                p_layout.addWidget(p_bar)
+
+                p_window.show()
+
+                max = get_test_steps(dataset)
+                p_bar.setMaximum(max)
+                p_bar.setMinimum(0)
+
+                # Setup robot
+
+                # If optimising, optimiser uses robot.step_var(up/down)
+                for i in range(max):
+                    step_test_robot(i)
+                    p_bar.setValue(i)
+                    # Pass in robot
+
+                # p_window.close()
+
+            def to_optimise():
+                pass
+
             back_button.clicked.connect(self.back)
+            test_button.clicked.connect(to_test)
+            optimise_button.clicked.connect(to_optimise)
 
             tail_layout.addWidget(test_button)
             tail_layout.addWidget(optimise_button)
             tail_layout.addWidget(back_button)
+
+            # Right
+            delete_ivar_button = QPushButton('Delete')
+            delete_test_button = QPushButton('Delete')
+            delete_optimisation_button = QPushButton('Delete')
 
             layout.addLayout(tail_layout)
             self.setLayout(layout)
@@ -740,11 +813,19 @@ class TradeHunterApp:
             # self.ta_window.show()
             self.close()
 
-        def to_test(self, ivar):
-            pass
+        class RobotSetupWindow():
 
-        def to_optimise(self, ivar):
-            pass
+            def __init__(self, robot):
+                super().__init__()
+                self.window()
+                self.robot = robot
+
+            def window(self):
+                ivar_select = QListWidget()
+                dataset_select = QListWidget()
+
+                ivar_select.setFixedHeight(15)
+                dataset_select.setFixedHeight(15)
 
     class ResultAnalysisPage(QWidget):
 
@@ -752,6 +833,16 @@ class TradeHunterApp:
             self.window()
 
         def window(self):
+            pass
+
+        def data_pane(self):
+            robot_select = QListWidget()
+            test_select = QListWidget()
+            optimisation_select = QListWidget()
+
+            drawdown = QLabel('Drawdown')
+            # Display as [x[0] < av < x[1]]
+            g_drawdown = QLabel('GDrawdown')
             pass
 
     class OptimisationPage(QWidget):
@@ -767,6 +858,7 @@ class TradeHunterApp:
         def __init__(self):
             super().__init__()
 
+    # -- Canvas
     class MplCanvas(FigureCanvasQTAgg):
 
         def __init__(self, parent=None, width=5, height=4, dpi=100):
@@ -775,6 +867,13 @@ class TradeHunterApp:
             print(fig.axes)
             super(TradeHunterApp.MplCanvas, self).__init__(fig)
 
+        def get_axes(self):
+            return self.axes
+
+    class MplSubCanvas(FigureCanvasQTAgg):
+
+        def __init__(self, parent, width, height, dpi, rows, cols):
+            pass
 
         def get_axes(self):
             return self.axes

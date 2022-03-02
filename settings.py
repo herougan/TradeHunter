@@ -1,5 +1,9 @@
 import os
 
+# Run Robot imports
+from robot import FMACDRobot, FilterRobot
+
+
 DATASET_CHANGES_PATH = F''
 COMMON_SYMBOLS_PATH = F''
 COMMON_INTERVALS_PATH = F''
@@ -33,3 +37,4 @@ SUGGESTIONS = {
     'intervals': ['1M', '2M', '5M', '15M', '30M', '60M', '1h', '90M', '1d', '5d', '1wk', '2wk', '1m', '3m', ],
     'periods': ['1wk', '1m', '3m', '6m', '1y', '2y', '5y', 'max', ],
 }
+

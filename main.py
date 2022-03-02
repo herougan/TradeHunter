@@ -1,4 +1,5 @@
 # Custom packages
+import importlib
 import sys
 from datetime import date, timedelta
 
@@ -10,7 +11,8 @@ import UI.tradehunter
 
 # Custom Util
 sys.path.append('util')
-from util.dataRetrievalUtil import retrieve, load_df, load_df_list, init_common, force_overwrite_common
+from util.dataRetrievalUtil import retrieve, load_df, load_df_list, init_common, force_overwrite_common, \
+    load_trade_advisor_list
 from util.langUtil import strtoyahootimestr
 
 # Settings
@@ -22,6 +24,17 @@ from matplotlib import pyplot as plt
 import matplotlib as mpl
 import talib
 import pandas as pd
+from robot import *
+
+
+def test_4():
+    robots = load_trade_advisor_list()
+    print(eval(F'FMACDRobot'))
+    for _robot in robots:
+        if '_' in _robot:
+            raise Exception('Robot names should have no underscores!')
+        r = eval(F'robot.{_robot}.N_ARGS')
+        print(r)
 
 
 def test_3():
@@ -240,6 +253,7 @@ def test_2():
     #     x_tick_labels.append(_date.strftime(date_format_dict[interval]))
 
 
+# Do not delete! Important code fragment!
 def test_1():
     # Data Retrieval
     # r = retrieve('AAPL', '2019-01-01', '2021-06-12', False)
@@ -319,7 +333,7 @@ def test_1():
     ax2.bar(down2.index, down2.macdhist, w, color=col4)
     ax2.axis(xmin=df.index[0], xmax=df.index[-1])
 
-    # Readjust x-labels after removing weekends
+    # Read just x-labels after removing weekends
     x_tick_labels = []
     for _date in dates:
         x_tick_labels.append(_date.strftime(date_format_dict[interval]))
@@ -329,4 +343,11 @@ def test_1():
 
 
 if __name__ == '__main__':
+    # my_module = importlib.import_module('robot')
+    # module_dict = my_module.__dict__
+    # try:
+    #     to_import = my_module.__all__
+    # except AttributeError:
+    #     to_import = [name for name in module_dict if not name.startswith('_')]
+    # globals().update({name: module_dict[name] for name in to_import})
     test_3()

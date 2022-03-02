@@ -208,7 +208,10 @@ def from_dataname(s: str):
 
 
 def normify_name(s: str):
-    return s.replace(' ', '_')
+    return s.replace(' ', '')
+
+def remove_special_char(s: str):
+    return s.replace('_', '')
 
 
 # data = yf.download(  # or pdr.get_data_yahoo(...

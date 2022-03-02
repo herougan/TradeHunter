@@ -12,25 +12,34 @@ from util.langUtil import timedeltatoyahootimestr
 
 BAR_WIDTH = 5
 BAR_WIDTH_DICT = {
-    '1M': 0.08,
-    '2M': 0.1,
+    '1M': 0.2,
+    '2M': 0.2,
     '5M': 0.2,
     '15M': 0.3,
     '30M': 0.4,
-    '60M': 0.6,
+    '60M': 0.5,
     '1h': 0.6,
-    '90M': 0.8,
-    '1d': 1,
-    '5d': 2,
-    '1wk': 2,
-    '1m': 8,
-    '3m': 15,
+    '90M': 0.7,
+    '1d': 0.8,
+    '5d': 1.5,
+    '1wk': 2.5,
+    '1m': 5,
+    '3m': 10,
 }
 DATE_FORMAT_DICT = {
+    '1m': '%Y-%m-%d %H:%M',
+    '2m': '%Y-%m-%d %H:%M',
+    '5m': '%Y-%m-%d %H:%M',
+    '15m': '%Y-%m-%d %H:%M',
+    '30m': '%Y-%m-%d %H:%M',
     '60m': '%Y-%m-%d %H:%M',
+    '1h': '%Y-%m-%d %H:%M',
     '90m': '%Y-%m-%d %H:%M',
     '1d': '%Y-%m-%d',
+    '5d': '%Y-%m-%d',
     '1wk': '%Y-%m-%d',
+    '1m': '%Y-%m-%d',
+    '3m': '%Y-%m-%d',
 }
 FIGSIZE = (24, 12)
 PLOTSTYLE = "seaborn"
@@ -120,6 +129,10 @@ def load_signals(ax, sdf):
 
     # Unsuccessful longs and shorts
 
+    pass
+
+
+def plot_optimisations(ax, ivar_list, profit_list, primary_axis = [0, 1], **kwd):
     pass
 
 

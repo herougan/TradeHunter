@@ -19,19 +19,11 @@ import settings
 from util.statMathUtil import date_to_string as datestring
 from util.langUtil import strtotime, timedeltatosigstr, normify_name, yahoolimitperiod, yahoolimitperiod_leftover
 
+# Run Robot imports
+from robot import FMACDRobot, FilterRobot
+
 
 #   DataFrame
-
-# def retrieve(s: str, start: str, end: str, progress: bool = False):
-#     df = yf.download(s,
-#                      start=start,
-#                      end=end,
-#                      progress=progress,
-#                      )
-#     df.head()
-#
-#     return df
-
 
 def retrieve_str(s: str,
                  interval: str,
@@ -124,7 +116,7 @@ def load_dataset(ds_name: str):
     folder = F'static/datasetdef'
     if not ds_name.endswith('.csv'):
         ds_name += '.csv'
-    dsf = pd.read_csv(F'{folder}/{ds_name}')
+    dsf = pd.read_csv(F'{folder}/{ds_name}', index_col=0)
     print(F'Reading {folder}/{ds_name}')
     return dsf
 
@@ -208,7 +200,7 @@ def load_dataset_data(d_list: List[str]) -> List[pd.DataFrame]:
 
 def get_dataset_changes() -> pd.DataFrame:
     path = F'static/common/datasetchanges.txt'
-    dsc = pd.read_csv(path)
+    dsc = pd.read_csv(path, index_col=0)
     return dsc
 
 
@@ -277,7 +269,7 @@ def set_dataset_changes(dsc: pd.DataFrame):
 
 def load_symbol_suggestions() -> pd.DataFrame:
     common_symbols = F'static/common/common_symbols.txt'
-    ss_df = pd.read_csv(common_symbols)
+    ss_df = pd.read_csv(common_symbols, index_col=0)
     return ss_df['symbol']
 
 
@@ -294,7 +286,7 @@ def add_symbol_suggestion(ss_add):
 
 def load_interval_suggestions():
     common_intervals = F'static/common/common_intervals.txt'
-    is_df = pd.read_csv(common_intervals)
+    is_df = pd.read_csv(common_intervals, index_col=0)
     return is_df['interval']
 
 
@@ -310,7 +302,7 @@ def add_interval_suggestion():
 
 def load_period_suggestions():
     common_periods = F'static/common/common_periods.txt'
-    ps_df = pd.read_csv(common_periods)
+    ps_df = pd.read_csv(common_periods, index_col=0)
     return ps_df['period']
 
 
@@ -352,18 +344,160 @@ def dataframe_to_table(df):
 
 
 def load_trade_advisor(ta_name: str):
+    path = F'robot'
     pass
 
 
 def load_trade_advisor_list():
     path = F'robot'
     # Get list of files that end with .py
-    robot_list = [os.path.splitext(f)[0] for f in listdir(path) if isfile(join(path, f)) and f.endswith('.py')]
+    robot_list = [os.path.splitext(f)[0] for f in listdir(path) if isfile(join(path, f)) and
+                  f.endswith('.py') and '__init__' not in f]
     return robot_list
 
 
-def init_robot(robot):
+def init_robot(ta_name: str):
     pass
+
+
+def get_robot_handle(ta_name: str):
+    pass
+
+
+# iVar
+
+
+def load_ivar(ta_name: str):
+    folder = F'robot/ivar'
+    ivar_file = F'{ta_name}_ivar'
+    path = F'{folder}/{ivar_file}.csv'
+
+    if not file_exists(path):
+        generate_ivar(ta_name)
+
+    idf = pd.read_csv(path, index_col=0)
+    return idf
+
+
+def load_ivar_list(ta_name: str):
+    """Returns IVar names only"""
+    folder = F'robot/ivar'
+    ivar_file = F'{ta_name}_ivar'
+    path = F'{folder}/{ivar_file}.csv'
+
+    if not file_exists(path):
+        generate_ivar(ta_name)
+
+    idf = pd.read_csv(path, index_col=0)
+    return idf['name']
+
+
+def generate_ivar(ta_name: str):
+    folder = F'robot/ivar'
+    ivar_file = F'{ta_name}_ivar'
+    path = F'{folder}/{ivar_file}.csv'
+    args_str = eval(F'{ta_name}.ARGS_STR')
+    # args_str = eval(F'{ta_name}.ARGS_STR', {"__builtins__": {}})
+    args = eval(F'{ta_name}.ARGS_DEFAULT')
+    data = {
+        'name': ['*Default'],
+    }
+    for i in range(len(args_str)):
+        data.update({args_str[i]: args[i]})
+
+    df = pd.DataFrame(data)
+    df.to_csv(path)
+
+
+def ivar_to_arr(idf: pd.DataFrame):
+    pass
+
+
+def insert_ivar(ta_name: str, ivar):
+    path = get_ivar_path(ta_name)
+
+    idf = load_ivar(ta_name)
+    head = idf.head()
+    data = {}
+    for i in range(len(head)):
+        data.update({
+            head[i]: ivar[i]
+        })
+    n_idf = pd.DataFrame(data)
+    idf.append(n_idf)
+    idf.to_csv(path)
+
+
+def get_ivar_path(ta_name):
+    folder = F'robot/ivar'
+    ivar_file = F'{ta_name}_ivar'
+    path = F'{folder}/{ivar_file}.csv'
+    return path
+
+
+
+# Test Results
+
+
+def get_test_steps(ds_name):
+    dsf = load_dataset(ds_name)
+    print(dsf)
+    return len(dsf)
+
+
+
+def step_test_robot(step):
+    pass
+
+
+def create_test_result():
+    pass
+
+
+# Robot -> Test (ivar) -> Dataset(s) -> Dataset -> Data -> P/L, Indicator, Buy/Sell Indicator
+#                       -> Overall P/L
+
+# Optimisation Results
+
+def create_optimisation_result():
+    pass
+
+# Robot -> Optimise (ivar) -> Dataset(s) -> Overall P/L optimisation (or progressive mode)
+#                           -> Multiple IVars + Ivar/FinalProfit plot
+#                           -> Final set IVars
+#                          f:   Test potential IVars
+#                               Save IVar
+
+# Future Robot -> Execute (simple, ivar)
+
+
+# Because of it's difficulty, I would rather just only test/optimise based on one dataset at a time.
+# In terms of test/optimisation results its easy since it aggregates whatever data used for it
+# But in terms of optimising... how would it work? Just optimise like normal but across bigger set?
+# What about progressive optimisation -> Optimise against dataset(s)1, dataset(s)2 ....
+
+# Note! It's not IVAR+DATASET/DATASETS per ROBOT for result but
+# IVAR+DATASET(S) -> RESULT -> ROBOT. just search for results.
+# Result takes in 1) IVAR variables 2) Dataset(s) names
+# dataset names are written in a column form, other spaces left blank, 1st row are the ivar variables and robot name
+# result should be named after robot.
+# It should also contain all stats etc. 3) Stats
+# Overall Profit Loss graph 4) Aggregate graphs
+
+# NOTE! Will not save IVAR until given a name and manually saved. ALL IVAR will be deleted afterwards.
+# Tests DO NOT create IVARs. Default IVAR must be available (as starting point). Optimisation tests thousands of IVARs.
+# Can play with the last wave of IVARs ONLY. Save the few you want somehow.
+# 2 kinds of IVAR: Pliable-Variables Stiff-Variables
+
+# However, what about buy signals? Many many separate files would have to be generated - but this is a MUST.
+# What about, for tests and optimisations, the first (or only) data of the first dataset will be chosen for
+# the full plotting treatment (and saving of signal data)
+
+# OR: Each instrument choice in dataset has a "signal" and profit dataframe. even indicator dataframes.
+# So each test, whether multiple dataset(s) or not, the first dataset will have to print to multiple files
+# crypto.csv -> robot_crypto_crypto1.csv, robot_crypto_crypto2.csv
+
+# Lastly, clear all function if it gets too messy
 
 
 # Init basic files
@@ -432,7 +566,3 @@ def dataframe_ok(df: pd.DataFrame) -> bool:
 
 
 # Robot methods
-
-
-def load_ivar_list(ds_name: str):
-    return []
