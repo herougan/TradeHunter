@@ -3,7 +3,6 @@ import os
 # Run Robot imports
 from robot import FMACDRobot, FilterRobot
 
-
 DATASET_CHANGES_PATH = F''
 COMMON_SYMBOLS_PATH = F''
 COMMON_INTERVALS_PATH = F''
@@ -15,6 +14,9 @@ RESULTS_FOLDER = F''
 TESTS_FOLDER = F''
 ROBOTS_FOLDER = F''
 BUILDER_FOLDER = F''
+
+EVALUATION_FOLDER = F'static/results/evaluation'
+OPTIMISATION_FOLDER = F'static/results/optimisation'
 
 ROOT = F''
 STATIC = F'{os.getcwd()}'

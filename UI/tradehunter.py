@@ -19,7 +19,9 @@ from util.dataGraphingUtil import plot_single, candlestick, init_plot
 from util.dataRetrievalUtil import load_trade_advisor_list, get_dataset_changes, update_specific_dataset_change, \
     write_new_empty_dataset, load_dataset_list, save_dataset, add_as_dataset_change, load_dataset, \
     load_symbol_suggestions, load_interval_suggestions, load_period_suggestions, update_all_dataset_changes, \
-    retrieve_ds, clear_dataset_changes, load_df_list, load_df, load_ivar_list, get_test_steps, step_test_robot
+    retrieve_ds, clear_dataset_changes, load_df_list, load_df, load_ivar_list, get_test_steps, \
+    load_ivar, init_robot
+from util.dataTestingUtil import step_test_robot
 from util.langUtil import normify_name
 from robot import *
 
@@ -748,6 +750,7 @@ class TradeHunterApp:
                 p_window = QProgressBar()
                 return p_window
 
+            # Testing begins
             def to_test():
                 if not ivar_select.currentItem() or not dataset_select.currentItem():
                     self.alert_window = QWidget()
@@ -761,8 +764,7 @@ class TradeHunterApp:
                     self.alert_window.setLayout(alert_layout)
                     # self.alert_window.show()
                     return self.alert_window
-                ivar = ivar_select.currentItem().text()
-                robot = robot_name
+                ivar_name = ivar_select.currentItem().text()
                 dataset = dataset_select.currentItem().text()
 
                 p_window = QWidget()
@@ -778,11 +780,14 @@ class TradeHunterApp:
                 p_bar.setMaximum(max)
                 p_bar.setMinimum(0)
 
+                ivar = load_ivar(robot_name, ivar_name)
+
                 # Setup robot
+                robot = init_robot(robot_name, ivar)
 
                 # If optimising, optimiser uses robot.step_var(up/down)
                 for i in range(max):
-                    step_test_robot(i)
+                    step_test_robot(robot, i)
                     p_bar.setValue(i)
                     # Pass in robot
 

@@ -1,6 +1,6 @@
-import pandas as pd
+from typing import List
 
-IVAR_STEP = 0.05
+import pandas as pd
 
 
 class robot:
@@ -11,6 +11,11 @@ class robot:
         self.ivar = []
         # Range of the variable that can be explored
         self.ivar_range = []  # Self set in this case*, No need to be set externally
+
+        # Universal Constants
+        self.IVAR_STEP = 0.05
+
+        self.last = None  # Last timestamp of tick/candlestick data
 
     def get_ivar_len(self) -> int:
         return len(self.ivar)
@@ -28,8 +33,18 @@ class robot:
                 i = 1
             self.ivar[idx] += (self.ivar_range[idx][1] - self.ivar[idx]) * IVAR_STEP * i
 
-    def start_test(self, time_series: pd.DataFrame):
+    def start_test(self, data_meta: List[str]):
+        """Begin by understanding the incoming data.
+        Setup data will be sent (according to the robot's needs - todo)
+        E.g. If SMA-200 is needed, at the minimum, the past 400 data points should be known.
+
+        old_data = retrieve()
+
+        From then on, the robot receives data realtime - simulated by feeding point by point. (candlestick)
+        """
         pass
+
+    # ...
 
     def get_indicator_df(self):
         pass

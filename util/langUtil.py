@@ -1,7 +1,9 @@
 import math
 from datetime import timedelta, datetime
-import re
 import unicodedata
+from typing import List
+from dateutil import parser
+
 
 
 def strtotime(s: str):
@@ -176,6 +178,15 @@ def yahoolimitperiod_leftover(period: timedelta, interval: str):
     return period, 1, timedelta(0)
 
 
+def strtodatetime(s: str) -> datetime:
+    # 2022 - 02 - 23
+    # OR
+    # 2022 - 02 - 23
+    # 09: 30:00 - 05: 00
+    # hh: mm:ss tzd
+    return parser.parse(s)
+
+
 def drsplit(s: str):
     alpha = s.lstrip('0123456789')
     digit = s[:len(s) - len(alpha)]
@@ -210,8 +221,26 @@ def from_dataname(s: str):
 def normify_name(s: str):
     return s.replace(' ', '')
 
+
+def snake_to_proper_case(s: str):
+    """to_proper_case -> To Proper Case"""
+    s_arr = s.split('_')
+    for i in range(len(s_arr)):
+        s_arr[i] = s_arr[i].upper()
+    return ' '.join(s_arr)
+
+
 def remove_special_char(s: str):
     return s.replace('_', '')
+
+
+def craft_instrument_filename(sym: str, interval: str, period: str):
+    # todo
+    return F'{sym}_{interval}_{period}.csv'
+
+
+def craft_test_filename(ta_name: str, ivar_name: str, ds_names: List[str]):
+    pass
 
 
 # data = yf.download(  # or pdr.get_data_yahoo(...

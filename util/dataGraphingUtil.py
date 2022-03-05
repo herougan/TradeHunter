@@ -26,8 +26,8 @@ BAR_WIDTH_DICT = {
     '1m': 5,
     '3m': 10,
 }
-DATE_FORMAT_DICT = {
-    '1m': '%Y-%m-%d %H:%M',
+DATE_FORMAT_DICT = {  # Use parser for parsing slow, use dict for axis format
+    '1m': '%Y-%m-%d %H:%M:%S',
     '2m': '%Y-%m-%d %H:%M',
     '5m': '%Y-%m-%d %H:%M',
     '15m': '%Y-%m-%d %H:%M',

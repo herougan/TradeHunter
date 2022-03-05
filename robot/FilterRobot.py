@@ -6,7 +6,7 @@ from robot.abstract.robot import robot
 N_ARGS = 2
 ARGS_STR = ['stop_loss', 'take_profit']
 ARGS_DEFAULT = [1, 1.5]
-
+# todo move into the robot!
 
 class FilterRobot(robot):
 

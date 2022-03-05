@@ -12,6 +12,30 @@ DataTestingUtil tests based on data retrieved. Text File is used as reference (o
 3) Copy-and-pasted files contingency: When updating datasets/re-downloading data, if file does not exit,
 try download again (once), continue.
 
+4) All filenames to have '__' between variables todo!
+
+
+
+Main Features:
+
+1) Creating dataset(s), auto-downloading
+
+2) Create custom robots (by yourself) that matches TradeHunter specs:
+Test that robot against dataset(s), producing result data
+
+3) Optimise robots against dataset(s) producing recommended initial variables (iVars)
+- single type testing vs multi type
+
+4) Test + Plot robot against 1 data instrument, producing 'white-box' plots
+
+5) Analysis for dataset
+
+# Final
+
+6) Run robot
+
+7) Run robot controller (Manages several robots)
+
 
 
 
