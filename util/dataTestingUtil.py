@@ -1,6 +1,8 @@
 import datetime
+from datetime import datetime
 import math
 from math import *
+from statistics import stdev
 from typing import List
 
 import pandas as pd
@@ -318,7 +320,18 @@ def create_summary_df_from_list(profit_d, equity_d, signals, df, additional={}):
     # summary_dict['longest_profit_trade'] = 0
     # summary_dict['longest_loss_trade'] = 0
     # summary_dict['average_trade_period'] = 0
-    # summary_dict['period_to_variability'] = 0
+
+    period_to_net = 0
+    period_to_gross = 0
+    for signal in signal:
+        net = abs(signal['net'])
+        period = (strtodatetime(signal['end']) - strtodatetime(signal['start'])).total_seconds()
+        period_to_net += net / period
+        if signal['net'] > 0:
+            period_to_gross += net / period
+
+    summary_dict['period_to_profit'] = period_to_net / l
+    summary_dict['period_to_gross'] = period_to_gross / l3
 
     winning, losing = False, False
     win_length, lose_length = 0, 0
@@ -377,27 +390,83 @@ def create_summary_df_from_list(profit_d, equity_d, signals, df, additional={}):
 
 
 def aggregate_summary_df_in_dataset(summary_dict_list: List[{}]):
+
+    profits = [d['total_profit'] for d in summary_dict_list]
+    # gross_profits = [d['gross_profit'] for d in summary_dict_list]
+    # gross_loss = [d['gross_loss'] for d in summary_dict_list]
+
+    summary_dict = summary_dict_list[0]
+    for i in range(summary_dict_list):
+        if i == 0:
+            continue
+        for key in summary_dict_list[i]:
+            summary_dict[key] += summary_dict[i][key]
+    for key in summary_dict:
+        summary_dict[key] /= len(summary_dict_list)
+
     final_summary_dict = {
-        'n_instruments': len(summary_dict_list)
+        'n_instruments': len(summary_dict_list),
+        #
+        'standard_deviation_profit': stdev(profits),
+        # 'average_profit': sum(profits)/len(profits),
+        # 'average_gross_profit': sum(gross_profits)/len(gross_profits),
+        # 'average_gross_loss': sum(gross_loss)/len(gross_loss)
     }
 
-    aggregate_result = {
-        'profit_variability': 0
-    }
+    final_summary_dict.update(summary_dict)
 
     return final_summary_dict
 
 
 def aggregate_summary_df_in_datasets(summary_dict_list: List[{}]):
+    """Aggregate summary and dataset summaries"""
+
+    summary_dict = summary_dict_list[0]
+    for i in range(summary_dict_list):
+        if i == 0:
+            continue
+        for key in summary_dict_list[i]:
+            summary_dict[key] += summary_dict[i][key]
+    for key in summary_dict:
+        summary_dict[key] /= len(summary_dict_list)
+
     final_summary_dict = {
-        'n_datasets': len(summary_dict_list)
+        'n_datasets': len(summary_dict_list),
     }
-    return final_summary_dict
+
+    final_summary_dict.update(summary_dict)
+
+    return final_summary_dict, summary_dict_list
 
 
-def create_test_meta():
-    """"""
-    pass
+def create_test_meta(test_name, xvar):
+    """Test meta file contains...test name, ivar used, date etc
+    most importantly, 'xvar' attributes"""
+
+    meta = {
+        'datetime': datetime.now(),
+        # XVar
+        'lag': xvar['lag'],  # ms
+        'starting_capital': xvar['starting_capital'],
+        'leverage': xvar['leverage'],
+        'currency_count': xvar['currency'],  # pips
+        'type': xvar['type'],  # aka singular/multi
+        'dataset_type': xvar['dataset_type'],  # forex-leaning, etc.
+        # Also in meta/result file name
+        'test_name': 0,
+        'robot_name': 0,
+    }
+
+    return meta
+
+
+def create_test_result(test_name: str, summary_dict: pd.DataFrame):
+    folder = F'static/results/evaluation'
+    name = F'str'
+    path = F'{folder}/{name}'
+
+    summary_dict.to_csv(path)
+
     # all options used in the test
     # test result only holds dataset info (+ result of course)
 

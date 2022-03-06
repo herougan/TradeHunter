@@ -21,7 +21,7 @@ from util.dataRetrievalUtil import load_trade_advisor_list, get_dataset_changes,
     load_symbol_suggestions, load_interval_suggestions, load_period_suggestions, update_all_dataset_changes, \
     retrieve_ds, clear_dataset_changes, load_df_list, load_df, load_ivar_list, get_test_steps, \
     load_ivar, init_robot
-from util.dataTestingUtil import step_test_robot
+from util.dataTestingUtil import step_test_robot, DataTester
 from util.langUtil import normify_name
 from robot import *
 
@@ -784,14 +784,24 @@ class TradeHunterApp:
 
                 # Setup robot
                 robot = init_robot(robot_name, ivar)
+                data_tester = DataTester()
 
+                # Feed data
                 # If optimising, optimiser uses robot.step_var(up/down)
                 for i in range(max):
                     step_test_robot(robot, i)
                     p_bar.setValue(i)
                     # Pass in robot
 
-                # p_window.close()
+                # Get data
+                data_tester.get_data()
+
+
+                # Move to Results
+                self.rap = TradeHunterApp.ResultAnalysisPage()
+                self.rap.show()
+                self.close()
+
 
             def to_optimise():
                 pass
@@ -834,7 +844,7 @@ class TradeHunterApp:
 
     class ResultAnalysisPage(QWidget):
 
-        def __init__(self):
+        def __init__(self, name='Default'):
             self.window()
 
         def window(self):
