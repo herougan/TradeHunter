@@ -234,6 +234,13 @@ def remove_special_char(s: str):
     return s.replace('_', '')
 
 
+def try_int(s: str) -> int:
+    try:
+        return int(s)
+    except ValueError:
+        return 0
+
+
 def craft_instrument_filename(sym: str, interval: str, period: str):
     return F'{sym}__{interval}__{period}.csv'
 

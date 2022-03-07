@@ -1,4 +1,3 @@
-# Filtered MACD Robot
 '''Filtered MACD Robot'''
 from robot.abstract.robot import robot
 

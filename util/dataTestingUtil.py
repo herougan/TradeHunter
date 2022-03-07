@@ -1,7 +1,9 @@
 import datetime
-from datetime import datetime
+from datetime import datetime, timedelta
 import math
 from math import *
+from os import listdir
+from os.path import isfile, join
 from statistics import stdev
 from typing import List
 
@@ -16,6 +18,8 @@ from util.langUtil import craft_instrument_filename, strtodatetime, try_key, rem
 import numpy as np
 from sklearn.linear_model import LinearRegression
 
+
+#  Robot
 
 def step_test_robot(r: robot, step: int):
     """..."""
@@ -109,11 +113,13 @@ def create_summary_df_from_list(profit_d, equity_d, signals, df, additional={}):
         'largest_loss_trade': 0,
         'average_loss_trade': 0,
         #
-        # 'longest_trade': 0,
-        # 'longest_profit_trade': 0,
-        # 'longest_loss_trade': 0,
-        # 'average_trade_period': 0,
-        # 'period_to_variability': 0,  # time period to abs. equity change
+        'longest_trade_length': 0,
+        'shortest_trade_length': 0,
+        'average_trade_length': 0,
+        'average_profit_length': 0,
+        'average_loss_length': 0,
+        'period_to_profit': 0,
+        'period_to_gross': 0,
         #
         'max_consecutive_wins': 0,
         'max_consecutive_profit': 0,
@@ -317,17 +323,33 @@ def create_summary_df_from_list(profit_d, equity_d, signals, df, additional={}):
     # summary_dict['longest_loss_trade'] = 0
     # summary_dict['average_trade_period'] = 0
 
-    period_to_net = 0
-    period_to_gross = 0
+    period_to_net, period_to_gross, avg_period = 0, 0, 0
+    avg_profit_period, avg_loss_period = 0, 0
+    longest_length, shortest_length = timedelta(), timedelta()
     for signal in signal:
         net = abs(signal['net'])
         period = (strtodatetime(signal['end']) - strtodatetime(signal['start'])).total_seconds()
         period_to_net += net / period
+        avg_period += period
+        if signal['net'] > 0:
+            avg_profit_period += period
+        else:
+            avg_loss_period += period
+        if longest_length < period:
+            longest_length = period
+        if shortest_length > period:
+            shortest_length = period
         if signal['net'] > 0:
             period_to_gross += net / period
 
     summary_dict['period_to_profit'] = period_to_net / l
     summary_dict['period_to_gross'] = period_to_gross / l3
+
+    summary_dict['longest_trade_length'] = longest_length
+    summary_dict['shortest_trade_length'] = shortest_length
+    summary_dict['average_trade_length'] = avg_period / l
+    summary_dict['average_profit_length'] = avg_profit_period / l3
+    summary_dict['average_loss_length'] = avg_loss_period / l4
 
     winning, losing = False, False
     win_length, lose_length = 0, 0
@@ -511,6 +533,22 @@ def write_test_result(summary_dicts: List):
     return sdfs
 
 
+def load_test_result(test_name: str):
+    folder = F'static/results/evaluation'
+    result_path = F'{folder}/{test_name}.csv'
+
+    trdf = pd.read_csv(result_path)
+    return trdf
+
+
+def load_test_meta(meta_name: str):
+    folder = F'static/results/evaluation'
+    meta_path = F'{folder}/{meta_name}.csv'
+
+    tmdf = pd.read_csv(meta_path)
+    return tmdf
+
+
 class DataTester:
 
     def __init__(self, robot_name, ivar, xvar):
@@ -553,5 +591,21 @@ class DataTester:
         pass
 
     # Optimise, optim_result, optim_meta
+
+
+#  General
+
+def load_test_result_list():
+    folder = 'static/results/evaluation'
+    # Get list of files that end with .csv
+    tr_list = [f for f in listdir(folder) if isfile(join(folder, f)) and f.endswith('.csv')]
+    return tr_list
+
+
+def load_optim_result_list():
+    folder = 'static/results/optimisation'
+    # Get list of files that end with .csv
+    or_list = [f for f in listdir(folder) if isfile(join(folder, f)) and f.endswith('.csv')]
+    return or_list
 
 #  Utility

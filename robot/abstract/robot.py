@@ -10,32 +10,8 @@ from util.dataRetrievalUtil import retrieve
 class robot:
     IVAR_STEP = 0.05
 
-    # we are not programming it here!
-
     def __init__(self, ivar, xvar):
-        # Internal Arguments defined here:
-        # e.g. 0: arg A, 1: arg B etc...
-        self.ivar = []
-        # Range of the variable that can be explored
-        self.ivar_range = []  # Self set in this case*, No need to be set externally
-
-        self.prepare_period = 400  # Number of data points before current starting point (of the same interval)
-
-        self.xvar = []
-
-        self.df = pd.DataFrame()  # Stock dataframe
-
-        # Indicator
-        self.indicators = []  # sma200, ema, macd
-
-        # Universal Constants
-        self.IVAR_STEP = 0.05
-
-        self.last = None  # Last timestamp of tick/candlestick data
-
-        self.started = False
-
-    # (External) IVar Management
+        pass
 
     def get_ivar_len(self) -> int:
         return len(self.ivar)

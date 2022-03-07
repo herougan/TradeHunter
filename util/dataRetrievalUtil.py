@@ -399,13 +399,20 @@ def load_ivar_list(ta_name: str):
     return idf.loc[:, 'name']
 
 
+def load_ivar_file_list():
+    path = F'robot/ivar'
+    # Get list of files that end with .csv
+    ivar_file_list = [f for f in listdir(path) if isfile(join(path, f)) and f.endswith('.csv')]
+    return ivar_file_list
+
+
 def generate_ivar(ta_name: str):
+
     folder = F'robot/ivar'
     ivar_file = F'{ta_name}_ivar'
     path = F'{folder}/{ivar_file}.csv'
-    args_str = eval(F'{ta_name}.ARGS_STR')
-    # args_str = eval(F'{ta_name}.ARGS_STR', {"__builtins__": {}})
-    args = eval(F'{ta_name}.ARGS_DEFAULT')
+    args_str = eval(F'{ta_name}.{ta_name}.ARGS_STR')
+    args = eval(F'{ta_name}.{ta_name}.ARGS_DEFAULT')
     data = {
         'name': ['*Default'],
     }
@@ -417,7 +424,16 @@ def generate_ivar(ta_name: str):
 
 
 def ivar_to_arr(idf: pd.DataFrame):
-    pass
+
+    columns = idf.columns
+    arr = []
+
+    for i in range(len(idf.index)):  # rows
+        _arr = []
+        for u in range(len(columns)):
+            _arr.append(idf[columns[u+1]][i])
+        arr.append(_arr)
+    return arr
 
 
 def insert_ivar(ta_name: str, ivar):
@@ -440,9 +456,6 @@ def get_ivar_path(ta_name):
     ivar_file = F'{ta_name}_ivar'
     path = F'{folder}/{ivar_file}.csv'
     return path
-
-
-# Test Results
 
 
 def get_test_steps(ds_name: str):

@@ -21,7 +21,7 @@ from util.dataRetrievalUtil import load_trade_advisor_list, get_dataset_changes,
     retrieve_ds, clear_dataset_changes, load_df_list, load_df, load_ivar_list, get_test_steps, \
     load_ivar, init_robot
 from util.dataTestingUtil import step_test_robot, DataTester
-from util.langUtil import normify_name
+from util.langUtil import normify_name, try_int
 from robot import *
 
 
@@ -729,7 +729,6 @@ class TradeHunterApp:
 
             ivar_label = QLabel('Initial Variables')
             ivar_select = QListWidget()
-            # _item = QListWidgetItem("*Default", ivar_select)  # Including Default
             for ivar in load_ivar_list(self.robot_name):
                 item = QListWidgetItem(ivar, ivar_select)
             ivar_layout.addWidget(ivar_label)
@@ -752,6 +751,8 @@ class TradeHunterApp:
 
             # Testing begins
             def to_test():
+
+                # Check if ivar/dataset selected
                 if not ivar_select.currentItem() or not dataset_select.currentItem():
                     self.alert_window = QWidget()
                     alert_layout = QVBoxLayout()
@@ -762,8 +763,43 @@ class TradeHunterApp:
                     alert_layout.addWidget(alert)
 
                     self.alert_window.setLayout(alert_layout)
-                    # self.alert_window.show()
                     return self.alert_window
+
+                if not lag_select.currentItem() or not capital_select.currentItem() or \
+                        not leverage_select.currentItem() or not currency_select.currentItem() or \
+                        not type_select.currentItem():
+                    self.alert_window = QWidget()
+                    alert_layout = QVBoxLayout()
+                    alert = QMessageBox(self.alert_window)
+                    alert.setText('XVar not completed!')
+                    alert.show()
+
+                    alert_layout.addWidget(alert)
+
+                    self.alert_window.setLayout(alert_layout)
+                    return self.alert_window
+
+                capital = try_int(capital_select.currentItem().Text())
+                if capital <= 0:
+
+                    self.alert_window = QWidget()
+                    alert_layout = QVBoxLayout()
+                    alert = QMessageBox(self.alert_window)
+                    alert.setText('Please enter a valid number, e.g. 10,000 (USD)')
+                    alert.show()
+
+                    alert_layout.addWidget(alert)
+
+                    self.alert_window.setLayout(alert_layout)
+                    return self.alert_window
+
+                # Get XVar
+                xvar = {'lag': lag_select.currentItem().text(),
+                        'capital': capital_select.currentItem().text(),
+                        'leverage': leverage_select.currentItem().text(),
+                        'currency': currency_select.currentItem().text(),
+                        'type': type_select.currentItem().text()}
+
                 ivar_name = ivar_select.currentItem().text()
                 dataset = dataset_select.currentItem().text()
 
@@ -781,14 +817,8 @@ class TradeHunterApp:
                 p_bar.setMinimum(0)
 
                 ivar = load_ivar(robot_name, ivar_name)
-
-                # Get XVar
-                xvar = {}
-                xvar['lag'] = lag_select.currentItem().text()
-                xvar['capital'] = capital_select.currentItem().text()
-                xvar['leverage'] = leverage_select.currentItem().text()
-                xvar['currency'] = currency_select.currentItem().text()
-                xvar['type'] = type_select.currentItem().text()
+                print(xvar)
+                print(ivar)
 
                 # Setup robot
                 data_tester = DataTester(robot_name, ivar, xvar)
@@ -830,22 +860,37 @@ class TradeHunterApp:
             # Right (xvar)
 
             lag_label = QLabel('Lag')
-            lag_select = QTextEdit()
+            lag_select = QListWidget()
             lag_select.setFixedHeight(20)
             capital_label = QLabel('Capital')
             capital_select = QTextEdit()
             capital_select.setFixedHeight(20)
             leverage_label = QLabel('Leverage')
-            leverage_select = QTextEdit()
+            leverage_select = QListWidget()
             leverage_select.setFixedHeight(20)
             currency_label = QLabel('Currency')
-            currency_select = QTextEdit()
+            currency_select = QListWidget()
             currency_select.setFixedHeight(20)
             type_label = QLabel('Type')  # Singular/Multi
             type_select = QListWidget()
             type_select.setFixedHeight(20)
-            item1 = QListWidgetItem('Single', type_select)
-            item2 = QListWidgetItem('Multi', type_select)
+
+            _item = QListWidgetItem('Single', type_select)
+            _item = QListWidgetItem('Multi', type_select)
+
+            _item = QListWidgetItem('0 ms', lag_select)
+            _item = QListWidgetItem('10 ms', lag_select)
+            _item = QListWidgetItem('100 ms', lag_select)
+
+            _item = QListWidgetItem('1:1', leverage_select)
+            _item = QListWidgetItem('1:10', leverage_select)
+            _item = QListWidgetItem('1:100', leverage_select)
+            _item = QListWidgetItem('1:500', leverage_select)
+
+            _item = QListWidgetItem('Defn of a Pip: Not used atm.', currency_select)
+            _item = QListWidgetItem('1/100', currency_select)
+            _item = QListWidgetItem('1/10,000', currency_select)
+            _item = QListWidgetItem('1/100,000', currency_select)
 
             xvar_left_body = QVBoxLayout()
             xvar_right_body = QVBoxLayout()
@@ -894,11 +939,109 @@ class TradeHunterApp:
 
     class ResultAnalysisPage(QWidget):
 
-        def __init__(self, name='Default'):
+        def __init__(self, result_name='Default'):
+            if result_name != 'Default':
+                pass
+            else:
+                self.summary_dict = {
+                    'period': 0,
+                    'n_bars': 0,
+                    'ticks': 0,
+                    #
+                    'total_profit': 0,
+                    'gross_profit': 0,
+                    'gross_loss': 0,
+                    #
+                    'profit_factor': 0,
+                    'recovery_factor': 0,
+                    'AHPR': 0,
+                    'GHPR': 0,
+                    #
+                    'total_trades': 0,
+                    'total_deals': 0,
+                    #
+                    'balance_drawdown_abs': 0,
+                    'balance_drawdown_max': 0,
+                    'balance_drawdown_rel': 0,
+                    'balance_drawdown_avg': 0,
+                    'balance_drawdown_len_avg': 0,
+                    'balance_drawdown_len_max': 0,
+                    'equity_drawdown_abs': 0,
+                    'equity_drawdown_max': 0,
+                    'equity_drawdown_rel': 0,
+                    'equity_drawdown_avg': 0,
+                    'equity_drawdown_len_avg': 0,
+                    'equity_drawdown_len_max': 0,
+                    #
+                    'expected_payoff': 0,
+                    'sharpe_ratio': 0,
+                    'standard_deviation': 0,
+                    'LR_correlation': 0,
+                    'LR_standard_error': 0,
+                    #
+                    'total_short_trades': 0,
+                    'total_long_trades': 0,
+                    'short_trades_won': 0,
+                    'long_trades_won': 0,
+                    'trades_won': 0,
+                    'trades_lost': 0,
+                    #
+                    'largest_profit_trade': 0,
+                    'average_profit_Trade': 0,
+                    'largest_loss_trade': 0,
+                    'average_loss_trade': 0,
+                    #
+                    'longest_trade_length': 0,
+                    'shortest_trade_length': 0,
+                    'average_trade_length': 0,
+                    'average_profit_length': 0,
+                    'average_loss_length': 0,
+                    'period_to_profit': 0,
+                    'period_to_gross': 0,
+                    #
+                    'max_consecutive_wins': 0,
+                    'max_consecutive_profit': 0,
+                    'avg_consecutive_wins': 0,
+                    'avg_consecutive_profit': 0,
+                    'max_consecutive_losses': 0,
+                    'max_consecutive_loss': 0,
+                    'avg_consecutive_losses': 0,
+                    'avg_consecutive_loss': 0,
+                    #
+                    'n_symbols': 0,
+                    'margin_level': 0,
+                    'z_score': 0,
+                    #
+                }  # load - todo - this is default
             self.window()
 
         def window(self):
-            pass
+
+            main_layout = QHBoxLayout()
+
+            # Choice Pane
+            choice_pane = QHBoxLayout()
+            test_select = QListWidget()
+
+            # Result Pane
+            result_pane = QHBoxLayout()
+            left_result_body = QVBoxLayout()
+            right_result_body = QVBoxLayout()
+
+            for key in self.summary_dict:
+                _label = QLabel(key)
+                _label2 = QLabel(self.summary_dict[key])
+
+                left_result_body.addWidget(_label)
+                right_result_body.addWidget(_label2)
+
+            result_pane.addLayout(left_result_body)
+            result_pane.addLayout(right_result_body)
+
+            main_layout.addWidget(choice_pane)
+            main_layout.addWidget(result_pane)
+
+            self.setLayout(main_layout)
 
         def data_pane(self):
             robot_select = QListWidget()
