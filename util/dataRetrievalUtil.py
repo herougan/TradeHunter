@@ -16,13 +16,8 @@ from os.path import isfile, join
 import glob
 # Custom Utils
 import settings
-from robot.abstract.robot import robot
-from util.dataTestingUtil import SUMMARY_STATS
 from util.statMathUtil import date_to_string as datestring
 from util.langUtil import strtotime, timedeltatosigstr, normify_name, yahoolimitperiod, yahoolimitperiod_leftover
-
-# Run Robot imports
-from robot import FMACDRobot, FilterRobot
 
 
 #   DataFrame
@@ -45,7 +40,6 @@ def retrieve(
     period = end - start
     name = F'{s}-{interval}-{timedeltatosigstr(period)}'
     print(F'Retrieving {name}, write: {write}')
-    # todo are other intervals such as '3M' allowed in yfinance?
 
     # Loop through smaller time periods if period is too big for given interval (denied by yfinance)
     loop_period, n_loop, leftover = yahoolimitperiod_leftover(period, interval)
@@ -184,8 +178,7 @@ def load_dataset_data_list(ds_name: str) -> List[str]:
     d_list = []
     for index, row in ds_df.iterrows():
         # Form d_name (SYM_INT_PER)
-        d_name = F'{row["symbol"]}_{row["interval"]}_{row["period"]}'
-        # todo
+        d_name = F'{row["symbol"]}__{row["interval"]}__{row["period"]}'
         d_list.append(d_name)
 
     return d_list
@@ -458,55 +451,6 @@ def get_test_steps(ds_name: str):
     return len(dsf)
 
 
-def generic_result_df():
-    data = {
-        'dataset': []  # name
-    }
-
-    for stat in SUMMARY_STATS:
-        data.update({
-            stat: []
-        })
-
-    return pd.DataFrame(data)
-
-
-def create_test_result(ta_name: str, ivar_name: str, rdf_list: List[pd.DataFrame]):
-    name = F'{ta_name}__{ivar_name}__test.csv'
-    folder = F'static/results/evaluation'
-    path = F'{folder}/{name}.csv'
-
-    final_df = generic_result_df()
-
-    for rdf in rdf_list:
-        final_df.append(rdf)
-    final_df.append(create_dataset_result(rdf_list))
-
-    final_df.to_csv(path, index=False)
-
-    return final_df
-
-
-def create_dataset_result(rdf_list):
-    """Aggregates the results above from list of result dataframes.
-    Result dataframes (from result_dict_to_dataset or otherwise) contain only 1 row."""
-
-    data = {
-        'dataset': ['Overall '],
-    }
-
-    for col in generic_result_df():
-        data.update({
-            col: [0]
-        })
-        for rdf in rdf_list:
-            data[col][0] += rdf[col][0]
-        data[col][0] /= len(rdf_list)
-
-    rdf = pd.DataFrame(data, index=False)
-    return rdf
-
-
 def result_dict_to_dataset(result_dict):
     data = {}
     for key in result_dict:
@@ -514,72 +458,6 @@ def result_dict_to_dataset(result_dict):
             key: [result_dict[key]]
         })
     return pd.DataFrame(data, index=False)
-
-
-def write_data_result(pl_df):
-    # Meant for "simple plotting" - prints results for test on a SINGLE data
-    pass
-
-
-def load_test_result(test_name: str):
-    pass
-
-
-def load_test_meta(test_name: str):
-    pass
-
-
-# Robot -> Test (ivar) -> Dataset(s) -> Dataset -> Data -> P/L, Indicator, Buy/Sell Indicator
-#                       -> Overall P/L
-
-# Optimisation Results
-
-def create_optimisation_result():
-    ds_name = "test"
-    ivar_name = "test"
-    name = F'{ds_name}__{ivar_name}__optimisation.csv'
-
-    data = [
-
-    ]
-
-
-# Robot -> Optimise (ivar) -> Dataset(s) -> Overall P/L optimisation (or progressive mode)
-#                           -> Multiple IVars + Ivar/FinalProfit plot
-#                           -> Final set IVars
-#                          f:   Test potential IVars
-#                               Save IVar
-
-# Future Robot -> Execute (simple, ivar)
-
-
-# Because of it's difficulty, I would rather just only test/optimise based on one dataset at a time.
-# In terms of test/optimisation results its easy since it aggregates whatever data used for it
-# But in terms of optimising... how would it work? Just optimise like normal but across bigger set?
-# What about progressive optimisation -> Optimise against dataset(s)1, dataset(s)2 ....
-
-# Note! It's not IVAR+DATASET/DATASETS per ROBOT for result but
-# IVAR+DATASET(S) -> RESULT -> ROBOT. just search for results.
-# Result takes in 1) IVAR variables 2) Dataset(s) names
-# dataset names are written in a column form, other spaces left blank, 1st row are the ivar variables and robot name
-# result should be named after robot.
-# It should also contain all stats etc. 3) Stats
-# Overall Profit Loss graph 4) Aggregate graphs
-
-# NOTE! Will not save IVAR until given a name and manually saved. ALL IVAR will be deleted afterwards.
-# Tests DO NOT create IVARs. Default IVAR must be available (as starting point). Optimisation tests thousands of IVARs.
-# Can play with the last wave of IVARs ONLY. Save the few you want somehow.
-# 2 kinds of IVAR: Pliable-Variables Stiff-Variables
-
-# However, what about buy signals? Many many separate files would have to be generated - but this is a MUST.
-# What about, for tests and optimisations, the first (or only) data of the first dataset will be chosen for
-# the full plotting treatment (and saving of signal data)
-
-# OR: Each instrument choice in dataset has a "signal" and profit dataframe. even indicator dataframes.
-# So each test, whether multiple dataset(s) or not, the first dataset will have to print to multiple files
-# crypto.csv -> robot_crypto_crypto1.csv, robot_crypto_crypto2.csv
-
-# Lastly, clear all function if it gets too messy
 
 
 # Init basic files
@@ -647,3 +525,9 @@ def dataframe_ok(df: pd.DataFrame) -> bool:
     return False
 
 # Robot methods
+
+
+# Hardware
+
+def get_computer_specs():
+    return {'name': "None"}

@@ -13,7 +13,6 @@ import sys
 
 from matplotlib.figure import Figure
 
-import settings
 from UI.QTUtil import get_datatable_sheet, set_datatable_sheet, clear_table
 from util.dataGraphingUtil import plot_single, candlestick, init_plot
 from util.dataRetrievalUtil import load_trade_advisor_list, get_dataset_changes, update_specific_dataset_change, \
@@ -236,7 +235,6 @@ class TradeHunterApp:
                     self.download_progress.setValue(self.download_progress.value() + 1)
 
                 clear_dataset_changes()
-                # self.p_window.close() # todo
 
             def import_clicked():
                 pass
@@ -559,7 +557,7 @@ class TradeHunterApp:
 
                     for ta in load_trade_advisor_list():
                         item = QListWidgetItem(ta, robot_select)
-                    robot_select.setFixedHeight(15)
+                    robot_select.setFixedHeight(20)
 
                     layout = QVBoxLayout()
 
@@ -607,7 +605,7 @@ class TradeHunterApp:
 
                     for ta in load_trade_advisor_list():
                         item = QListWidgetItem(ta, robot_select)
-                    robot_select.setFixedHeight(15)
+                    robot_select.setFixedHeight(20)
 
                     layout = QVBoxLayout()
 
@@ -653,7 +651,7 @@ class TradeHunterApp:
                     select_layout.addWidget(robot_label)
                     select_layout.addWidget(robot_select)
 
-                    robot_select.setFixedHeight(15)
+                    robot_select.setFixedHeight(20)
 
                     layout = QVBoxLayout()
 
@@ -711,13 +709,15 @@ class TradeHunterApp:
             self.ta_window = None
 
         def window(self):
-            layout = QVBoxLayout()
+            left_pane = QVBoxLayout()
 
             panes = QHBoxLayout()
 
             # Left
             dataset_layout = QHBoxLayout()
+
             ivar_layout = QHBoxLayout()
+            xvar_pane = QHBoxLayout()
 
             dataset_label = QLabel('Dataset')
             dataset_select = QListWidget()
@@ -736,8 +736,8 @@ class TradeHunterApp:
             ivar_layout.addWidget(ivar_select)
             ivar_select.setFixedHeight(20)
 
-            layout.addLayout(dataset_layout)
-            layout.addLayout(ivar_layout)
+            left_pane.addLayout(dataset_layout)
+            left_pane.addLayout(ivar_layout)
 
             tail_layout = QHBoxLayout()
             back_button = QPushButton("Back")
@@ -782,26 +782,31 @@ class TradeHunterApp:
 
                 ivar = load_ivar(robot_name, ivar_name)
 
+                # Get XVar
+                xvar = {}
+                xvar['lag'] = lag_select.currentItem().text()
+                xvar['capital'] = capital_select.currentItem().text()
+                xvar['leverage'] = leverage_select.currentItem().text()
+                xvar['currency'] = currency_select.currentItem().text()
+                xvar['type'] = type_select.currentItem().text()
+
                 # Setup robot
-                robot = init_robot(robot_name, ivar)
-                data_tester = DataTester()
+                data_tester = DataTester(robot_name, ivar, xvar)
+                data_tester.bind_progress_bar(p_bar)
 
                 # Feed data
-                # If optimising, optimiser uses robot.step_var(up/down)
                 for i in range(max):
-                    step_test_robot(robot, i)
+                    # step_test_robot(robot, i)
                     p_bar.setValue(i)
                     # Pass in robot
 
                 # Get data
                 data_tester.get_data()
 
-
                 # Move to Results
                 self.rap = TradeHunterApp.ResultAnalysisPage()
                 self.rap.show()
                 self.close()
-
 
             def to_optimise():
                 pass
@@ -815,12 +820,57 @@ class TradeHunterApp:
             tail_layout.addWidget(back_button)
 
             # Right
-            delete_ivar_button = QPushButton('Delete')
-            delete_test_button = QPushButton('Delete')
-            delete_optimisation_button = QPushButton('Delete')
 
-            layout.addLayout(tail_layout)
-            self.setLayout(layout)
+            # delete_ivar_button = QPushButton('Delete')
+            # delete_test_button = QPushButton('Delete')
+            # delete_optimisation_button = QPushButton('Delete')
+
+            left_pane.addLayout(tail_layout)
+
+            # Right (xvar)
+
+            lag_label = QLabel('Lag')
+            lag_select = QTextEdit()
+            lag_select.setFixedHeight(20)
+            capital_label = QLabel('Capital')
+            capital_select = QTextEdit()
+            capital_select.setFixedHeight(20)
+            leverage_label = QLabel('Leverage')
+            leverage_select = QTextEdit()
+            leverage_select.setFixedHeight(20)
+            currency_label = QLabel('Currency')
+            currency_select = QTextEdit()
+            currency_select.setFixedHeight(20)
+            type_label = QLabel('Type')  # Singular/Multi
+            type_select = QListWidget()
+            type_select.setFixedHeight(20)
+            item1 = QListWidgetItem('Single', type_select)
+            item2 = QListWidgetItem('Multi', type_select)
+
+            xvar_left_body = QVBoxLayout()
+            xvar_right_body = QVBoxLayout()
+
+            xvar_left_body.addWidget(lag_label, 1)
+            xvar_left_body.addWidget(capital_label, 1)
+            xvar_left_body.addWidget(leverage_label, 1)
+            xvar_left_body.addWidget(currency_label, 1)
+            xvar_left_body.addWidget(type_label, 1)
+
+            xvar_right_body.addWidget(lag_select, 1.5)
+            xvar_right_body.addWidget(capital_select, 1.5)
+            xvar_right_body.addWidget(leverage_select, 1.5)
+            xvar_right_body.addWidget(currency_select, 1.5)
+            xvar_right_body.addWidget(type_select, 1.5)
+
+            xvar_pane.addLayout(xvar_left_body)
+            xvar_pane.addLayout(xvar_right_body)
+
+            # Panes
+
+            panes.addLayout(left_pane)
+            panes.addLayout(xvar_pane)
+
+            self.setLayout(panes)
             self.show()
 
         def back(self):
@@ -839,8 +889,8 @@ class TradeHunterApp:
                 ivar_select = QListWidget()
                 dataset_select = QListWidget()
 
-                ivar_select.setFixedHeight(15)
-                dataset_select.setFixedHeight(15)
+                ivar_select.setFixedHeight(20)
+                dataset_select.setFixedHeight(20)
 
     class ResultAnalysisPage(QWidget):
 

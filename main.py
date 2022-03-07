@@ -13,7 +13,6 @@ import UI.tradehunter
 sys.path.append('util')
 from util.dataRetrievalUtil import retrieve, load_df, load_df_list, init_common, force_overwrite_common, \
     load_trade_advisor_list
-from util.langUtil import strtoyahootimestr
 
 # Settings
 import settings

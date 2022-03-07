@@ -21,7 +21,7 @@ class FMACDRobot(robot):
         self.profit_data = []
         self.asset_data = []
 
-        self.signals = []  # todo ask what MT5 calls these
+        self.signals = []
         self.signal_headers = []
         self.completed_signals = []
 

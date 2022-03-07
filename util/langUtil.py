@@ -235,12 +235,25 @@ def remove_special_char(s: str):
 
 
 def craft_instrument_filename(sym: str, interval: str, period: str):
-    # todo
-    return F'{sym}_{interval}_{period}.csv'
+    return F'{sym}__{interval}__{period}.csv'
 
 
 def craft_test_filename(ta_name: str, ivar_name: str, ds_names: List[str]):
     pass
+
+
+def try_key(dict: {}, key: str):
+    if key in dict:
+        return dict['key']
+    else:
+        return "-"
+
+
+def pip_conversion(currency_pair: str):
+    if 'USD' in currency_pair and 'JPY' in currency_pair:
+        return 1/100
+    else:
+        return 1/10000
 
 
 # data = yf.download(  # or pdr.get_data_yahoo(...

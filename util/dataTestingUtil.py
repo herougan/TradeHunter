@@ -6,22 +6,15 @@ from statistics import stdev
 from typing import List
 
 import pandas as pd
+from PyQt5.QtWidgets import QProgressBar
 
 from robot.abstract.robot import robot
-from robot import FMACDRobot, FilterRobot
 from settings import EVALUATION_FOLDER
-from util.dataGraphingUtil import DATE_FORMAT_DICT
-from util.dataRetrievalUtil import load_dataset, load_df
-from util.langUtil import craft_instrument_filename, strtodatetime
+from util.dataRetrievalUtil import load_dataset, load_df, get_computer_specs
+from util.langUtil import craft_instrument_filename, strtodatetime, try_key, remove_special_char
 
 import numpy as np
 from sklearn.linear_model import LinearRegression
-
-SUMMARY_STATS = [
-    'drawdown',
-    'totalprofit',
-    'etc'
-]
 
 
 def step_test_robot(r: robot, step: int):
@@ -158,6 +151,8 @@ def create_summary_df_from_list(profit_d, equity_d, signals, df, additional={}):
     l2 = len(incomplete_signals)
     l3 = len(profit_signals)
     l4 = len(loss_signals)
+    l5 = len(long_signals)
+    l6 = len(short_signals)
 
     summary_dict['period'] = strtodatetime(df.at(0, 'datetime')) - strtodatetime(df.at(len(df), 'datetime'))
     summary_dict['n_bars'] = len(df.index)
@@ -169,7 +164,7 @@ def create_summary_df_from_list(profit_d, equity_d, signals, df, additional={}):
     for signal in signals:
         if signal['net'] > 0:
             gross_profit += signal['net']
-        elif signal['net'] < 0:  # todo, what are trade profits called
+        elif signal['net'] < 0:
             gross_profit += signal['net']
     summary_dict['gross_profit'] = gross_profit
     summary_dict['gross_loss'] = gross_loss
@@ -184,7 +179,7 @@ def create_summary_df_from_list(profit_d, equity_d, signals, df, additional={}):
     summary_dict['GHPR'] = math.pow(gmean, 1 / l)
 
     summary_dict['profit_factor'] = summary_dict['total_profit'] / summary_dict['gross_profit']
-    # summary_dict['recovery_factor'] = summary_dict['total_profit'] / summary_dict['max_drawdown']
+    # summary_dict['recovery_factor'] = summary_dict['total_profit'] / summary_dict['max_drawdown']  # Implemented below
 
     summary_dict['total_trades'] = l
     summary_dict['total_deals'] = l  # + unclosed deals
@@ -288,18 +283,19 @@ def create_summary_df_from_list(profit_d, equity_d, signals, df, additional={}):
     expected_payoff = 0
     for signal in complete_signals:
         expected_payoff += signal['net']
-    summary_dict['expected_payoff'] = expected_payoff / len(complete_signals)
+    summary_dict['expected_payoff'] = summary_dict['total_profit'] / l
     summary_dict['sharpe_ratio'] = 0  # No risk-free proxy
     summary_dict['standard_deviation'] = 0
     summary_dict['LR_correlation'] = 0  # no line correlation yet
     summary_dict['LR_standard_error'] = 0
+    summary_dict['recovery_factor'] = summary_dict['total_profit'] / summary_dict['max_drawdown']
 
-    summary_dict['total_short_trades'] = len(short_signals)
-    summary_dict['total_long_trades'] = len(long_signals)
+    summary_dict['total_short_trades'] = l6
+    summary_dict['total_long_trades'] = l5
     summary_dict['short_trades_won'] = len([signal for signal in short_signals if signal['net'] > 0])
     summary_dict['long_trades_won'] = len([signal for signal in long_signals if signal['net'] > 0])
-    summary_dict['trades_won'] = len(profit_signals)
-    summary_dict['trades_lost'] = len(loss_signals)
+    summary_dict['trades_won'] = l3
+    summary_dict['trades_lost'] = l4
 
     largest_profit, average_profit = 0, 0
     largest_loss, average_loss = 0, 0
@@ -389,7 +385,9 @@ def create_summary_df_from_list(profit_d, equity_d, signals, df, additional={}):
     return summary_dict
 
 
-def aggregate_summary_df_in_dataset(summary_dict_list: List[{}]):
+def aggregate_summary_df_in_dataset(ds_name: str, summary_dict_list: List):
+    """Aggregates the results above from list of result dataframes.
+    Result dataframes (from result_dict_to_dataset or otherwise) contain only 1 row."""
 
     profits = [d['total_profit'] for d in summary_dict_list]
     # gross_profits = [d['gross_profit'] for d in summary_dict_list]
@@ -406,11 +404,9 @@ def aggregate_summary_df_in_dataset(summary_dict_list: List[{}]):
 
     final_summary_dict = {
         'n_instruments': len(summary_dict_list),
-        #
         'standard_deviation_profit': stdev(profits),
-        # 'average_profit': sum(profits)/len(profits),
-        # 'average_gross_profit': sum(gross_profits)/len(gross_profits),
-        # 'average_gross_loss': sum(gross_loss)/len(gross_loss)
+        #
+        'dataset': ds_name,
     }
 
     final_summary_dict.update(summary_dict)
@@ -418,63 +414,87 @@ def aggregate_summary_df_in_dataset(summary_dict_list: List[{}]):
     return final_summary_dict
 
 
-def aggregate_summary_df_in_datasets(summary_dict_list: List[{}]):
+def aggregate_summary_df_in_datasets(summary_dict_list: List):
     """Aggregate summary and dataset summaries"""
 
     summary_dict = summary_dict_list[0]
+    total_instruments = 0
     for i in range(summary_dict_list):
         if i == 0:
             continue
         for key in summary_dict_list[i]:
-            summary_dict[key] += summary_dict[i][key]
+            summary_dict[key] += summary_dict[i][key] * summary_dict[i]['n_instruments']
+        total_instruments += summary_dict[i]['n_instruments']
+
     for key in summary_dict:
-        summary_dict[key] /= len(summary_dict_list)
+        if not key.lower() == 'dataset':
+            summary_dict[key] /= total_instruments
 
     final_summary_dict = {
         'n_datasets': len(summary_dict_list),
+        'dataset': 'Total'
     }
 
     final_summary_dict.update(summary_dict)
+    summary_dict_list.append(final_summary_dict)
 
-    return final_summary_dict, summary_dict_list
+    return summary_dict_list
 
 
-def create_test_meta(test_name, xvar):
-    """Test meta file contains...test name, ivar used, date etc
-    most importantly, 'xvar' attributes"""
-
+def create_test_meta(test_name, ivar, xvar):
+    """Test meta file contains test name, ivar (dict version) used, start and end date etc
+    most importantly, xvar (dict version) attributes"""
     meta = {
         'datetime': datetime.now(),
-        # XVar
-        'lag': xvar['lag'],  # ms
-        'starting_capital': xvar['starting_capital'],
-        'leverage': xvar['leverage'],
-        'currency_count': xvar['currency'],  # pips
-        'type': xvar['type'],  # aka singular/multi
-        'dataset_type': xvar['dataset_type'],  # forex-leaning, etc.
-        # Also in meta/result file name
-        'test_name': 0,
-        'robot_name': 0,
+        'end': datetime.now(),
+        'time_taken': 0,
+        # # XVar
+        # 'lag': xvar['lag'],  # ms
+        # 'starting_capital': xvar['starting_capital'],
+        # 'leverage': xvar['leverage'],
+        # 'currency_count': xvar['currency'],  # pips
+        # 'type': xvar['type'],  # aka singular/multi
+        # 'dataset_type': xvar['dataset_type'],  # forex-leaning, etc.
+        # # Also in meta/result file name
+        # 'test_name': 0,
+        # 'robot_name': 0,
+        #
+        # # IVar
+        # Robot meta output
+        'robot_meta': {}
     }
+    # IVar Dict
+    meta.update(ivar)
+    # XVar Dict
+    meta.update(xvar)
+    # Computer specs
+    meta.update(get_computer_specs())
 
     return meta
 
 
-def create_test_result(test_name: str, summary_dict: pd.DataFrame):
+def create_test_result(test_name: str, summary_dict_list, meta_df: pd.DataFrame):
     folder = F'static/results/evaluation'
-    name = F'str'
-    path = F'{folder}/{name}'
+    result_path = F'{folder}/{test_name}.csv'
+    meta_path = F'{folder}/{test_name}__meta.csv'
 
-    summary_dict.to_csv(path)
+    summary_data = {}
+    final_summary_dict = summary_dict_list[-1]  # Setup base keys
+    for key in final_summary_dict:
+        summary_data.update({
+            key: [final_summary_dict[key]]
+        })
+    for i in range(summary_dict_list - 1):  # Add to dicta's lists
+        for key in final_summary_dict:
+            summary_data[key].append(try_key(summary_dict_list, key))
 
-    # all options used in the test
-    # test result only holds dataset info (+ result of course)
+    summary_df = pd.DataFrame(summary_data, index=0)
 
-    # e.g. leverage, ivar - (name of testresult and testmeta?)
-    #
+    summary_df.to_csv(result_path)
+    meta_df.to_csv(meta_path)
 
 
-def write_test_result(summary_dicts: List[{}]):
+def write_test_result(summary_dicts: List):
     folder = EVALUATION_FOLDER
     name = ""
     path = F'{folder}/{name}.csv'
@@ -493,10 +513,19 @@ def write_test_result(summary_dicts: List[{}]):
 
 class DataTester:
 
-    def __init__(self):
-        pass
+    def __init__(self, robot_name, ivar, xvar):
+        self.robot_name = remove_special_char(robot_name)
+        self.ivar = ivar
+        self.xvar = xvar
+        eval(F'{robot_name}.{robot_name}({ivar})')
 
-    # test_dataset
+        self.progress_bar = None
+
+    def bind_progress_bar(self, p_bar: QProgressBar):
+        self.progress_bar = p_bar
+
+    # Test test_result, result_meta '{robot_name}__{ivar_name}__{test_name}.csv',
+    # '{robot_name}__{ivar_name}__{test_name}__meta.csv'
 
     def test_dataset(self, ta_name: str, ivar: List[float], ds_names: List[str]):
         self.robot = eval(F'{ta_name}.{ta_name}({ivar})')
@@ -513,10 +542,16 @@ class DataTester:
         def test_data(self, d_name):
             df = load_df(d_name)
 
-    def aggregate_results(self):
+    def print_results(self):
         pass
 
-    # full test_data, produces more data
+    # full test_data, produces more data '{robot_name}__{ivar_name}__{optim_name}.csv',
+    # '{robot_name}__{ivar_name}__{optim_name}__meta.csv'
+    # ivar_choices: [ivar1[], ivar2[], ivar3[]...]
 
     def single_test(self):
         pass
+
+    # Optimise, optim_result, optim_meta
+
+#  Utility

@@ -12,7 +12,7 @@ DataTestingUtil tests based on data retrieved. Text File is used as reference (o
 3) Copy-and-pasted files contingency: When updating datasets/re-downloading data, if file does not exit,
 try download again (once), continue.
 
-4) All filenames to have '__' between variables todo!
+4) All filenames to have '__' between variables
 
 
 
@@ -35,6 +35,9 @@ Test that robot against dataset(s), producing result data
 6) Run robot
 
 7) Run robot controller (Manages several robots)
+
+8) Shapesetdef contains data specific to certain chart profiles. One can test their robot against these chart profiles
+to see which type of trends/shapes/market conditions it is better at trading in.
 
 
 

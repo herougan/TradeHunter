@@ -1,8 +1,5 @@
 import os
 
-# Run Robot imports
-from robot import FMACDRobot, FilterRobot
-
 DATASET_CHANGES_PATH = F''
 COMMON_SYMBOLS_PATH = F''
 COMMON_INTERVALS_PATH = F''
