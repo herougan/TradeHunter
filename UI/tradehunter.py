@@ -32,6 +32,8 @@ class TradeHunterApp:
         main = self.MainWindow()
         main.show()
         self.app.exec()
+        self.fullscreen = True
+        self.curr_window = None
 
     class MainWindow(QWidget):
 
@@ -43,6 +45,8 @@ class TradeHunterApp:
             self.ta_window = None
             self.sp_window = None
             self.window()
+
+            # self.showFullScreen()
 
         def keyPressEvent(self, event):
             if event.key() == Qt.Key_D:
@@ -234,6 +238,8 @@ class TradeHunterApp:
                     retrieve_ds(row['name'], True)
                     self.download_progress.setValue(self.download_progress.value() + 1)
 
+                self.p_window.setWindowTitle(F"Download complete. You may close the window.")
+
                 clear_dataset_changes()
 
             def import_clicked():
@@ -277,19 +283,24 @@ class TradeHunterApp:
                 self.saved = True
                 self.table = None
                 self.select = None
+                self.combo = None
                 self.window()
 
             def window(self):
 
                 dataset_select = QListWidget()
+                dataset_combo = QComboBox()
                 dataset_select.setFixedHeight(20)
                 dataset_label = QLabel('Dataset')
 
+                self.combo = dataset_combo
                 self.select = dataset_select
                 self.build_dataset_list()
 
                 def on_symbol_select(event):
                     print("Symbol", event.text())
+                    # todo something here! add auto!
+                    print("Trying to edit Table", self.table)
 
                 def on_interval_select(event):
                     print("Interval", event.text())
@@ -306,12 +317,19 @@ class TradeHunterApp:
                         self.build_dataset_instruments(None)
                     self.saved = True
 
+                def load_combo_dataset(event):
+                    if (event):
+                        print(event)
+
                 dataset_select.currentItemChanged.connect(load_selected_dataset)
+                dataset_combo.currentIndexChanged.connect(load_combo_dataset)
 
                 select_layout = QHBoxLayout()
                 select_layout.addWidget(dataset_label)
                 select_layout.addWidget(dataset_select)
                 self.addLayout(select_layout)
+
+                self.addWidget(dataset_combo)  # todo test combo widget
 
                 mid = QVBoxLayout()
 
@@ -391,8 +409,11 @@ class TradeHunterApp:
             def build_dataset_list(self):
                 self.select.clear()
                 dataset_list = load_dataset_list()
+                i = 0
                 for dataset in dataset_list:
                     item = QListWidgetItem(F'{dataset}', self.select)
+                    self.combo.insertItem(i, F'{dataset}')
+                    i += 1
 
             def on_cell_change(self, event):
                 self.saved = False
@@ -751,6 +772,7 @@ class TradeHunterApp:
 
             # Testing begins
             def to_test():
+                # todo !
 
                 # Check if ivar/dataset selected
                 if not ivar_select.currentItem() or not dataset_select.currentItem():
@@ -1066,6 +1088,28 @@ class TradeHunterApp:
         def __init__(self):
             super().__init__()
 
+    # -- Utility
+
+    class ProgressBarWindow(QWidget):
+        def __init__(self):
+            self.p_bar = None
+            self.p_label = None
+            self.window()
+
+        def window(self):
+            p_layout = QVBoxLayout()
+            self.p_bar = QProgressBar()
+            back_button = QPushButton('Back')
+            self.p_label = QLabel('')
+
+            back_button.clicked.connect(self.back)
+
+            self.setLayout(p_layout)
+            self.show()
+
+        def back(self):
+            self.close()
+
     # -- Canvas
     class MplCanvas(FigureCanvasQTAgg):
 
@@ -1085,3 +1129,5 @@ class TradeHunterApp:
 
         def get_axes(self):
             return self.axes
+
+

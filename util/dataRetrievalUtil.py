@@ -1,9 +1,12 @@
 # Stats Imports
 import math
+import platform
+import GPUtil
 
 import pandas as pd
 
 # Data Brokers
+import psutil as psutil
 import yfinance as yf
 from yahoofinancials import YahooFinancials
 
@@ -17,7 +20,8 @@ import glob
 # Custom Utils
 import settings
 from util.statMathUtil import date_to_string as datestring
-from util.langUtil import strtotime, timedeltatosigstr, normify_name, yahoolimitperiod, yahoolimitperiod_leftover
+from util.langUtil import strtotime, timedeltatosigstr, normify_name, yahoolimitperiod, yahoolimitperiod_leftover, \
+    get_size_bytes
 
 
 #   DataFrame
@@ -136,8 +140,10 @@ def save_dataset(ds_name, dsf):
 def write_dataset(ds_name, dsf):
     folder = F'static/datasetdef'
     os.makedirs(folder, exist_ok=True)
-    dsf.to_csv(F'{folder}/{ds_name}.csv')
-    print(F'Creating dataset {folder}/{ds_name}.csv')
+    if not ds_name.endswith('.csv'):
+        ds_name = F'{ds_name}.csv'
+    dsf.to_csv(F'{folder}/{ds_name}')
+    print(F'Creating dataset {folder}/{ds_name}')
 
 
 def write_new_dataset(ds_name, dsf):
@@ -165,8 +171,16 @@ def write_new_empty_dataset(ds_name):
 
 def remove_from_dataset(ds_name, symbol, interval, period):
     dsf = load_dataset(ds_name)
-    dsf.drop(dsf[dsf.symbol == symbol and dsf.interval == interval and dsf.period == period].index)
+    dsf.drop(dsf[(dsf.symbol == symbol) & (dsf.interval == interval) & (dsf.period == period)].index)
     write_dataset(ds_name, dsf)
+
+
+def number_of_datafiles(ds_name_list):
+    total_len = 0
+    for ds_name in ds_name_list:
+        dsf = load_dataset(ds_name)
+        total_len += len(dsf.index)
+    return total_len
 
 
 # Dataset Files
@@ -407,7 +421,6 @@ def load_ivar_file_list():
 
 
 def generate_ivar(ta_name: str):
-
     folder = F'robot/ivar'
     ivar_file = F'{ta_name}_ivar'
     path = F'{folder}/{ivar_file}.csv'
@@ -424,14 +437,13 @@ def generate_ivar(ta_name: str):
 
 
 def ivar_to_arr(idf: pd.DataFrame):
-
     columns = idf.columns
     arr = []
 
     for i in range(len(idf.index)):  # rows
         _arr = []
         for u in range(len(columns)):
-            _arr.append(idf[columns[u+1]][i])
+            _arr.append(idf[columns[u + 1]][i])
         arr.append(_arr)
     return arr
 
@@ -537,10 +549,119 @@ def dataframe_ok(df: pd.DataFrame) -> bool:
         return True
     return False
 
-# Robot methods
-
 
 # Hardware
 
 def get_computer_specs():
-    return {'name': "None"}
+    uname = platform.uname()
+    svmem = psutil.virtual_memory()
+    specs = {
+        'system': uname.system,
+        'n_cores': psutil.cpu_count(logical=True),
+        'total_memory': get_size_bytes(svmem.total),
+        'free_memory': get_size_bytes(svmem.available),
+    }
+    i = 0
+    for partition in psutil.disk_partitions():
+        try:
+            partition_usage = psutil.disk_usage(partition.mountpoint)
+        except PermissionError:
+            continue
+        specs.update({
+            F'device_{i}': partition.device,
+            F'free_space_{i}': get_size_bytes(partition_usage.free),
+        })
+        i += 1
+
+    gpus = GPUtil.getGPUs()
+    for gpu in gpus:
+        id = gpu.id
+        specs.update({
+            F'name_{id}': gpu.name,
+            F'gpu_load_{id}': F'{gpu.load * 100}%',
+            F'gpu_free_mem_{id}': F'{gpu.memoryFree * 100} mb',
+            F'gpu_total_mem_{id}': F'{gpu.memoryTotal * 100} mb',
+        })
+
+    return specs
+
+# https://www.thepythoncode.com/article/get-hardware-system-information-python
+# ======================================== System Information ========================================
+# System: Linux
+# Node Name: rockikz
+# Release: 4.17.0-kali1-amd64
+# Version: #1 SMP Debian 4.17.8-1kali1 (2018-07-24)
+# Machine: x86_64
+# Processor:
+# ======================================== Boot Time ========================================
+# Boot Time: 2019/8/21 9:37:26
+# ======================================== CPU Info ========================================
+# Physical cores: 4
+# Total cores: 4
+# Max Frequency: 3500.00Mhz
+# Min Frequency: 1600.00Mhz
+# Current Frequency: 1661.76Mhz
+# CPU Usage Per Core:
+# Core 0: 0.0%
+# Core 1: 0.0%
+# Core 2: 11.1%
+# Core 3: 0.0%
+# Total CPU Usage: 3.0%
+# ======================================== Memory Information ========================================
+# Total: 3.82GB
+# Available: 2.98GB
+# Used: 564.29MB
+# Percentage: 21.9%
+# ==================== SWAP ====================
+# Total: 0.00B
+# Free: 0.00B
+# Used: 0.00B
+# Percentage: 0%
+# ======================================== Disk Information ========================================
+# Partitions and Usage:
+# === Device: /dev/sda1 ===
+#   Mountpoint: /
+#   File system type: ext4
+#   Total Size: 451.57GB
+#   Used: 384.29GB
+#   Free: 44.28GB
+#   Percentage: 89.7%
+# Total read: 2.38GB
+# Total write: 2.45GB
+# ======================================== Network Information ========================================
+# === Interface: lo ===
+#   IP Address: 127.0.0.1
+#   Netmask: 255.0.0.0
+#   Broadcast IP: None
+# === Interface: lo ===
+# === Interface: lo ===
+#   MAC Address: 00:00:00:00:00:00
+#   Netmask: None
+#   Broadcast MAC: None
+# === Interface: wlan0 ===
+#   IP Address: 192.168.1.101
+#   Netmask: 255.255.255.0
+#   Broadcast IP: 192.168.1.255
+# === Interface: wlan0 ===
+# === Interface: wlan0 ===
+#   MAC Address: 64:70:02:07:40:50
+#   Netmask: None
+#   Broadcast MAC: ff:ff:ff:ff:ff:ff
+# === Interface: eth0 ===
+#   MAC Address: d0:27:88:c6:06:47
+#   Netmask: None
+#   Broadcast MAC: ff:ff:ff:ff:ff:ff
+# Total Bytes Sent: 123.68MB
+# Total Bytes Received: 577.94MB
+
+
+
+# Example:
+
+# tech_stocks = ['AAPL', 'MSFT', 'INTC']
+# bank_stocks = ['WFC', 'BAC', 'C']
+# commodity_futures = ['GC=F', 'SI=F', 'CL=F']
+# cryptocurrencies = ['BTC-USD', 'ETH-USD', 'XRP-USD']
+# currencies = ['EURUSD=X', 'JPY=X', 'GBPUSD=X']
+# mutual_funds = ['PRLAX', 'QASGX', 'HISFX']
+# us_treasuries = ['^TNX', '^IRX', '^TYX']

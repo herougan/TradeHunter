@@ -5,7 +5,6 @@ from typing import List
 from dateutil import parser
 
 
-
 def strtotime(s: str):
     """XM X minutes, XH X hours, Xd X days, Xw X weeks, Xm X months, all separated by a space"""
     t = timedelta()
@@ -22,7 +21,7 @@ def strtotime(s: str):
             t += timedelta(days=d)
         elif a == "w" or a.casefold() in "weeks".casefold():
             t += timedelta(weeks=d)
-        elif a == "m" or a.casefold() in "months".casefold():
+        elif a == "mo" or a.casefold() in "months".casefold():
             t += timedelta(weeks=d * 4)
         elif a == "y" or a.casefold() in "years".casefold():
             t += timedelta(weeks=d * 48)
@@ -36,7 +35,7 @@ def strtotime(s: str):
 def strtoyahootimestr(s: str):
     """XM X minutes, XH X hours, Xd X days, Xw X weeks, Xm X months, all separated by a space
     Interval closest to '1m,2m,5m,15m,30m,60m,90m,1h,1d,5d,1wk,1mo,3mo' will be chosen."""
-    interval = ['1M', '2M', '5M', '15M', '30M', '60M', '1h', '90M', '1d', '5d', '1wk', '1m', '3m']
+    interval = ['1M', '2M', '5M', '15M', '30M', '60M', '1h', '90M', '1d', '5d', '1wk', '1mo', '3mo']
     idx, prev_idx = len(interval) // 2, 0
     left, right = 0, len(interval)
     chosen_interval = strtotime(s)
@@ -195,6 +194,14 @@ def drsplit(s: str):
     return int(digit), alpha
 
 
+def is_lnumber(s: str):
+    return not s == s.lstrip('0123456789')
+
+
+def is_not_rnumber(s: str):
+    return s == s.rstrip('0123456789')
+
+
 def timedeltatosigstr(s: timedelta):
     """Takes in datetime and returns string containing only one significant time denomination without spaces"""
     if s.days > 0:
@@ -258,10 +265,27 @@ def try_key(dict: {}, key: str):
 
 def pip_conversion(currency_pair: str):
     if 'USD' in currency_pair and 'JPY' in currency_pair:
-        return 1/100
+        return 1 / 100
     else:
-        return 1/10000
+        return 1 / 10000
 
+
+def get_size_bytes(bytes, suffix="B"):
+    """
+    Scale bytes to its proper format
+    e.g:
+        1253656 => '1.20MB'
+        1253656678 => '1.17GB'
+    """
+    factor = 1024
+    for unit in ["", "K", "M", "G", "T", "P"]:
+        if bytes < factor:
+            return f"{bytes:.2f}{unit}{suffix}"
+        bytes /= factor
+
+
+def check_if_valid_timestr(s: str):
+    return is_lnumber(s) and is_not_rnumber(s)
 
 # data = yf.download(  # or pdr.get_data_yahoo(...
 #         # tickers list or string as well

@@ -5,3 +5,5 @@ matplotlib
 TA-Lib
 ipython
 PyQt5
+psutil
+gputil

@@ -8,11 +8,11 @@ from statistics import stdev
 from typing import List
 
 import pandas as pd
-from PyQt5.QtWidgets import QProgressBar
+from PyQt5.QtWidgets import QProgressBar, QWidget
 
 from robot.abstract.robot import robot
 from settings import EVALUATION_FOLDER
-from util.dataRetrievalUtil import load_dataset, load_df, get_computer_specs
+from util.dataRetrievalUtil import load_dataset, load_df, get_computer_specs, number_of_datafiles
 from util.langUtil import craft_instrument_filename, strtodatetime, try_key, remove_special_char
 
 import numpy as np
@@ -551,34 +551,66 @@ def load_test_meta(meta_name: str):
 
 class DataTester:
 
-    def __init__(self, robot_name, ivar, xvar):
-        self.robot_name = remove_special_char(robot_name)
+    def __init__(self, ivar, xvar):
         self.ivar = ivar
         self.xvar = xvar
-        eval(F'{robot_name}.{robot_name}({ivar})')
 
         self.progress_bar = None
 
-    def bind_progress_bar(self, p_bar: QProgressBar):
-        self.progress_bar = p_bar
+        self.start_time = None
+        self.end_time = None
+
+    def bind_progress_bar(self, p_bar: QProgressBar, p_window: QWidget):
+        self.p_bar = p_bar
+        self.p_window = p_window
 
     # Test test_result, result_meta '{robot_name}__{ivar_name}__{test_name}.csv',
     # '{robot_name}__{ivar_name}__{test_name}__meta.csv'
+    # todo view table gone wrong
 
-    def test_dataset(self, ta_name: str, ivar: List[float], ds_names: List[str]):
+    def test(self, ta_name: str, ivar: List[float], ds_names: List[str]):
+
+        ta_name = remove_special_char(ta_name)
         self.robot = eval(F'{ta_name}.{ta_name}({ivar})')
+        self.robot.start()
+
+        if self.p_bar:
+            self.p_bar.setMaximum(number_of_datafiles(ds_names))
+            self.p_bar.setValue(0)
+            self.p_window.show()
 
         # Testing starts here!
         for ds_name in ds_names:
             self.test_dataset(ds_name)
 
+        if self.p_bar:
+            self.p_bar.setValue(self.p_bar.maximum())
+            self.p_window.setWindowTitle('Done! Close this window.')
+
         def test_dataset(self, ds_name):
             dsdf = load_dataset(ds_name)
             for index, row in dsdf.iterrows():
+                if self.p_bar:
+                    self.p_bar.setValue(self.p_bar.value() + 1)
+                    self.p_window.setWindowTitle(F'Testing against '
+                                                 F'{craft_instrument_filename(row["symbol"], row["interval"], row["period"])}')
                 test_data(craft_instrument_filename(row['symbol'], row['interval'], row['period']))
 
         def test_data(self, d_name):
             df = load_df(d_name)
+
+            for index, row in df.iterrows():
+                pass
+
+            robot.finish()
+            profit_d, equity_d = robot.get_profit()
+            signal_d = robot.get_signals()
+
+
+        result_meta = {}
+        result_df = {}
+
+        return result_df, result_meta
 
     def print_results(self):
         pass
