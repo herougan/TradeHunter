@@ -5,9 +5,15 @@ import pandas as pd
 import talib
 
 from robot.abstract.robot import robot
-from util.dataRetrievalUtil import retrieve
-from util.dataTestingUtil import create_profit_df_from_list, create_signal_df_from_list, create_summary_df_from_list
 from datetime import datetime, timedelta
+
+# IDEA TODO
+# THEN, AS A GREAT PROJECT - WE MOVE ALL CODE LOGIC TO DATETESTINGUTIL - SO THAT FMACD ROBOT JUST DOES EVERYTHING
+# IN QUIET. (OUTSIDE USES While Not self.Done(): self.Next() or something like that)
+# DATATESTER loops through itself and produces stuff. FMACDRobot just needs to feed data into datatester.
+# Makes sense!
+#
+# Pre-Retrieve done by DataTester
 
 
 class FMACDRobot(robot):
@@ -92,11 +98,13 @@ class FMACDRobot(robot):
 
         self.started = True
 
-    def retrieve_prepare(self):
+    def retrieve_prepare(self, df):
 
-        self.df = retrieve("symbol", datetime.now(), datetime.now() - self.interval * self.prepare_period,
-                           self.interval,
-                           False, False)
+        # self.df = retrieve("symbol", datetime.now(), datetime.now() - self.interval * self.prepare_period,
+        #                    self.interval,
+        #                    False, False)
+
+        self.df = df  # Past data todo
 
         # If no such file, SMA will be empty.
         self.calc_macd()
@@ -140,9 +148,10 @@ class FMACDRobot(robot):
         pass
 
     def on_complete(self):
-        self.profit_df = create_profit_df_from_list(self.profit_data, self.asset_data)
-        self.signal_df = create_signal_df_from_list(self.completed_signals, self.signals)
-        self.summary_df = create_summary_df_from_list(self.profit_data, self.asset_data, self.completed_signals)
+        pass
+        # self.profit_df = create_profit_df_from_list(self.profit_data, self.asset_data)
+        # self.signal_df = create_signal_df_from_list(self.completed_signals, self.signals)
+        # self.summary_df = create_summary_df_from_list(self.profit_data, self.asset_data, self.completed_signals)
 
     # Retrieve results
 

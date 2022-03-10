@@ -180,7 +180,7 @@ def create_summary_df_from_list(profit_d, equity_d, signals, df, additional={}):
     gmean = 0
     for signal in signals:
         mean += signal['net']
-        gmean *= signal['net']  # must convert from pips to sgd todo
+        gmean *= signal['net']
     summary_dict['AHPR'] = mean / l
     summary_dict['GHPR'] = math.pow(gmean, 1 / l)
 
@@ -463,27 +463,14 @@ def aggregate_summary_df_in_datasets(summary_dict_list: List):
     return summary_dict_list
 
 
-def create_test_meta(test_name, ivar, xvar):
+def create_test_meta(test_name, ivar, xvar, other):
     """Test meta file contains test name, ivar (dict version) used, start and end date etc
     most importantly, xvar (dict version) attributes"""
     meta = {
-        'datetime': datetime.now(),
-        'end': datetime.now(),
-        'time_taken': 0,
-        # # XVar
-        # 'lag': xvar['lag'],  # ms
-        # 'starting_capital': xvar['starting_capital'],
-        # 'leverage': xvar['leverage'],
-        # 'currency_count': xvar['currency'],  # pips
-        # 'type': xvar['type'],  # aka singular/multi
-        # 'dataset_type': xvar['dataset_type'],  # forex-leaning, etc.
-        # # Also in meta/result file name
-        # 'test_name': 0,
-        # 'robot_name': 0,
-        #
-        # # IVar
         # Robot meta output
-        'robot_meta': {}
+        'test_name': test_name,
+        'test_meta': other,
+        'robot_meta': 0,
     }
     # IVar Dict
     meta.update(ivar)
@@ -516,10 +503,9 @@ def create_test_result(test_name: str, summary_dict_list, meta_df: pd.DataFrame)
     meta_df.to_csv(meta_path)
 
 
-def write_test_result(summary_dicts: List):
+def write_test_result(test_name, summary_dicts: List):
     folder = EVALUATION_FOLDER
-    name = ""
-    path = F'{folder}/{name}.csv'
+    path = F'{folder}/{test_name}.csv'
 
     sdfs = []
     for summary_dict in summary_dicts:
@@ -530,7 +516,18 @@ def write_test_result(summary_dicts: List):
         if i != 0:
             summary_df.append(pd.DataFrame(sdfs[i]))
 
+    print(F'Writing test result at {path}')
     return sdfs
+
+
+def write_test_meta(test_name, meta_dict):
+    folder = F'static/results/evaluation'
+    meta_path = F'{folder}/{test_name}__meta.csv'
+
+    meta = pd.DataFrame(meta_dict, index=False)
+    meta.to_csv(meta_path)
+    print(F'Writing test result at {meta_path}')
+    return meta
 
 
 def load_test_result(test_name: str):
@@ -551,12 +548,11 @@ def load_test_meta(meta_name: str):
 
 class DataTester:
 
-    def __init__(self, ivar, xvar):
-        self.ivar = ivar
+    def __init__(self, xvar):
+
         self.xvar = xvar
 
         self.progress_bar = None
-
         self.start_time = None
         self.end_time = None
 
@@ -566,51 +562,86 @@ class DataTester:
 
     # Test test_result, result_meta '{robot_name}__{ivar_name}__{test_name}.csv',
     # '{robot_name}__{ivar_name}__{test_name}__meta.csv'
-    # todo view table gone wrong
 
-    def test(self, ta_name: str, ivar: List[float], ds_names: List[str]):
+    def test(self, ta_name: str, ivar: List[float], ds_names: List[str], test_name: str):
+
+        self.start_time = datetime.now()
 
         ta_name = remove_special_char(ta_name)
         self.robot = eval(F'{ta_name}.{ta_name}({ivar})')
         self.robot.start()
 
         if self.p_bar:
-            self.p_bar.setMaximum(number_of_datafiles(ds_names))
+            self.p_bar.setMaximum(number_of_datafiles(ds_names) + 1)
             self.p_bar.setValue(0)
             self.p_window.show()
 
-        # Testing starts here!
+        # Testing util functions
+        def test_dataset(self, ds_name):
+            dsdf = load_dataset(ds_name)
+            summary_dict_list = []
+
+            for index, row in dsdf.iterrows():
+                if self.p_bar:
+                    self.p_bar.setValue(self.p_bar.value() + 1)
+                    d_name = F'{craft_instrument_filename(row["symbol"], row["interval"], row["period"])}'
+                    df = load_df(d_name)
+                    self.p_window.setWindowTitle(F'Testing against {d_name}')
+                profit_d, equity_d, signal_d = test_data(df)
+                summary_dict_list.append(create_summary_df_from_list(profit_d, equity_d, signal_d, df))
+
+            return aggregate_summary_df_in_dataset(summary_dict_list)
+
+        def test_data(self, df):
+
+            for index, row in df.iterrows():
+                print(index, row)
+                # robot.next(row)
+                # todo we are here!
+
+            robot.finish()
+            profit_d, equity_d = robot.get_profit()
+            signal_d = robot.get_signals() # choose - convert here or later! raw is profit/signal_d
+
+            # Convert to df
+            # self.profit_df = create_profit_df_from_list(self.profit_data, self.asset_data)
+            # self.signal_df = create_signal_df_from_list(self.completed_signals, self.signals)
+            # self.summary_df = create_summary_df_from_list(self.profit_data, self.asset_data, self.completed_signals)
+
+            return profit_d, equity_d, signal_d
+
+        # ===== Testing starts here! =====
+        full_summary_dict_list = []
         for ds_name in ds_names:
-            self.test_dataset(ds_name)
+            full_summary_dict_list.append(test_dataset(ds_name))
+        full_summary_dict_list.append(aggregate_summary_df_in_datasets(full_summary_dict_list))
+        # ======= Testing ended! =========
+
+        if self.p_bar:
+            self.p_window.setWindowTitle('Writing results...')
+
+        self.end_time = datetime.now()
+
+        # Create Meta and Result
+        meta = {
+            'start': self.start_time,
+            'end': self.end_time,
+            'time_taken': self.start_time - self.end_time,
+        }
+        test_meta = create_test_meta(test_name, ivar, self.xvar, meta)  # Returns dict
+        test_result = full_summary_dict_list
+
+        # Write Meta and Result
+        # write_test_meta(test_name, meta)
+        # write_test_result(test_name, test_result)
+        print('METAMETA', meta)
+        print('TEST RESULT', test_result)
 
         if self.p_bar:
             self.p_bar.setValue(self.p_bar.maximum())
             self.p_window.setWindowTitle('Done! Close this window.')
 
-        def test_dataset(self, ds_name):
-            dsdf = load_dataset(ds_name)
-            for index, row in dsdf.iterrows():
-                if self.p_bar:
-                    self.p_bar.setValue(self.p_bar.value() + 1)
-                    self.p_window.setWindowTitle(F'Testing against '
-                                                 F'{craft_instrument_filename(row["symbol"], row["interval"], row["period"])}')
-                test_data(craft_instrument_filename(row['symbol'], row['interval'], row['period']))
-
-        def test_data(self, d_name):
-            df = load_df(d_name)
-
-            for index, row in df.iterrows():
-                pass
-
-            robot.finish()
-            profit_d, equity_d = robot.get_profit()
-            signal_d = robot.get_signals()
-
-
-        result_meta = {}
-        result_df = {}
-
-        return result_df, result_meta
+        return test_result, test_meta
 
     def print_results(self):
         pass

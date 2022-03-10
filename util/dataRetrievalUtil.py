@@ -23,6 +23,9 @@ from util.statMathUtil import date_to_string as datestring
 from util.langUtil import strtotime, timedeltatosigstr, normify_name, yahoolimitperiod, yahoolimitperiod_leftover, \
     get_size_bytes
 
+# Robots
+from robot import FMACDRobot, FilterRobot
+
 
 #   DataFrame
 
@@ -122,6 +125,7 @@ def load_dataset(ds_name: str) -> pd.DataFrame:
 
 
 def load_dataset_list():
+    """Load list of dataset files in datasetdef."""
     path = F'static/datasetdef/'
     # Get list of files that end with .csv
     df_list = [f for f in listdir(path) if isfile(join(path, f)) and f.endswith('.csv')]
@@ -172,6 +176,7 @@ def write_new_empty_dataset(ds_name):
 def remove_from_dataset(ds_name, symbol, interval, period):
     dsf = load_dataset(ds_name)
     dsf.drop(dsf[(dsf.symbol == symbol) & (dsf.interval == interval) & (dsf.period == period)].index)
+    print(F"Removing {symbol}-{interval}-{period} from {ds_name}")
     write_dataset(ds_name, dsf)
 
 
@@ -242,7 +247,7 @@ def add_as_dataset_change(ds_name: str):
     dsc = pd.read_csv(F'{os.getcwd()}{path}', index_col=0)
     print("---------------")
     if ds_name in dsc['name']:
-        print(F'Overwriting dataset {ds_name} - Already most updated')
+        print(F'Overwriting dataset {ds_name} - Abort, already most updated')
     else:
         _new = pd.DataFrame([[ds_name]], columns=['name'], index=[len(dsc.index)])
         dsc = dsc.append(_new)
@@ -276,6 +281,18 @@ def set_dataset_changes(dsc: pd.DataFrame):
 
 
 # List of instrument
+
+def load_lag_suggestions():
+    return ['0 ms', '10 ms', '100 ms', '1 s', '10 s', ]
+
+
+def load_leverage_suggestions():
+    return ['10:1', '1:1', '1:10', '1:100', '1:1000', '1:10,000', ]
+
+
+def load_currency_type_suggestions():
+    return ['1/1000 PIP', '1/100 PIP', 'Normal']
+
 
 def load_symbol_suggestions() -> pd.DataFrame:
     common_symbols = F'static/common/common_symbols.txt'
@@ -385,7 +402,7 @@ def ivar_to_list(idf: pd.DataFrame):
 
 def load_ivar(ta_name: str, ivar_name: str):
     idf = load_ivar_df(ta_name)
-    return idf[idf['ivar_name'] == ivar_name]
+    return idf[idf['name'] == ivar_name]
 
 
 def load_ivar_df(ta_name: str):
@@ -495,7 +512,9 @@ def init_common():
     common_symbols = F'{os.getcwd()}/static/common/common_symbols.txt'
 
     if not file_exists(datasetchanges) or file_is_empty(datasetchanges):
-        df = pd.DataFrame(columns=['name'])
+        df = pd.DataFrame({
+            'name': load_dataset_list()
+        })
         df.to_csv(datasetchanges)
     if not file_exists(common_intervals) or file_is_empty(common_intervals):
         data = {
@@ -511,9 +530,7 @@ def init_common():
         df.to_csv(common_periods)
     if not file_exists(common_symbols) or file_is_empty(common_symbols):
         data = {
-            'symbol': [
-                'AAPL', 'TLSA', 'GOOGL', 'INTC', 'MSFT',
-            ]
+            'symbol': settings.SUGGESTIONS['symbols'],
         }
         df = pd.DataFrame(data)
         df.to_csv(common_symbols)
@@ -653,7 +670,6 @@ def get_computer_specs():
 #   Broadcast MAC: ff:ff:ff:ff:ff:ff
 # Total Bytes Sent: 123.68MB
 # Total Bytes Received: 577.94MB
-
 
 
 # Example:

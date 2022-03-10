@@ -30,6 +30,29 @@ def get_datatable_sheet(table: QTableWidget):
     return df
 
 
+def get_datatable_sheet_all(table: QTableWidget):
+
+    map = []
+    for i in range(table.rowCount()):
+        row = []
+        for u in range(table.columnCount()):
+            if table.item(i, u):
+                row.append(table.item(i, u).text())
+            else:
+                row.append("")
+
+        map.append(row)
+
+    data = {
+        'symbol': [row[0] for row in map],
+        'interval': [row[1] for row in map],
+        'period': [row[2] for row in map],
+            }
+    df = pd.DataFrame(data)
+
+    return df
+
+
 def set_datatable_sheet(table: QTableWidget, dataset_df: pd.DataFrame):
     clear_table(table)
 
@@ -41,6 +64,31 @@ def set_datatable_sheet(table: QTableWidget, dataset_df: pd.DataFrame):
         for u in range(len(columns)):
             data_item = QTableWidgetItem(dataset_df[columns[u]][i])
             table.setItem(i, u, data_item)
+
+
+def set_dataset_table(table: QTableWidget, ds_names):
+    for i in range(len(ds_names)):
+        data_item = QTableWidgetItem(ds_names[i])
+        table.setItem(i, 0, data_item)
+
+
+def get_dataset_table(table: QTableWidget):
+
+    ds_names = []
+    for i in range(table.rowCount()):
+        ds_names.append(table.item(i, 0))
+
+    return ds_names
+
+
+def set_cell_sheet(table: QTableWidget, text: str, row: int, col: int):
+    data_item = QTableWidgetItem(text)
+    table.setItem(row, col, data_item)
+
+
+def set_col_cell_sheet(table: QTableWidget, text: str, col: int):
+    data_item = QTableWidgetItem(text)
+    table.setItem(len(table.rowCount()), col, data_item)
 
 
 def clear_table(table: QTableWidget):
