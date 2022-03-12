@@ -20,7 +20,7 @@ import glob
 # Custom Utils
 import settings
 from util.statMathUtil import date_to_string as datestring
-from util.langUtil import strtotime, timedeltatosigstr, normify_name, yahoolimitperiod, yahoolimitperiod_leftover, \
+from util.langUtil import strtotimedelta, timedeltatosigstr, normify_name, yahoolimitperiod, yahoolimitperiod_leftover, \
     get_size_bytes
 
 # Robots
@@ -34,7 +34,7 @@ def retrieve_str(s: str,
                  period: str,
                  write: bool = False,
                  progress: bool = False):
-    return retrieve(s, datetime.now() - strtotime(period), datetime.now(), interval, write, progress)
+    return retrieve(s, datetime.now() - strtotimedelta(period), datetime.now(), interval, write, progress)
 
 
 def retrieve(
@@ -405,7 +405,7 @@ def load_ivar(ta_name: str, ivar_name: str):
     return idf[idf['name'] == ivar_name]
 
 
-def load_ivar_df(ta_name: str):
+def load_ivar_df(ta_name: str) -> pd.DataFrame:
     folder = F'robot/ivar'
     ivar_file = F'{ta_name}_ivar'
     path = F'{folder}/{ivar_file}.csv'
@@ -415,6 +415,14 @@ def load_ivar_df(ta_name: str):
 
     idf = pd.read_csv(path, index_col=0)
     return idf
+
+
+def load_ivar_as_list(ta_name: str, ivar_name: str):
+    idf = load_ivar(ta_name, ivar_name)
+    ivars = []
+    for col in idf.columns:
+        ivars.append(idf[col][0])
+    return ivars
 
 
 def load_ivar_list(ta_name: str):

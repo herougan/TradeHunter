@@ -13,13 +13,14 @@ from PyQt5.QtWidgets import QProgressBar, QWidget
 from robot.abstract.robot import robot
 from settings import EVALUATION_FOLDER
 from util.dataRetrievalUtil import load_dataset, load_df, get_computer_specs, number_of_datafiles
-from util.langUtil import craft_instrument_filename, strtodatetime, try_key, remove_special_char
+from util.langUtil import craft_instrument_filename, strtodatetime, try_key, remove_special_char, strtotimedelta
 
 import numpy as np
 from sklearn.linear_model import LinearRegression
 
 
 #  Robot
+from robot import FMACDRobot, FilterRobot
 
 def step_test_robot(r: robot, step: int):
     """..."""
@@ -568,8 +569,10 @@ class DataTester:
         self.start_time = datetime.now()
 
         ta_name = remove_special_char(ta_name)
+        print(ivar)
+        # need to un-df ivar!
+        print('Going to test: ' + F'{ta_name}.{ta_name}({ivar})')
         self.robot = eval(F'{ta_name}.{ta_name}({ivar})')
-        self.robot.start()
 
         if self.p_bar:
             self.p_bar.setMaximum(number_of_datafiles(ds_names) + 1)
@@ -587,6 +590,8 @@ class DataTester:
                     d_name = F'{craft_instrument_filename(row["symbol"], row["interval"], row["period"])}'
                     df = load_df(d_name)
                     self.p_window.setWindowTitle(F'Testing against {d_name}')
+                # todo convert to time delta!
+                self.robot.start(row["symbol"], strtotimedelta(row["interval"]), strtotimedelta(row["period"]))
                 profit_d, equity_d, signal_d = test_data(df)
                 summary_dict_list.append(create_summary_df_from_list(profit_d, equity_d, signal_d, df))
 

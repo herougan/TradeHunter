@@ -43,6 +43,8 @@ def get_datatable_sheet_all(table: QTableWidget):
 
         map.append(row)
 
+    map = [row for row in map if row[0] or row[1] or row[2]]
+
     data = {
         'symbol': [row[0] for row in map],
         'interval': [row[1] for row in map],
@@ -53,12 +55,28 @@ def get_datatable_sheet_all(table: QTableWidget):
     return df
 
 
+def get_datatable_sheet_col(table: QTableWidget, col: int):
+
+    map = []
+    for i in range(table.rowCount()):
+        map.append(table.item(i, col).text())
+        # Stop at a blank
+        if not map[-1]:
+            break
+    map = [row for row in map if row]
+
+    data = {
+        'data': [row[0] for row in map],
+            }
+    df = pd.DataFrame(data)
+
+    return df
+
+
 def set_datatable_sheet(table: QTableWidget, dataset_df: pd.DataFrame):
     clear_table(table)
 
     columns = dataset_df.columns
-
-    print(dataset_df)
 
     for i in range(len(dataset_df.index)):  # rows
         for u in range(len(columns)):
@@ -76,7 +94,9 @@ def get_dataset_table(table: QTableWidget):
 
     ds_names = []
     for i in range(table.rowCount()):
-        ds_names.append(table.item(i, 0))
+        if table.item(i, 0):
+            ds_names.append(table.item(i, 0).text())
+    ds_names = [ds_name for ds_name in ds_names if ds_name]
 
     return ds_names
 
@@ -88,7 +108,9 @@ def set_cell_sheet(table: QTableWidget, text: str, row: int, col: int):
 
 def set_col_cell_sheet(table: QTableWidget, text: str, col: int):
     data_item = QTableWidgetItem(text)
-    table.setItem(len(table.rowCount()), col, data_item)
+    row_count = len(get_datatable_sheet_col(table, col))
+    print(F'fitting {text} in {table.rowCount()}, {col} of {table}')
+    table.setItem(row_count, col, data_item)
 
 
 def clear_table(table: QTableWidget):

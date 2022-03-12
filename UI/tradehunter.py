@@ -5,7 +5,8 @@ from PyQt5.QtWidgets import (QApplication, QCheckBox, QComboBox, QDateTimeEdit,
                              QDial, QDialog, QGridLayout, QGroupBox, QHBoxLayout, QLabel, QLineEdit,
                              QProgressBar, QPushButton, QRadioButton, QScrollBar, QSizePolicy,
                              QSlider, QSpinBox, QStyleFactory, QTableWidget, QTabWidget, QTextEdit,
-                             QVBoxLayout, QWidget, QMessageBox, QBoxLayout, QListWidget, QMainWindow, QListWidgetItem)
+                             QVBoxLayout, QWidget, QMessageBox, QBoxLayout, QListWidget, QMainWindow, QListWidgetItem,
+                             QAbstractItemView)
 
 # Settings
 from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg, NavigationToolbar2QT as NavigationToolbar
@@ -13,13 +14,15 @@ import sys
 
 from matplotlib.figure import Figure
 
-from UI.QTUtil import get_datatable_sheet, set_datatable_sheet, clear_table, set_col_cell_sheet, get_dataset_table
+from UI.QTUtil import get_datatable_sheet, set_datatable_sheet, clear_table, set_col_cell_sheet, get_dataset_table, \
+    set_dataset_table
 from util.dataGraphingUtil import plot_single, candlestick, init_plot
 from util.dataRetrievalUtil import load_trade_advisor_list, get_dataset_changes, update_specific_dataset_change, \
     write_new_empty_dataset, load_dataset_list, save_dataset, add_as_dataset_change, load_dataset, \
     load_symbol_suggestions, load_interval_suggestions, load_period_suggestions, update_all_dataset_changes, \
     retrieve_ds, clear_dataset_changes, load_df_list, load_df, load_ivar_list, get_test_steps, \
-    load_ivar, init_robot, load_lag_suggestions, load_leverage_suggestions, load_currency_type_suggestions
+    load_ivar, init_robot, load_lag_suggestions, load_leverage_suggestions, load_currency_type_suggestions, \
+    load_ivar_as_list
 from util.dataTestingUtil import step_test_robot, DataTester
 from util.langUtil import normify_name, try_int
 
@@ -287,13 +290,13 @@ class TradeHunterApp:
 
             def window(self):
 
-                dataset_select = QListWidget()
+                # dataset_select = QListWidget()
                 dataset_combo = QComboBox()
-                dataset_select.setFixedHeight(20)
+                # dataset_select.setFixedHeight(20)
                 dataset_label = QLabel('Dataset')
 
                 self.combo = dataset_combo
-                self.select = dataset_select
+                # self.select = dataset_select
                 self.build_dataset_list()
 
                 def on_symbol_select(event):
@@ -312,18 +315,17 @@ class TradeHunterApp:
                     add_table_text(period_combo.currentText(), 2)
 
                 def add_table_text(string, colIdx):
-                    print(F'fitting {string} in {colIdx} of {self.table}')
                     set_col_cell_sheet(self.table, string, colIdx)
 
-                def load_selected_dataset(event):
-                    print("Selected ", event.text())
-                    self.build_dataset_instruments(event.text())
-                    self.saved = True
+                # def load_selected_dataset(event):
+                #     print("Selected ", event.text())
+                #     self.build_dataset_instruments(event.text())
+                #     self.saved = True
 
                 def load_combo_dataset(event):
                     self.build_dataset_instruments(self.combo.currentText())
 
-                dataset_select.currentItemChanged.connect(load_selected_dataset)
+                # dataset_select.currentItemChanged.connect(load_selected_dataset)
                 dataset_combo.currentIndexChanged.connect(load_combo_dataset)
 
                 select_layout = QHBoxLayout()
@@ -362,10 +364,13 @@ class TradeHunterApp:
                 for string in load_period_suggestions():
                     # item = QListWidgetItem(string, period_list)
                     period_combo.insertItem(0, string)
+                symbol_combo.setCurrentIndex(0)
+                interval_combo.setCurrentIndex(0)
+                period_combo.setCurrentIndex(0)
 
-                symbol_list.setFixedHeight(20)
-                interval_list.setFixedHeight(20)
-                period_list.setFixedHeight(20)
+                # symbol_list.setFixedHeight(20)
+                # interval_list.setFixedHeight(20)
+                # period_list.setFixedHeight(20)
 
                 symbol_list.currentItemChanged.connect(on_symbol_select)
                 interval_list.currentItemChanged.connect(on_interval_select)
@@ -394,7 +399,7 @@ class TradeHunterApp:
 
                 def save_button_clicked():
                     dsf = get_datatable_sheet(self.table)
-                    ds_name = dataset_select.currentItem().text()
+                    ds_name = dataset_combo.currentText()
                     if self.saved:
                         print("Already up to date, skip saving.")
                         return
@@ -418,17 +423,19 @@ class TradeHunterApp:
 
             def bind(self, table: QTableWidget):
                 self.table = table
+                self.build_dataset_instruments(self.combo.currentText())
                 self.table.cellChanged.connect(self.on_cell_change)
                 self.table.currentItemChanged.connect(self.on_cell_change)
 
             def build_dataset_list(self):
-                self.select.clear()
+                # self.select.clear()
                 dataset_list = load_dataset_list()
                 i = 0
                 for dataset in dataset_list:
-                    item = QListWidgetItem(F'{dataset}', self.select)
+                    # item = QListWidgetItem(F'{dataset}', self.select)
                     self.combo.insertItem(i, F'{dataset}')
                     i += 1
+                self.combo.setCurrentIndex(0)
 
             def on_cell_change(self, event):
                 self.saved = False
@@ -547,6 +554,7 @@ class TradeHunterApp:
                     for ta in load_trade_advisor_list():
                         # item = QListWidgetItem(ta, robot_select)
                         robot_combo.insertItem(0, ta)
+                    robot_combo.setCurrentIndex(0)
 
                     layout = QVBoxLayout()
 
@@ -764,23 +772,31 @@ class TradeHunterApp:
             xvar_pane = QHBoxLayout()
 
             dataset_label = QLabel('Dataset')
-            dataset_select = QListWidget()
+            # dataset_select = QListWidget()
             dataset_combo = QComboBox()
             for ds_name in load_dataset_list():
-                item = QListWidgetItem(ds_name, dataset_select)
+                # item = QListWidgetItem(ds_name, dataset_select)
                 dataset_combo.insertItem(0, ds_name)
+            dataset_combo.setCurrentIndex(0)
             dataset_layout.addWidget(dataset_label)
+
             # dataset_layout.addWidget(dataset_select)
             dataset_layout.addWidget(dataset_combo)
-            dataset_select.setFixedHeight(20)
+            # dataset_select.setFixedHeight(20)
 
-            dataset_table = QTableWidget()
+            dataset_table = QTableWidget(100, 1)
+            dataset_table.setHorizontalHeaderLabels(['Dataset'])
+            dataset_table.setEditTriggers(QAbstractItemView.NoEditTriggers)
             # dataset_layout.addWidget(dataset_table)
 
+            def build_empty_table():
+                pass
+
             def add_dataset():
+                print(F'Adding {dataset_combo.currentText()} into {dataset_table}')
                 ds_names = get_dataset_table(dataset_table)
                 ds_names.append(dataset_combo.currentText())
-                set_datatable_sheet(dataset_table, ds_names)
+                set_dataset_table(dataset_table, ds_names)
 
             dataset_combo.currentIndexChanged.connect(add_dataset)
 
@@ -814,7 +830,8 @@ class TradeHunterApp:
             def to_test():
 
                 # Check if ivar/dataset selected
-                if not ivar_select.currentItem() or not dataset_select.currentItem():
+                print("Test check", ivar_combo.currentText(), dataset_combo.currentText())
+                if not ivar_combo.currentText() or not dataset_combo.currentText():
                     self.alert_window = QWidget()
                     alert_layout = QVBoxLayout()
                     alert = QMessageBox(self.alert_window)
@@ -826,9 +843,12 @@ class TradeHunterApp:
                     self.alert_window.setLayout(alert_layout)
                     return self.alert_window
 
-                if not lag_select.currentItem() or not capital_text.document() or \
-                        not leverage_select.currentItem() or not currency_select.currentItem() or \
-                        not type_select.currentItem():
+                # if not lag_select.currentItem() or not capital_text.document() or \
+                #         not leverage_select.currentItem() or not currency_select.currentItem() or \
+                #         not type_select.currentItem():
+                if not lag_combo.currentText() or not capital_text.document() or \
+                        not leverage_combo.currentText() or not currency_combo.currentText() or \
+                        not type_combo.currentText():
                     self.alert_window = QWidget()
                     alert_layout = QVBoxLayout()
                     alert = QMessageBox(self.alert_window)
@@ -855,15 +875,16 @@ class TradeHunterApp:
                     return self.alert_window
 
                 # Get XVar
-                xvar = {'lag': lag_select.currentItem().text(),
+                xvar = {'lag': lag_combo.currentText(),
                         'capital': capital_text.document().toPlainText(),
-                        'leverage': leverage_select.currentItem().text(),
-                        'currency': currency_select.currentItem().text(),
-                        'type': type_select.currentItem().text()}
+                        'leverage': leverage_combo.currentText(),
+                        'currency': currency_combo.currentText(),
+                        'type': type_combo.currentText()}
                 print(F'XVar: {xvar}')
 
-                ivar_name = ivar_select.currentItem().text()
-                dataset = dataset_select.currentItem().text()
+                ivar_name = ivar_combo.currentText()
+                # dataset = dataset_select.currentItem().text()
+                # dataset = dataset_combo.currentText()
 
                 p_window = QWidget()
                 p_layout = QVBoxLayout()
@@ -874,23 +895,25 @@ class TradeHunterApp:
 
                 p_window.show()
 
-                max = get_test_steps(dataset)
-                p_bar.setMaximum(max)
-                p_bar.setMinimum(0)
+                # max = get_test_steps(dataset)
+                # p_bar.setMaximum(max)
+                # p_bar.setMinimum(0)
 
-                ivar = load_ivar(robot_name, ivar_name)
+                ivar = load_ivar_as_list(robot_name, ivar_name)
 
                 # Setup robot
                 data_tester = DataTester(xvar)
                 data_tester.bind_progress_bar(p_bar, p_window)
 
-                data_tester.test(robot_name, ivar [ds_name], "test_1")
+                ds_names = get_dataset_table(dataset_table)
+                print("IVAR: ", ivar)
+                data_tester.test(robot_name, ivar, ds_names, "test_1")
 
-                # Feed data
-                for i in range(max):
-                    # step_test_robot(robot, i)
-                    p_bar.setValue(i)
-                    # Pass in robot
+                # # Feed data
+                # for i in range(max):
+                #     # step_test_robot(robot, i)
+                #     p_bar.setValue(i)
+                #     # Pass in robot
 
                 # Get data
                 data_tester.get_data()
@@ -1226,3 +1249,14 @@ class TradeHunterApp:
             return self.axes
 
 
+# ROBOT PAGE - DELETE IVARS
+# RESULT PAGE - DELETE TEST RESULTS OR OPTIM RESULTS
+# REDOWNLOAD ALL - DELETE ALL DATA, REDOWNLOAD ALL
+
+# Future method: Redownload All
+# Find all meta information of a data
+# download everything past latest data point,
+# if its too far back, delete file, redownload
+# Unmentioned files, delete all.
+# 3 categories: unmentioned, new, mentioned
+# Delete unmentioned, download new, special care for mentioned

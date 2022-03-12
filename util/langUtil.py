@@ -5,7 +5,7 @@ from typing import List
 from dateutil import parser
 
 
-def strtotime(s: str):
+def strtotimedelta(s: str):
     """XM X minutes, XH X hours, Xd X days, Xw X weeks, Xm X months, all separated by a space"""
     t = timedelta()
     s_array = s.split()
@@ -38,11 +38,11 @@ def strtoyahootimestr(s: str):
     interval = ['1M', '2M', '5M', '15M', '30M', '60M', '1h', '90M', '1d', '5d', '1wk', '1mo', '3mo']
     idx, prev_idx = len(interval) // 2, 0
     left, right = 0, len(interval)
-    chosen_interval = strtotime(s)
+    chosen_interval = strtotimedelta(s)
 
     while not (right - left) < 2:
         prev_idx = idx
-        diff = strtotime(interval[idx]) - chosen_interval
+        diff = strtotimedelta(interval[idx]) - chosen_interval
         # Check if chosen interval is smaller or greater than measured interval, move boundaries accordingly
         if diff > timedelta(0):
             right = idx
@@ -54,8 +54,8 @@ def strtoyahootimestr(s: str):
             idx = (idx + right) // 2
 
     # Compare which is better
-    diff1 = strtotime(interval[idx]) - chosen_interval
-    diff2 = strtotime(interval[prev_idx]) - chosen_interval
+    diff1 = strtotimedelta(interval[idx]) - chosen_interval
+    diff2 = strtotimedelta(interval[prev_idx]) - chosen_interval
     if diff1 > timedelta(0):
         # interval_1 is larger than chosen interval, so interval_2 is smaller (diff2 is negative)
         if diff1 + diff2 > timedelta(0):
@@ -80,7 +80,7 @@ def timedeltatoyahootimestr(_interval: timedelta):
 
     while not (right - left) < 2:
         prev_idx = idx
-        diff = strtotime(interval[idx]) - chosen_interval
+        diff = strtotimedelta(interval[idx]) - chosen_interval
         # Check if chosen interval is smaller or greater than measured interval, move boundaries accordingly
         if diff > timedelta(0):
             right = idx
@@ -92,8 +92,8 @@ def timedeltatoyahootimestr(_interval: timedelta):
             idx = (idx + right) // 2
 
     # Compare which is better
-    diff1 = strtotime(interval[idx]) - chosen_interval
-    diff2 = strtotime(interval[prev_idx]) - chosen_interval
+    diff1 = strtotimedelta(interval[idx]) - chosen_interval
+    diff2 = strtotimedelta(interval[prev_idx]) - chosen_interval
     if diff1 > timedelta(0):
         # interval_1 is larger than chosen interval, so interval_2 is smaller (diff2 is negative)
         if diff1 + diff2 > timedelta(0):
@@ -106,6 +106,22 @@ def timedeltatoyahootimestr(_interval: timedelta):
             idx = prev_idx
 
     return interval[idx]
+
+
+def timedeltatosigstr(s: timedelta):
+    """Takes in datetime and returns string containing only one significant time denomination without spaces"""
+    if s.days > 0:
+        return F'{s.days}d'
+    elif s.seconds >= 60 * 60:
+        return F'{s.seconds // (60 * 60)}h'
+    elif s.seconds > 60:
+        return F'{s.seconds // 60}M'
+    else:
+        return F"{s.seconds}s"
+
+
+def strtotimedeltadelta(s: str):
+    pass
 
 
 def yahoolimitperiod(period: timedelta, interval: str):
@@ -125,14 +141,14 @@ def yahoolimitperiod(period: timedelta, interval: str):
     }
 
     eff_interval = '1M'
-    diff = strtotime(eff_interval) - strtotime(interval)
+    diff = strtotimedelta(eff_interval) - strtotimedelta(interval)
     for key in min_dict.keys():
-        _diff = strtotime(key) - strtotime(interval)
+        _diff = strtotimedelta(key) - strtotimedelta(interval)
         if timedelta() > _diff > diff:
             diff = _diff
             eff_interval = key
 
-    max_period = strtotime(min_dict[eff_interval])
+    max_period = strtotimedelta(min_dict[eff_interval])
 
     if period > max_period:
         n_loop = math.ceil(period / max_period)
@@ -159,20 +175,20 @@ def yahoolimitperiod_leftover(period: timedelta, interval: str):
     }
 
     eff_interval = '1M'
-    diff = strtotime(eff_interval) - strtotime(interval)
+    diff = strtotimedelta(eff_interval) - strtotimedelta(interval)
     for key in min_dict.keys():
-        _diff = strtotime(key) - strtotime(interval)
+        _diff = strtotimedelta(key) - strtotimedelta(interval)
         if timedelta() > _diff > diff:
             diff = _diff
             eff_interval = key
 
-    max_period = strtotime(min_dict[eff_interval])
+    max_period = strtotimedelta(min_dict[eff_interval])
 
     if period > max_period:
         n_loop = math.floor(period / max_period)
         leftover = period - max_period * n_loop
-        if leftover < strtotime(interval):
-            leftover = strtotime(interval)
+        if leftover < strtotimedelta(interval):
+            leftover = strtotimedelta(interval)
         return max_period, n_loop, leftover
     return period, 1, timedelta(0)
 
@@ -200,18 +216,6 @@ def is_lnumber(s: str):
 
 def is_not_rnumber(s: str):
     return s == s.rstrip('0123456789')
-
-
-def timedeltatosigstr(s: timedelta):
-    """Takes in datetime and returns string containing only one significant time denomination without spaces"""
-    if s.days > 0:
-        return F'{s.days}d'
-    elif s.seconds >= 60 * 60:
-        return F'{s.seconds // (60 * 60)}h'
-    elif s.seconds > 60:
-        return F'{s.seconds // 60}M'
-    else:
-        return F"{s.seconds}s"
 
 
 def to_dataname(s, interval, period):

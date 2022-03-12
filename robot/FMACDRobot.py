@@ -7,12 +7,6 @@ import talib
 from robot.abstract.robot import robot
 from datetime import datetime, timedelta
 
-# IDEA TODO
-# THEN, AS A GREAT PROJECT - WE MOVE ALL CODE LOGIC TO DATETESTINGUTIL - SO THAT FMACD ROBOT JUST DOES EVERYTHING
-# IN QUIET. (OUTSIDE USES While Not self.Done(): self.Next() or something like that)
-# DATATESTER loops through itself and produces stuff. FMACDRobot just needs to feed data into datatester.
-# Makes sense!
-#
 # Pre-Retrieve done by DataTester
 
 
@@ -36,6 +30,9 @@ class FMACDRobot(robot):
 
         # External attributes
         self.xvar = xvar
+        self.symbol = ""
+        self.period = timedelta()
+        self.interval = timedelta()
 
         # Indicator Data
         self.indicators = {
@@ -79,15 +76,18 @@ class FMACDRobot(robot):
 
     # ======= Start =======
 
-    def start(self, data_meta: List[str], interval: timedelta):
-        """Begin by understanding the incoming data.
-        Setup data will be sent
+    def start(self, symbol: str, period: timedelta, interval: timedelta):
+    # def start(self, data_meta: List[str], interval: timedelta):
+        """Begin by understanding the incoming data. Setup data will be sent
         E.g. If SMA-200 is needed, at the minimum, the past 400 data points should be known.
-
         old_data = retrieve()
-
         From then on, the robot receives data realtime - simulated by feeding point by point. (candlestick)
+        data_meta: Symbol, Period, Interval, xvar variables, ...
         """
+        self.symbol = symbol
+        self.period = period
+        self.interval = interval
+
         self.reset()
         self.interval = interval
         self.retrieve_prepare()
