@@ -23,7 +23,7 @@ from util.dataRetrievalUtil import load_trade_advisor_list, get_dataset_changes,
     retrieve_ds, clear_dataset_changes, load_df_list, load_df, load_ivar_list, get_test_steps, \
     load_ivar, init_robot, load_lag_suggestions, load_leverage_suggestions, load_currency_type_suggestions, \
     load_ivar_as_list
-from util.dataTestingUtil import step_test_robot, DataTester
+from util.dataTestingUtil import step_test_robot, DataTester, write_test_result, write_test_meta
 from util.langUtil import normify_name, try_int
 
 
@@ -220,6 +220,7 @@ class TradeHunterApp:
 
                 self.p_window = _progress_window
                 self.download_progress = download_progress
+                self.p_window.show()
 
                 return _progress_window, download_progress
 
@@ -228,8 +229,8 @@ class TradeHunterApp:
                 print("Preparing to update changed files")
 
                 files_df = get_dataset_changes()
-                for index, row in files_df.iterrows():
-                    print(F"File: {row['name']}")
+                # for index, row in files_df.iterrows():
+                #     print(F"File: {row['name']}")
 
                 self.p_window, self.d_progress = progress_window(len(files_df.index))
                 self.p_window.show()
@@ -243,6 +244,9 @@ class TradeHunterApp:
                 self.p_window.setWindowTitle(F"Download complete. You may close the window.")
 
                 clear_dataset_changes()
+
+                # In case of change, update datesets display
+                self.datasetpane.build_dataset_instruments(self.datasetpane.combo.currentText())
 
             def import_clicked():
                 pass
@@ -355,15 +359,21 @@ class TradeHunterApp:
                 period_combo = QComboBox()
 
                 # Build listwidget items
+                si = 0
                 for string in load_symbol_suggestions():
                     # item = QListWidgetItem(string, symbol_list)
-                    symbol_combo.insertItem(0, string)
+                    symbol_combo.insertItem(si, string)
+                    si += 1
+                si = 0
                 for string in load_interval_suggestions():
                     # item = QListWidgetItem(string, interval_list)
-                    interval_combo.insertItem(0, string)
+                    interval_combo.insertItem(si, string)
+                    si += 1
+                si = 0
                 for string in load_period_suggestions():
                     # item = QListWidgetItem(string, period_list)
-                    period_combo.insertItem(0, string)
+                    period_combo.insertItem(si, string)
+                    si += 1
                 symbol_combo.setCurrentIndex(0)
                 interval_combo.setCurrentIndex(0)
                 period_combo.setCurrentIndex(0)
@@ -787,6 +797,7 @@ class TradeHunterApp:
             dataset_table = QTableWidget(100, 1)
             dataset_table.setHorizontalHeaderLabels(['Dataset'])
             dataset_table.setEditTriggers(QAbstractItemView.NoEditTriggers)
+
             # dataset_layout.addWidget(dataset_table)
 
             def build_empty_table():
@@ -843,10 +854,7 @@ class TradeHunterApp:
                     self.alert_window.setLayout(alert_layout)
                     return self.alert_window
 
-                # if not lag_select.currentItem() or not capital_text.document() or \
-                #         not leverage_select.currentItem() or not currency_select.currentItem() or \
-                #         not type_select.currentItem():
-                if not lag_combo.currentText() or not capital_text.document() or \
+                if not lag_combo.currentText() or not capital_text.document().toPlainText() or \
                         not leverage_combo.currentText() or not currency_combo.currentText() or \
                         not type_combo.currentText():
                     self.alert_window = QWidget()
@@ -860,9 +868,20 @@ class TradeHunterApp:
                     self.alert_window.setLayout(alert_layout)
                     return self.alert_window
 
+                if not name_text.document().toPlainText():
+                    self.alert_window = QWidget()
+                    alert_layout = QVBoxLayout()
+                    alert = QMessageBox(self.alert_window)
+                    alert.setText('The test needs a name!')
+                    alert.show()
+
+                    alert_layout.addWidget(alert)
+
+                    self.alert_window.setLayout(alert_layout)
+                    return self.alert_window
+
                 capital = try_int(capital_text.document().toPlainText())
                 if capital <= 0:
-
                     self.alert_window = QWidget()
                     alert_layout = QVBoxLayout()
                     alert = QMessageBox(self.alert_window)
@@ -874,13 +893,15 @@ class TradeHunterApp:
                     self.alert_window.setLayout(alert_layout)
                     return self.alert_window
 
+                # Get name
+                test_name = name_text.document().toPlainText()
+
                 # Get XVar
                 xvar = {'lag': lag_combo.currentText(),
                         'capital': capital_text.document().toPlainText(),
                         'leverage': leverage_combo.currentText(),
                         'currency': currency_combo.currentText(),
                         'type': type_combo.currentText()}
-                print(F'XVar: {xvar}')
 
                 ivar_name = ivar_combo.currentText()
                 # dataset = dataset_select.currentItem().text()
@@ -906,17 +927,14 @@ class TradeHunterApp:
                 data_tester.bind_progress_bar(p_bar, p_window)
 
                 ds_names = get_dataset_table(dataset_table)
-                print("IVAR: ", ivar)
-                data_tester.test(robot_name, ivar, ds_names, "test_1")
-
-                # # Feed data
-                # for i in range(max):
-                #     # step_test_robot(robot, i)
-                #     p_bar.setValue(i)
-                #     # Pass in robot
+                test_result, test_meta = data_tester.test(robot_name, ivar, ds_names, test_name)
 
                 # Get data
                 data_tester.get_data()
+
+                # Write stuff
+                write_test_result(test_name, test_result)
+                write_test_meta(test_name, test_meta)
 
                 # Move to Results
                 self.rap = TradeHunterApp.ResultAnalysisPage()
@@ -944,6 +962,9 @@ class TradeHunterApp:
 
             # Right (xvar)
 
+            name_label = QLabel('Test Name')
+            name_text = QTextEdit()
+            name_text.setFixedHeight(20)
             lag_label = QLabel('Lag')
             lag_select = QListWidget()
             lag_select.setFixedHeight(20)
@@ -1002,6 +1023,7 @@ class TradeHunterApp:
             xvar_left_body = QVBoxLayout()
             xvar_right_body = QVBoxLayout()
 
+            xvar_left_body.addWidget(name_label, 1)
             xvar_left_body.addWidget(lag_label, 1)
             xvar_left_body.addWidget(capital_label, 1)
             xvar_left_body.addWidget(leverage_label, 1)
@@ -1014,6 +1036,7 @@ class TradeHunterApp:
             # xvar_right_body.addWidget(currency_select, 1.5)
             # xvar_right_body.addWidget(type_select, 1.5)
 
+            xvar_right_body.addWidget(name_text, 1.5)
             xvar_right_body.addWidget(lag_combo, 1.5)
             xvar_right_body.addWidget(capital_text, 1.5)
             xvar_right_body.addWidget(leverage_combo, 1.5)
@@ -1247,7 +1270,6 @@ class TradeHunterApp:
 
         def get_axes(self):
             return self.axes
-
 
 # ROBOT PAGE - DELETE IVARS
 # RESULT PAGE - DELETE TEST RESULTS OR OPTIM RESULTS

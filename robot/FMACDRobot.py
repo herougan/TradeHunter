@@ -1,4 +1,4 @@
-'''FMACD Robot'''
+"""FMACD Robot"""
 from typing import List
 
 import pandas as pd
@@ -7,7 +7,13 @@ import talib
 from robot.abstract.robot import robot
 from datetime import datetime, timedelta
 
+
 # Pre-Retrieve done by DataTester
+
+# Definitions:
+#
+# Check - Indicator result: long, short or none
+# Signal - Dictionary, trade deal = { type, vol (amount), start, end, }
 
 
 class FMACDRobot(robot):
@@ -27,6 +33,7 @@ class FMACDRobot(robot):
         else:
             self.ivar = FMACDRobot.ARGS_DEFAULT
         self.ivar_range = FMACDRobot.ARGS_RANGE
+        self.steps = 0
 
         # External attributes
         self.xvar = xvar
@@ -34,13 +41,18 @@ class FMACDRobot(robot):
         self.period = timedelta()
         self.interval = timedelta()
 
+        # Preparation attributes
+        self.prepare_period = 200
+
         # Indicator Data
         self.indicators = {
-            'SMA200': 0,
-            'EMA': 0,
-            'MACD1': 0,
-            'MACD2': 0,
-            'MACDHIST': 0,
+            'SMA200': [],
+            'SMA5': [],
+            'EMA': [],
+            'MACD': [],
+            'MACD_SIGNAL': [],
+            'MACD_HIST': [],
+            'MACD_DF': [],
         }
 
         # Statistical Data
@@ -54,13 +66,10 @@ class FMACDRobot(robot):
         # Data
         self.df = {}
 
-        # Meta does not matter, but just in case
-        self.symbol = ""
-
         # Upon completion
-        self.profit_df = None
-        self.signal_df = None
-        self.summary_df = None
+        self.profit_df = []
+        self.equity_df = []
+        self.signal_df = []
 
         # Status
         self.market_active = False
@@ -70,14 +79,13 @@ class FMACDRobot(robot):
     def reset(self):
         self.steps = 0
 
-        self.profit_df = None
-        self.signal_df = None
-        self.summary_df = None
+        self.profit_df = []
+        self.equity_df = []
+        self.signal_df = []
 
     # ======= Start =======
 
-    def start(self, symbol: str, period: timedelta, interval: timedelta):
-    # def start(self, data_meta: List[str], interval: timedelta):
+    def start(self, symbol: str, interval: timedelta, period: timedelta):
         """Begin by understanding the incoming data. Setup data will be sent
         E.g. If SMA-200 is needed, at the minimum, the past 400 data points should be known.
         old_data = retrieve()
@@ -100,14 +108,7 @@ class FMACDRobot(robot):
 
     def retrieve_prepare(self, df):
 
-        # self.df = retrieve("symbol", datetime.now(), datetime.now() - self.interval * self.prepare_period,
-        #                    self.interval,
-        #                    False, False)
-
-        self.df = df  # Past data todo
-
-        # If no such file, SMA will be empty.
-        self.calc_macd()
+        self.df = df
 
     def next(self, candlesticks: pd.DataFrame):
         """Same as above, but only when updates are missed so the whole backlog would
@@ -122,25 +123,33 @@ class FMACDRobot(robot):
         self.asset_data.append(liquid_assets)
 
         # update indicators
-        self.calc_macd()
+        self.build_indicators()
 
-        # check signals
+        # close signals
         for signal in [_signal for _signal in self.signals if not _signal['end']]:
             pass
 
+        # check signals
+        check_dict = self.check_indicators()  # indicator check dictionary
+        f_check = check_dict.values()[0]
+        for key in check_dict.keys():
+            if not f_check:
+                continue
+            if f_check != check_dict[key]:
+                f_check = 0
         # make signals
-        if self.if_go():
-            pass
-        # end-
+        self.create_signal(f_check, check_dict, candlesticks[-1])
+        # end -
 
     def calc_macd(self):
-        macd, macdsignal, macdhist = talib.MACD(self.df, fastperiod=12, slowperiod=26, signalperiod=9)
-        sma5 = talib.SMA(self.df, timeperiod=2)
-        sma200 = talib.SMA(self.df, timeperiod=200)
-        macd_df = pd.DataFrame(index=self.df.index,
-                               data={"macd": macd,
-                                     "macd_signal": macdsignal,
-                                     "macdhist": macdhist, })
+        self.indicators['MACD'], self.indicators['MACD_SIGNAL'], self.indicators['MACD_HIST'] = \
+            talib.MACD(self.df, fastperiod=12, slowperiod=26, signalperiod=9)
+        self.indicators['MACD_DF'] = pd.DataFrame(index=self.df.index,
+                                                  data={"macd": self.indicators['MACD'],
+                                                        "macd_signal": self.indicators['MACD_SIGNAL'],
+                                                        "macdhist": self.indicators['MACD_HIST'], })
+        self.indicators['SMA5'] = talib.SMA(self.df, timeperiod=2)
+        self.indicators['SMA200'] = talib.SMA(self.df, timeperiod=200)
 
     # ======= End =======
 
@@ -158,26 +167,74 @@ class FMACDRobot(robot):
     def get_data(self):
         return self.df
 
-    def get_result(self):
-        pass
+    def get_time_data(self):
+        return self.df['datetime']
 
     def get_profit(self):
-        profit_d = []
-        equity_d = []
-        return profit_d, equity_d
+        return self.profit_d, self.equity_d
 
     def get_signals(self):
-        pass
+        return self.signals
 
-    # Indicators
+    def get_curr_data_time(self):
+        return self.df['datetime'].tolist()[-1]
 
-    def build_indicators(self):
-        pass
+    # Indicator
 
-    def indicator_next(self, candlestick: pd.DataFrame):
-        pass
+    def check_indicators(self):
+        """Returns a list of integer-bools according to the signal-generating indicators.
+        0: False, 1: Long, 2: Short"""
+        return {
+            'MACD': self.check_macd(),
+            'MACD_HIST': self.check_macd_hist(),
+            'SMA': self.check_sma(),
+        }
 
-    def get_indicator_df(self):
+    def check_macd(self):
+        if len(self.indicators['MACD']) > 2 and len(self.indicators['MACD_SIGNAL']) > 2:
+            if self.indicators['MACD'][-2] > self.indicators['MACD_SIGNAL'][-2]:
+                if self.indicators['MACD'][-1] < self.indicators['MACD_SIGNAL'][-1]:
+                    return 1
+            else:
+                if self.indicators['MACD'][-1] > self.indicators['MACD_SIGNAL'][-1]:
+                    return 2
+        return 0
+
+    def check_macd_hist(self):
+        if self.indicators['MACD_HIST'][-1] > 0:
+            if self.indicators['MACD_HIST'][-1] > self.indicators['MACD_HIST'][-2]:
+                return 1
+        else:
+            if self.indicators['MACD_HIST'][-1] < self.indicators['MACD_HIST'][-2]:
+                return 2
+        return 0
+
+    def check_sma(self):
+        if self.indicators['SMA200'][-1] > self.df['close'][-1]:
+            return 1
+        else:
+            return 2
+
+    # Signal
+
+    def create_signal(self, check, check_dict, df):
+
+        start = self.get_curr_data_time()
+        vol = self.
+
+        if check:
+            signal = {
+                'type': check,
+                'vol': 0,
+                'start': start,
+                'end': 0,
+            }
+        self.signals.append(signal)
+
+    def close_signal(self, check, check_dict, df):
+
+
+
         pass
 
     # Optimisation
@@ -192,7 +249,8 @@ class FMACDRobot(robot):
     # Utility
 
     def if_go(self):
-        return False
+        # Check if [-1] and [-2] sma exists for the df
+        pass
 
     def sell(self, ind):
         # self.signals = [signal for signal in self.signals if signal['type'] == 'Buy']

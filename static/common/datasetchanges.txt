@@ -1,3 +1,1 @@
 ,name
-0,forex_only.csv
-1,forex_only.csv

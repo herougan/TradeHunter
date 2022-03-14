@@ -253,7 +253,20 @@ def try_int(s: str) -> int:
 
 
 def craft_instrument_filename(sym: str, interval: str, period: str):
-    return F'{sym}__{interval}__{period}.csv'
+    return F'{sym}-{interval}-{period}.csv'
+
+
+def get_instrument_from_filename(s: str):
+    parts = s.split('-')
+    l = len(parts) - 2
+    if l < 1:
+        return "", "", ""
+
+    period = parts[-1]
+    interval = parts[-2]
+    sym = "-".join(parts[0: l-1])
+
+    return sym, interval, period
 
 
 def craft_test_filename(ta_name: str, ivar_name: str, ds_names: List[str]):

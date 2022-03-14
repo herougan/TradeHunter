@@ -12,7 +12,7 @@ from PyQt5.QtWidgets import QProgressBar, QWidget
 
 from robot.abstract.robot import robot
 from settings import EVALUATION_FOLDER
-from util.dataRetrievalUtil import load_dataset, load_df, get_computer_specs, number_of_datafiles
+from util.dataRetrievalUtil import load_dataset, load_df, get_computer_specs, number_of_datafiles, retrieve
 from util.langUtil import craft_instrument_filename, strtodatetime, try_key, remove_special_char, strtotimedelta
 
 import numpy as np
@@ -58,9 +58,7 @@ def create_signal_df_from_list(completed, leftover, headers):
     return sdf
 
 
-def create_summary_df_from_list(profit_d, equity_d, signals, df, additional={}):
-    """Takes in the profit-loss dataframe, buy-sell signals,
-    produces the data-1 summary stat dictionary"""
+def base_summary_dict():
 
     summary_dict = {
         'period': 0,
@@ -136,6 +134,15 @@ def create_summary_df_from_list(profit_d, equity_d, signals, df, additional={}):
         'z_score': 0,
         #
     }
+
+    return summary_dict
+
+
+def create_summary_df_from_list(profit_d, equity_d, signals, df, additional={}):
+    """Takes in the profit-loss dataframe, buy-sell signals,
+    produces the data-1 summary stat dictionary"""
+
+    summary_dict = base_summary_dict()
     summary_dict.update(additional)
 
     complete_signals, incomplete_signals, profit_signals, loss_signals = [], [], [], []
@@ -416,10 +423,8 @@ def aggregate_summary_df_in_dataset(ds_name: str, summary_dict_list: List):
     # gross_profits = [d['gross_profit'] for d in summary_dict_list]
     # gross_loss = [d['gross_loss'] for d in summary_dict_list]
 
-    summary_dict = summary_dict_list[0]
+    summary_dict = base_summary_dict()
     for i in range(summary_dict_list):
-        if i == 0:
-            continue
         for key in summary_dict_list[i]:
             summary_dict[key] += summary_dict[i][key]
     for key in summary_dict:
@@ -433,13 +438,15 @@ def aggregate_summary_df_in_dataset(ds_name: str, summary_dict_list: List):
     }
 
     final_summary_dict.update(summary_dict)
-
     return final_summary_dict
 
 
 def aggregate_summary_df_in_datasets(summary_dict_list: List):
     """Aggregate summary and dataset summaries"""
 
+    summary_dict_list = [summary_dict for summary_dict in summary_dict_list if len(summary_dict.keys) > 0]
+    if len(summary_dict_list) < 1:
+        return {}
     summary_dict = summary_dict_list[0]
     total_instruments = 0
     for i in range(summary_dict_list):
@@ -580,33 +587,45 @@ class DataTester:
             self.p_window.show()
 
         # Testing util functions
-        def test_dataset(self, ds_name):
+        def test_dataset(ds_name):
             dsdf = load_dataset(ds_name)
             summary_dict_list = []
 
             for index, row in dsdf.iterrows():
+
                 if self.p_bar:
                     self.p_bar.setValue(self.p_bar.value() + 1)
-                    d_name = F'{craft_instrument_filename(row["symbol"], row["interval"], row["period"])}'
-                    df = load_df(d_name)
-                    self.p_window.setWindowTitle(F'Testing against {d_name}')
-                # todo convert to time delta!
-                self.robot.start(row["symbol"], strtotimedelta(row["interval"]), strtotimedelta(row["period"]))
-                profit_d, equity_d, signal_d = test_data(df)
+
+                # Load dataframe
+                d_name = F'{craft_instrument_filename(row["symbol"], row["interval"], row["period"])}'
+                df = load_df(d_name)
+                # If dataframe cannot be found:
+                if len(df) < 1:
+                    continue
+
+                # Testing dataframe here
+                self.p_window.setWindowTitle(F'Testing against {d_name}')
+                profit_d, equity_d, signal_d = test_data(df, row['symbol'], row['interval'], row['period'])
                 summary_dict_list.append(create_summary_df_from_list(profit_d, equity_d, signal_d, df))
 
-            return aggregate_summary_df_in_dataset(summary_dict_list)
+            return aggregate_summary_df_in_dataset(ds_name, summary_dict_list)
 
-        def test_data(self, df):
+        def test_data(df, sym, interval, period):
 
+            self.robot.start(sym, strtotimedelta(interval), strtotimedelta(period))
+            df = retrieve("symbol", datetime.now(), datetime.now() - self.interval * self.prepare_period,
+                               self.interval,
+                               False, False)
+            self.robot.retrieve_prepare(df)
+
+            # for each data point in datafile
             for index, row in df.iterrows():
                 print(index, row)
-                # robot.next(row)
-                # todo we are here!
+                robot.next(row)  # todo we are here!
 
             robot.finish()
             profit_d, equity_d = robot.get_profit()
-            signal_d = robot.get_signals() # choose - convert here or later! raw is profit/signal_d
+            signal_d = robot.get_signals()
 
             # Convert to df
             # self.profit_df = create_profit_df_from_list(self.profit_data, self.asset_data)

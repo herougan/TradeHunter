@@ -78,7 +78,7 @@ def set_datatable_sheet(table: QTableWidget, dataset_df: pd.DataFrame):
 
     columns = dataset_df.columns
 
-    for i in range(len(dataset_df.index)):  # rows
+    for i in range(len(dataset_df)):  # rows
         for u in range(len(columns)):
             data_item = QTableWidgetItem(dataset_df[columns[u]][i])
             table.setItem(i, u, data_item)

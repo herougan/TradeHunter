@@ -101,8 +101,12 @@ def load_df(name: str):
     folder = F'static/data'
     if not name.endswith('.csv'):
         name += '.csv'
-    df = pd.read_csv(F'{folder}/{name}')
-    print(F'Reading {folder}/{name}')
+    path = F'{folder}/{name}'
+    if not file_exists(path):
+        print(F'{path} datafile not found')
+        return pd.DataFrame()
+    df = pd.read_csv(path)
+    print(F'Reading {path}')
     return df
 
 
@@ -175,8 +179,9 @@ def write_new_empty_dataset(ds_name):
 
 def remove_from_dataset(ds_name, symbol, interval, period):
     dsf = load_dataset(ds_name)
-    dsf.drop(dsf[(dsf.symbol == symbol) & (dsf.interval == interval) & (dsf.period == period)].index)
+    dsf = dsf.drop(dsf[(dsf.symbol == symbol) & (dsf.interval == interval) & (dsf.period == period)].index)
     print(F"Removing {symbol}-{interval}-{period} from {ds_name}")
+    dsf.reset_index()
     write_dataset(ds_name, dsf)
 
 
