@@ -21,10 +21,10 @@ from util.dataRetrievalUtil import load_trade_advisor_list, get_dataset_changes,
     write_new_empty_dataset, load_dataset_list, save_dataset, add_as_dataset_change, load_dataset, \
     load_symbol_suggestions, load_interval_suggestions, load_period_suggestions, update_all_dataset_changes, \
     retrieve_ds, clear_dataset_changes, load_df_list, load_df, load_ivar_list, get_test_steps, \
-    load_ivar, init_robot, load_lag_suggestions, load_leverage_suggestions, load_currency_type_suggestions, \
+    load_ivar, init_robot, load_lag_suggestions, load_leverage_suggestions, load_instrument_type_suggestions, \
     load_ivar_as_list
 from util.dataTestingUtil import step_test_robot, DataTester, write_test_result, write_test_meta
-from util.langUtil import normify_name, try_int
+from util.langUtil import normify_name, try_int, leverage_to_float
 
 
 class TradeHunterApp:
@@ -771,38 +771,29 @@ class TradeHunterApp:
             self.ta_window = None
 
         def window(self):
-            left_pane = QVBoxLayout()
 
+            left_pane = QVBoxLayout()
             panes = QHBoxLayout()
 
-            # Left
+            # === Left Pane ===
             dataset_layout = QHBoxLayout()
-
             ivar_layout = QHBoxLayout()
             xvar_pane = QHBoxLayout()
 
+            # Build Dataset selector and table
             dataset_label = QLabel('Dataset')
-            # dataset_select = QListWidget()
             dataset_combo = QComboBox()
             for ds_name in load_dataset_list():
-                # item = QListWidgetItem(ds_name, dataset_select)
                 dataset_combo.insertItem(0, ds_name)
             dataset_combo.setCurrentIndex(0)
             dataset_layout.addWidget(dataset_label)
-
-            # dataset_layout.addWidget(dataset_select)
             dataset_layout.addWidget(dataset_combo)
-            # dataset_select.setFixedHeight(20)
 
             dataset_table = QTableWidget(100, 1)
             dataset_table.setHorizontalHeaderLabels(['Dataset'])
             dataset_table.setEditTriggers(QAbstractItemView.NoEditTriggers)
 
-            # dataset_layout.addWidget(dataset_table)
-
-            def build_empty_table():
-                pass
-
+            # Dataset combo adds dataset into table on select
             def add_dataset():
                 print(F'Adding {dataset_combo.currentText()} into {dataset_table}')
                 ds_names = get_dataset_table(dataset_table)
@@ -811,16 +802,13 @@ class TradeHunterApp:
 
             dataset_combo.currentIndexChanged.connect(add_dataset)
 
+            # Choose ivar
             ivar_label = QLabel('Initial Variables')
-            ivar_select = QListWidget()
             ivar_combo = QComboBox()
             for ivar in load_ivar_list(self.robot_name):
-                item = QListWidgetItem(ivar, ivar_select)
                 ivar_combo.insertItem(0, ivar)
             ivar_layout.addWidget(ivar_label)
-            # ivar_layout.addWidget(ivar_select)
             ivar_layout.addWidget(ivar_combo)
-            ivar_select.setFixedHeight(20)
 
             left_pane.addLayout(dataset_layout)
             left_pane.addWidget(dataset_table)
@@ -837,7 +825,6 @@ class TradeHunterApp:
                 p_window = QProgressBar()
                 return p_window
 
-            # Testing begins
             def to_test():
 
                 # Check if ivar/dataset selected
@@ -855,7 +842,7 @@ class TradeHunterApp:
                     return self.alert_window
 
                 if not lag_combo.currentText() or not capital_text.document().toPlainText() or \
-                        not leverage_combo.currentText() or not currency_combo.currentText() or \
+                        not leverage_combo.currentText() or not instrument_combo.currentText() or \
                         not type_combo.currentText():
                     self.alert_window = QWidget()
                     alert_layout = QVBoxLayout()
@@ -898,14 +885,13 @@ class TradeHunterApp:
 
                 # Get XVar
                 xvar = {'lag': lag_combo.currentText(),
-                        'capital': capital_text.document().toPlainText(),
-                        'leverage': leverage_combo.currentText(),
-                        'currency': currency_combo.currentText(),
-                        'type': type_combo.currentText()}
+                        'capital': try_int(capital_text.document().toPlainText()),
+                        'leverage': leverage_to_float(leverage_combo.currentText()),
+                        'instrument_type': instrument_combo.currentText(),
+                        # test specific
+                        'test_type': type_combo.currentText()}
 
                 ivar_name = ivar_combo.currentText()
-                # dataset = dataset_select.currentItem().text()
-                # dataset = dataset_combo.currentText()
 
                 p_window = QWidget()
                 p_layout = QVBoxLayout()
@@ -944,6 +930,7 @@ class TradeHunterApp:
             def to_optimise():
                 pass
 
+            # === Bottom === Tail buttons
             back_button.clicked.connect(self.back)
             test_button.clicked.connect(to_test)
             optimise_button.clicked.connect(to_optimise)
@@ -952,74 +939,40 @@ class TradeHunterApp:
             tail_layout.addWidget(optimise_button)
             tail_layout.addWidget(back_button)
 
-            # Right
-
-            # delete_ivar_button = QPushButton('Delete')
-            # delete_test_button = QPushButton('Delete')
-            # delete_optimisation_button = QPushButton('Delete')
-
             left_pane.addLayout(tail_layout)
 
-            # Right (xvar)
-
+            # === Right === (xvar attributes)
             name_label = QLabel('Test Name')
             name_text = QTextEdit()
             name_text.setFixedHeight(20)
             lag_label = QLabel('Lag')
-            lag_select = QListWidget()
-            lag_select.setFixedHeight(20)
             lag_combo = QComboBox()
             capital_label = QLabel('Capital')
             capital_text = QTextEdit()
             capital_text.setFixedHeight(20)
-            capital_combo = QComboBox()
             leverage_label = QLabel('Leverage')
-            leverage_select = QListWidget()
-            leverage_select.setFixedHeight(20)
             leverage_combo = QComboBox()
-            currency_label = QLabel('Currency')
-            currency_select = QListWidget()
-            currency_select.setFixedHeight(20)
-            currency_combo = QComboBox()
+            instrument_label = QLabel('Instrument')
+            instrument_combo = QComboBox()
             type_label = QLabel('Type')  # Singular/Multi
-            type_select = QListWidget()
-            type_select.setFixedHeight(20)
             type_combo = QComboBox()
 
             test_types = ['Single', 'Multi']
             lag_types = load_lag_suggestions()
             leverage_types = load_leverage_suggestions()
-            currency_types = load_currency_type_suggestions()
+            instrument_types = load_instrument_type_suggestions()
 
+            # Fill in xvar combo options
             for type in test_types:
                 type_combo.insertItem(0, type)
-
             for type in lag_types:
                 lag_combo.insertItem(0, type)
-
             for type in leverage_types:
                 leverage_combo.insertItem(0, type)
+            for type in instrument_types:
+                instrument_combo.insertItem(0, type)
 
-            for type in currency_types:
-                currency_combo.insertItem(0, type)
-
-            # _item = QListWidgetItem('Single', type_select)
-            # _item = QListWidgetItem('Multi', type_select)
-            #
-            # _item = QListWidgetItem('0 ms', lag_select)
-            # _item = QListWidgetItem('10 ms', lag_select)
-            # _item = QListWidgetItem('100 ms', lag_select)
-            #
-            # _item = QListWidgetItem('1:1', leverage_select)
-            # _item = QListWidgetItem('1:10', leverage_select)
-            # _item = QListWidgetItem('1:100', leverage_select)
-            # _item = QListWidgetItem('1:500', leverage_select)
-            #
-            # _item = QListWidgetItem('Defn of a Pip: Not used atm.', currency_select)
-            # _item = QListWidgetItem('1/100', currency_select)
-            # _item = QListWidgetItem('1/10,000', currency_select)
-            # _item = QListWidgetItem('1/100,000', currency_select)
-
+            # Labels on the left, Widgets on the right
             xvar_left_body = QVBoxLayout()
             xvar_right_body = QVBoxLayout()
 
@@ -1027,27 +980,20 @@ class TradeHunterApp:
             xvar_left_body.addWidget(lag_label, 1)
             xvar_left_body.addWidget(capital_label, 1)
             xvar_left_body.addWidget(leverage_label, 1)
-            xvar_left_body.addWidget(currency_label, 1)
+            xvar_left_body.addWidget(instrument_label, 1)
             xvar_left_body.addWidget(type_label, 1)
-
-            # xvar_right_body.addWidget(lag_select, 1.5)
-            # xvar_right_body.addWidget(capital_text, 1.5)
-            # xvar_right_body.addWidget(leverage_select, 1.5)
-            # xvar_right_body.addWidget(currency_select, 1.5)
-            # xvar_right_body.addWidget(type_select, 1.5)
 
             xvar_right_body.addWidget(name_text, 1.5)
             xvar_right_body.addWidget(lag_combo, 1.5)
             xvar_right_body.addWidget(capital_text, 1.5)
             xvar_right_body.addWidget(leverage_combo, 1.5)
-            xvar_right_body.addWidget(currency_combo, 1.5)
+            xvar_right_body.addWidget(instrument_combo, 1.5)
             xvar_right_body.addWidget(type_combo, 1.5)
 
             xvar_pane.addLayout(xvar_left_body)
             xvar_pane.addLayout(xvar_right_body)
 
-            # Panes
-
+            # Add panes
             panes.addLayout(left_pane)
             panes.addLayout(xvar_pane)
 

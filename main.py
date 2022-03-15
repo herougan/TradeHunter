@@ -10,6 +10,8 @@ from pandas import to_datetime
 import UI.tradehunter
 
 # Custom Util
+from util.langUtil import strtotimedelta
+
 sys.path.append('util')
 from util.dataRetrievalUtil import retrieve, load_df, load_df_list, init_common, force_overwrite_common, \
     load_trade_advisor_list
@@ -341,12 +343,16 @@ def test_1():
     plt.show()
 
 
+def test_0():
+
+    df = yf.download("EURUSD=X",
+                     start=date.today() - timedelta(days=1),
+                     end=date.today(),
+                     interval='1m')
+    print(df['start'][0])
+    datetimes = df.index  # date = df.index
+
+
 if __name__ == '__main__':
-    # my_module = importlib.import_module('robot')
-    # module_dict = my_module.__dict__
-    # try:
-    #     to_import = my_module.__all__
-    # except AttributeError:
-    #     to_import = [name for name in module_dict if not name.startswith('_')]
-    # globals().update({name: module_dict[name] for name in to_import})
-    test_3()
+    # test_3()
+    test_0()

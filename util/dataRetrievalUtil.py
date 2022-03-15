@@ -292,11 +292,11 @@ def load_lag_suggestions():
 
 
 def load_leverage_suggestions():
-    return ['10:1', '1:1', '1:10', '1:100', '1:1000', '1:10,000', ]
+    return ['10:1', '1:1', '1:10', '1:100', '1:1000', '1:10000', ]
 
 
-def load_currency_type_suggestions():
-    return ['1/1000 PIP', '1/100 PIP', 'Normal']
+def load_instrument_type_suggestions():
+    return ['1/1000 Forex', '1/100 Forex', 'Crypto', 'Stock', 'Index', 'Futures', 'Hedge']
 
 
 def load_symbol_suggestions() -> pd.DataFrame:
@@ -513,6 +513,16 @@ def result_dict_to_dataset(result_dict):
             key: [result_dict[key]]
         })
     return pd.DataFrame(data, index=False)
+
+
+# Data modification
+
+def columnify_datetime(df: pd.DataFrame):
+    """Yahoo timeseries data has inconsistent column naming, datetime for intra-day and date for inter-day.
+    This converts all date-like columns to 'datetime' column. The value itself will be left unchanged."""
+    if 'date' in df.columns:
+        return df.rename(columns={'date': 'datetime'})
+    return df
 
 
 # Init basic files

@@ -89,6 +89,9 @@ def candlestick(ax, df: pd.DataFrame):
     plt.show()
 
 
+# Indicators
+
+
 def sma(ax, df, period):
     pass
 
@@ -137,6 +140,12 @@ def plot_optimisations(ax, ivar_list, profit_list, primary_axis = [0, 1], **kwd)
 
 
 def mac_diagram(ax, macd_df):
+    pass
+
+# Signals
+
+
+def plot_signals(signal_d, df: pd.DataFrame, see_fail=False):
     pass
 
 

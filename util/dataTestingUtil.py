@@ -18,9 +18,9 @@ from util.langUtil import craft_instrument_filename, strtodatetime, try_key, rem
 import numpy as np
 from sklearn.linear_model import LinearRegression
 
-
 #  Robot
 from robot import FMACDRobot, FilterRobot
+
 
 def step_test_robot(r: robot, step: int):
     """..."""
@@ -59,7 +59,6 @@ def create_signal_df_from_list(completed, leftover, headers):
 
 
 def base_summary_dict():
-
     summary_dict = {
         'period': 0,
         'n_bars': 0,
@@ -136,6 +135,9 @@ def base_summary_dict():
     }
 
     return summary_dict
+
+
+# == Testing ==
 
 
 def create_summary_df_from_list(profit_d, equity_d, signals, df, additional={}):
@@ -490,6 +492,9 @@ def create_test_meta(test_name, ivar, xvar, other):
     return meta
 
 
+# Forex type
+
+
 def create_test_result(test_name: str, summary_dict_list, meta_df: pd.DataFrame):
     folder = F'static/results/evaluation'
     result_path = F'{folder}/{test_name}.csv'
@@ -554,12 +559,14 @@ def load_test_meta(meta_name: str):
     return tmdf
 
 
+# Stock type
+
+
 class DataTester:
 
     def __init__(self, xvar):
 
         self.xvar = xvar
-
         self.progress_bar = None
         self.start_time = None
         self.end_time = None
@@ -612,16 +619,17 @@ class DataTester:
 
         def test_data(df, sym, interval, period):
 
-            self.robot.start(sym, strtotimedelta(interval), strtotimedelta(period))
-            df = retrieve("symbol", datetime.now(), datetime.now() - self.interval * self.prepare_period,
-                               self.interval,
-                               False, False)
+            self.robot.start(sym, interval, period)
+            df = retrieve("symbol", datetime.now(), datetime.now()
+                          - strtotimedelta(interval) * robot.PREPARE_PERIOD,
+                          interval,
+                          False, False)
             self.robot.retrieve_prepare(df)
 
             # for each data point in datafile
             for index, row in df.iterrows():
                 print(index, row)
-                robot.next(row)  # todo we are here!
+                robot.next(row)
 
             robot.finish()
             profit_d, equity_d = robot.get_profit()
@@ -656,10 +664,10 @@ class DataTester:
         test_result = full_summary_dict_list
 
         # Write Meta and Result
-        # write_test_meta(test_name, meta)
-        # write_test_result(test_name, test_result)
         print('METAMETA', meta)
         print('TEST RESULT', test_result)
+        write_test_meta(test_name, meta)
+        write_test_result(test_name, test_result)
 
         if self.p_bar:
             self.p_bar.setValue(self.p_bar.maximum())

@@ -2,6 +2,9 @@ import math
 from datetime import timedelta, datetime
 import unicodedata
 from typing import List
+import re
+
+import pandas as pd
 from dateutil import parser
 
 
@@ -68,6 +71,12 @@ def strtoyahootimestr(s: str):
             idx = prev_idx
 
     return interval[idx]
+
+
+def checkifyahootimestr(s :str):
+    if re.match(r"^\d+[a-zA-Z]+$", s):
+        return True
+    return False
 
 
 def timedeltatoyahootimestr(_interval: timedelta):
@@ -193,6 +202,20 @@ def yahoolimitperiod_leftover(period: timedelta, interval: str):
     return period, 1, timedelta(0)
 
 
+# def get_datapoint_datetime(df: pd.DataFrame):
+#     if 'datetime' in df.columns:
+#         return df['datetime']
+#     elif 'date' in df.columns:
+#         return df['date']
+#     else:
+#         return False
+
+
+def get_data_datetime(df: pd.DataFrame):
+    """This function serves as a reminder. """
+    return df.index
+
+
 def strtodatetime(s: str) -> datetime:
     # 2022 - 02 - 23
     # OR
@@ -252,6 +275,31 @@ def try_int(s: str) -> int:
         return 0
 
 
+def try_key(dict: {}, key: str):
+    if key in dict:
+        return dict['key']
+    else:
+        return "-"
+
+
+def pip_conversion(currency_pair: str):
+    if 'USD' in currency_pair and 'JPY' in currency_pair:
+        return 1 / 100
+    else:
+        return 1 / 10000
+
+
+def leverage_to_float(lev: str):
+    """Input: 'int1:int2. Output: int2/int1'"""
+    integers = lev.split(':')
+    if len(integers) == 2:
+        int1 = try_int(integers[0])
+        int2 = try_int(integers[1])
+        if int1 and int2:
+            return int2 / int1
+    return 0
+
+
 def craft_instrument_filename(sym: str, interval: str, period: str):
     return F'{sym}-{interval}-{period}.csv'
 
@@ -271,20 +319,6 @@ def get_instrument_from_filename(s: str):
 
 def craft_test_filename(ta_name: str, ivar_name: str, ds_names: List[str]):
     pass
-
-
-def try_key(dict: {}, key: str):
-    if key in dict:
-        return dict['key']
-    else:
-        return "-"
-
-
-def pip_conversion(currency_pair: str):
-    if 'USD' in currency_pair and 'JPY' in currency_pair:
-        return 1 / 100
-    else:
-        return 1 / 10000
 
 
 def get_size_bytes(bytes, suffix="B"):
