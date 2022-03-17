@@ -7,6 +7,7 @@ import re
 import pandas as pd
 from dateutil import parser
 
+# timedelta/datetime
 
 def strtotimedelta(s: str):
     """XM X minutes, XH X hours, Xd X days, Xw X weeks, Xm X months, all separated by a space"""
@@ -202,20 +203,6 @@ def yahoolimitperiod_leftover(period: timedelta, interval: str):
     return period, 1, timedelta(0)
 
 
-# def get_datapoint_datetime(df: pd.DataFrame):
-#     if 'datetime' in df.columns:
-#         return df['datetime']
-#     elif 'date' in df.columns:
-#         return df['date']
-#     else:
-#         return False
-
-
-def get_data_datetime(df: pd.DataFrame):
-    """This function serves as a reminder. """
-    return df.index
-
-
 def strtodatetime(s: str) -> datetime:
     # 2022 - 02 - 23
     # OR
@@ -225,12 +212,20 @@ def strtodatetime(s: str) -> datetime:
     return parser.parse(s)
 
 
+def check_if_valid_timestr(s: str):
+    return is_lnumber(s) and is_not_rnumber(s)
+
+
+# String manipulation
+
+
 def drsplit(s: str):
     alpha = s.lstrip('0123456789')
     digit = s[:len(s) - len(alpha)]
+    digit = try_int(digit)
     if not digit:
         digit = 0
-    return int(digit), alpha
+    return digit, alpha
 
 
 def is_lnumber(s: str):
@@ -241,15 +236,7 @@ def is_not_rnumber(s: str):
     return s == s.rstrip('0123456789')
 
 
-def to_dataname(s, interval, period):
-    return F'{s}-{interval}-{timedeltatosigstr(period)}'
-
-
-def from_dataname(s: str):
-    arr = s.split('-')
-    if len(arr) < 3:
-        return ('Str_Error', '', '')
-    return (arr[0], arr[1], arr[2])
+# Names/File Names
 
 
 def normify_name(s: str):
@@ -268,6 +255,9 @@ def remove_special_char(s: str):
     return s.replace('_', '')
 
 
+# Try
+
+
 def try_int(s: str) -> int:
     try:
         return int(s)
@@ -280,6 +270,9 @@ def try_key(dict: {}, key: str):
         return dict['key']
     else:
         return "-"
+
+
+# XVar
 
 
 def pip_conversion(currency_pair: str):
@@ -298,6 +291,31 @@ def leverage_to_float(lev: str):
         if int1 and int2:
             return int2 / int1
     return 0
+
+
+def get_sim_speed(s: str):
+    d, _s = drsplit(s)
+    return d
+
+
+def translate_xvar_dict(xvar):
+
+    if 'lag' in xvar.keys():
+        pass
+
+    # self.lag = xvar['lag']  # unused
+    # self.starting_capital = xvar['capital']
+    # self.leverage = xvar['leverage']
+    # self.currency_type = xvar['currency']
+    # # self.commission = xvar['commission']
+
+    return xvar
+
+# Instrument Type
+
+def get_instrument_type(symbol: str):
+    # todo
+    return "Forex"
 
 
 def craft_instrument_filename(sym: str, interval: str, period: str):
@@ -335,8 +353,16 @@ def get_size_bytes(bytes, suffix="B"):
         bytes /= factor
 
 
-def check_if_valid_timestr(s: str):
-    return is_lnumber(s) and is_not_rnumber(s)
+def to_dataname(s, interval, period):
+    return F'{s}-{interval}-{timedeltatosigstr(period)}'
+
+
+def from_dataname(s: str):
+    arr = s.split('-')
+    if len(arr) < 3:
+        return ('Str_Error', '', '')
+    return (arr[0], arr[1], arr[2])
+
 
 # data = yf.download(  # or pdr.get_data_yahoo(...
 #         # tickers list or string as well

@@ -70,7 +70,6 @@ def retrieve(
             start += _loop_period
 
     final = pd.concat(df_array)
-
     success = True
     if len(final.index) <= 1:
         success = False
@@ -288,15 +287,15 @@ def set_dataset_changes(dsc: pd.DataFrame):
 # List of instrument
 
 def load_lag_suggestions():
-    return ['0 ms', '10 ms', '100 ms', '1 s', '10 s', ]
+    return settings.SUGGESTIONS['lag']
 
 
 def load_leverage_suggestions():
-    return ['10:1', '1:1', '1:10', '1:100', '1:1000', '1:10000', ]
+    return settings.SUGGESTIONS['leverage']
 
 
 def load_instrument_type_suggestions():
-    return ['1/1000 Forex', '1/100 Forex', 'Crypto', 'Stock', 'Index', 'Futures', 'Hedge']
+    return settings.SUGGESTIONS['instrument_type']
 
 
 def load_symbol_suggestions() -> pd.DataFrame:
@@ -343,12 +342,21 @@ def write_period_suggestions(ps_df: pd.DataFrame):
     ps_df.to_csv(common_periods)
 
 
-def add_period_suggestion():
+def add_period_suggestions(ps2: pd.DataFrame):
     ps_df = load_interval_suggestions()
+    ps_df.append(ps2)
     write_period_suggestions(ps_df)
 
 
+# Simulation
+
+def load_sim_speed_suggestions():
+    return settings.SUGGESTIONS['sim_speed']
+
+
 # Check
+
+
 def is_valid_dataset():
     return True
 
@@ -394,7 +402,7 @@ def init_robot(ta_name: str, ivar: pd.DataFrame):
     return r
 
 
-# iVar
+# IVar
 
 
 def ivar_to_list(idf: pd.DataFrame):
@@ -514,6 +522,17 @@ def result_dict_to_dataset(result_dict):
         })
     return pd.DataFrame(data, index=False)
 
+# XVar
+
+def build_generic_xvar():
+    return {
+        'lag': '',
+        'type': '',
+        'instrument_type': '',
+        'capital': '',
+        'leverage': '',
+        'commision': '',
+    }
 
 # Data modification
 

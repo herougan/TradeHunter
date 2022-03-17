@@ -16,6 +16,7 @@ def get_arg_range(args, args_range, idx):
     else:
         return []
 
+
 def generate_base_signal_dict():
     signal = {
         'type': None,

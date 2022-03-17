@@ -818,6 +818,7 @@ class TradeHunterApp:
             back_button = QPushButton("Back")
             test_button = QPushButton("Test")
             optimise_button = QPushButton("Optimise")
+            simulate_button = QPushButton("Simulate")
 
             robot_name = self.robot_name
 
@@ -930,13 +931,22 @@ class TradeHunterApp:
             def to_optimise():
                 pass
 
+            def to_simulate():
+
+                svar = {
+                    'speed_up': []
+                }
+                pass
+
             # === Bottom === Tail buttons
             back_button.clicked.connect(self.back)
             test_button.clicked.connect(to_test)
             optimise_button.clicked.connect(to_optimise)
+            simulate_button.clicked.connect(to_simulate)
 
             tail_layout.addWidget(test_button)
             tail_layout.addWidget(optimise_button)
+            tail_layout.addWidget(simulate_button)
             tail_layout.addWidget(back_button)
 
             left_pane.addLayout(tail_layout)

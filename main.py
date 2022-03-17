@@ -349,8 +349,8 @@ def test_0():
                      start=date.today() - timedelta(days=1),
                      end=date.today(),
                      interval='1m')
-    print(df['start'][0])
-    datetimes = df.index  # date = df.index
+    last = df[-1:]
+    print(df.Open[0])
 
 
 if __name__ == '__main__':
