@@ -42,5 +42,7 @@ SUGGESTIONS = {
     'lag': ['0 ms', '10 ms', '100 ms', '1 s', '10 s', ],
     'leverage': ['10:1', '1:1', '1:10', '1:100', '1:500', '1:1000', '1:10000', ],
     'instrument_type': ['1/1000 Forex', '1/100 Forex', 'Crypto', 'Stock', 'Index', 'Futures', 'Hedge'],
-    'sim_speed': ['0.5x', '1x', '2x', '5x', '10x', '25x', '100x', '500x', '1000x']
+    'sim_speed': ['0.5x', '1x', '2x', '5x', '10x', '25x', '100x', '500x', '1000x'],
+    'capital': [1000, 10000, 100000, 1000000,],
+    'flat_commission': [0.01, 0.1, 1,],
 }

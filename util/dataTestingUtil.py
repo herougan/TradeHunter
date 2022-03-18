@@ -527,7 +527,7 @@ def write_test_result(test_name, summary_dicts: List):
     summary_df = pd.DataFrame(sdfs[0])
     for i in range(sdfs):
         if i != 0:
-            summary_df.append(pd.DataFrame(sdfs[i]))
+            summary_df = summary_df.append(pd.DataFrame(sdfs[i]))
 
     print(F'Writing test result at {path}')
     return sdfs

@@ -22,7 +22,7 @@ from util.dataRetrievalUtil import load_trade_advisor_list, get_dataset_changes,
     load_symbol_suggestions, load_interval_suggestions, load_period_suggestions, update_all_dataset_changes, \
     retrieve_ds, clear_dataset_changes, load_df_list, load_df, load_ivar_list, get_test_steps, \
     load_ivar, init_robot, load_lag_suggestions, load_leverage_suggestions, load_instrument_type_suggestions, \
-    load_ivar_as_list
+    load_ivar_as_list, translate_xvar_dict
 from util.dataTestingUtil import step_test_robot, DataTester, write_test_result, write_test_meta
 from util.langUtil import normify_name, try_int, leverage_to_float
 
@@ -842,7 +842,7 @@ class TradeHunterApp:
                     self.alert_window.setLayout(alert_layout)
                     return self.alert_window
 
-                if not lag_combo.currentText() or not capital_text.document().toPlainText() or \
+                if not lag_combo.currentText() or \
                         not leverage_combo.currentText() or not instrument_combo.currentText() or \
                         not type_combo.currentText():
                     self.alert_window = QWidget()
@@ -867,6 +867,11 @@ class TradeHunterApp:
 
                     self.alert_window.setLayout(alert_layout)
                     return self.alert_window
+                
+                if not commission_text.document().toPlainText():
+                    capital_text.document().setPlaintText('0')
+                if not capital_text.document().toPlainText():
+                    capital_text.document().setPlaintText('0')
 
                 capital = try_int(capital_text.document().toPlainText())
                 if capital <= 0:
@@ -891,6 +896,7 @@ class TradeHunterApp:
                         'instrument_type': instrument_combo.currentText(),
                         # test specific
                         'test_type': type_combo.currentText()}
+                xvar = translate_xvar_dict(xvar)
 
                 ivar_name = ivar_combo.currentText()
 
@@ -966,6 +972,8 @@ class TradeHunterApp:
             instrument_combo = QComboBox()
             type_label = QLabel('Type')  # Singular/Multi
             type_combo = QComboBox()
+            commission_label = QLabel('Comission')
+            commission_text = QTextEdit()
 
             test_types = ['Single', 'Multi']
             lag_types = load_lag_suggestions()
@@ -992,6 +1000,7 @@ class TradeHunterApp:
             xvar_left_body.addWidget(leverage_label, 1)
             xvar_left_body.addWidget(instrument_label, 1)
             xvar_left_body.addWidget(type_label, 1)
+            xvar_left_body.addWidget(commission_label, 1)
 
             xvar_right_body.addWidget(name_text, 1.5)
             xvar_right_body.addWidget(lag_combo, 1.5)
@@ -999,6 +1008,7 @@ class TradeHunterApp:
             xvar_right_body.addWidget(leverage_combo, 1.5)
             xvar_right_body.addWidget(instrument_combo, 1.5)
             xvar_right_body.addWidget(type_combo, 1.5)
+            xvar_right_body.addWidget(commission_text, 1.5)
 
             xvar_pane.addLayout(xvar_left_body)
             xvar_pane.addLayout(xvar_right_body)

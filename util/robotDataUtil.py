@@ -23,12 +23,17 @@ def generate_base_signal_dict():
         'start': None,
         'end': None,
         'vol': None,  # +ve for long, -ve for short
+        'lot': None,  # Price * vol * lot
         'net': None,
         'leverage': None,
         # P/L values
         'initial_margin': None,
-        'start_price': None,  # Price on open
-        'end_price': None,  # Price on close
+        'open_price': None,  # Price on open
+        'close_price': None,  # Price on close
+        # Misc_Fail variables here:
+        # MACD_Hist: False
+        # MACD_Hist_weight: 0.5
+
         # Calculated values
         # 'asset_value':    vol * start_price - vol * end_price; same for long and short
         # 'base cost':      vol * start_price

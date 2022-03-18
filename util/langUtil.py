@@ -7,7 +7,9 @@ import re
 import pandas as pd
 from dateutil import parser
 
+
 # timedelta/datetime
+
 
 def strtotimedelta(s: str):
     """XM X minutes, XH X hours, Xd X days, Xw X weeks, Xm X months, all separated by a space"""
@@ -74,7 +76,7 @@ def strtoyahootimestr(s: str):
     return interval[idx]
 
 
-def checkifyahootimestr(s :str):
+def checkifyahootimestr(s: str):
     if re.match(r"^\d+[a-zA-Z]+$", s):
         return True
     return False
@@ -298,19 +300,6 @@ def get_sim_speed(s: str):
     return d
 
 
-def translate_xvar_dict(xvar):
-
-    if 'lag' in xvar.keys():
-        pass
-
-    # self.lag = xvar['lag']  # unused
-    # self.starting_capital = xvar['capital']
-    # self.leverage = xvar['leverage']
-    # self.currency_type = xvar['currency']
-    # # self.commission = xvar['commission']
-
-    return xvar
-
 # Instrument Type
 
 def get_instrument_type(symbol: str):
@@ -330,7 +319,7 @@ def get_instrument_from_filename(s: str):
 
     period = parts[-1]
     interval = parts[-2]
-    sym = "-".join(parts[0: l-1])
+    sym = "-".join(parts[0: l - 1])
 
     return sym, interval, period
 
@@ -362,7 +351,6 @@ def from_dataname(s: str):
     if len(arr) < 3:
         return ('Str_Error', '', '')
     return (arr[0], arr[1], arr[2])
-
 
 # data = yf.download(  # or pdr.get_data_yahoo(...
 #         # tickers list or string as well

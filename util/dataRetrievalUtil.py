@@ -21,7 +21,7 @@ import glob
 import settings
 from util.statMathUtil import date_to_string as datestring
 from util.langUtil import strtotimedelta, timedeltatosigstr, normify_name, yahoolimitperiod, yahoolimitperiod_leftover, \
-    get_size_bytes
+    get_size_bytes, try_int
 
 # Robots
 from robot import FMACDRobot, FilterRobot
@@ -286,6 +286,14 @@ def set_dataset_changes(dsc: pd.DataFrame):
 
 # List of instrument
 
+def load_flat_commission_suggestions():
+    return settings.SUGGESTIONS['flat_commission']
+
+
+def load_capital_suggestions():
+    return settings.SUGGESTIONS['capital']
+
+
 def load_lag_suggestions():
     return settings.SUGGESTIONS['lag']
 
@@ -311,7 +319,7 @@ def write_symbol_suggestions(ss_df: pd.DataFrame):
 
 def add_symbol_suggestion(ss_add):
     ss_df = load_symbol_suggestions()
-    ss_df.append(ss_add)
+    ss_df = ss_df.append(ss_add)
     write_symbol_suggestions(ss_df)
 
 
@@ -344,7 +352,7 @@ def write_period_suggestions(ps_df: pd.DataFrame):
 
 def add_period_suggestions(ps2: pd.DataFrame):
     ps_df = load_interval_suggestions()
-    ps_df.append(ps2)
+    ps_df = ps_df.append(ps2)
     write_period_suggestions(ps_df)
 
 
@@ -497,7 +505,7 @@ def insert_ivar(ta_name: str, ivar):
             head[i]: ivar[i]
         })
     n_idf = pd.DataFrame(data)
-    idf.append(n_idf)
+    idf = idf.append(n_idf)
     idf.to_csv(path)
 
 
@@ -522,6 +530,7 @@ def result_dict_to_dataset(result_dict):
         })
     return pd.DataFrame(data, index=False)
 
+
 # XVar
 
 def build_generic_xvar():
@@ -533,6 +542,34 @@ def build_generic_xvar():
         'leverage': '',
         'commision': '',
     }
+
+
+def translate_xvar_dict(xvar):
+
+    # '10 ms' -> 10
+    if not 'lag' in xvar.keys():
+        xvar['lag'] = load_lag_suggestions()[0]
+    xvar['lag'] = try_int(['lag'].split(' ')[0])
+
+    # 10000 or '10000' -> 10000
+    if not 'capital' in xvar.keys():
+        xvar['capital'] = load_capital_suggestions()[0]
+    xvar['capital'] = try_int(xvar['capital'])
+
+    # '1:100' -> 100, '10:1' -> 0.1
+    if not 'leverage' in xvar.keys():
+        xvar['leverage'] = load_leverage_suggestions()[0]
+    xvar['leverage'] = (lambda x: x[1]/x[0])(xvar['leverage'].split(':'))
+
+    # Currency_Type # Do nothing
+
+    # 10000 or '10000' -> 10000
+    if not 'commission' in xvar.keys():
+        xvar['commission'] = load_flat_commission_suggestions()[0]
+    xvar['commission'] = try_int(xvar['commission'])
+
+    return xvar
+
 
 # Data modification
 

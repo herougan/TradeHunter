@@ -1,6 +1,5 @@
 import pandas as pd
 from PyQt5.QtWidgets import QTableWidget, QTableWidgetItem
-
 from util.langUtil import check_if_valid_timestr
 
 
