@@ -40,9 +40,9 @@ class FMACDRobot(robot):
     # Other
     CAPITAL_PER_TRADE = 0  # todo determine with pops later
     LOSS_PERCENTAGE = 0
-    OTHER_ARGS_STR = ['left_peak', 'right_peak', 'look_back']
+    OTHER_ARGS_STR = ['left_peak', 'right_peak', 'look_back', 'lots_per_k']
     # OTHER_ARGS_STR = ['takeprofit_2', 'takeprofit_2_ratio', 'capital_ratio', 'lot_size']
-    OTHER_ARGS_DEFAULT = [2, 2, 20]
+    OTHER_ARGS_DEFAULT = [2, 2, 20, 0.001]
 
     # Signal Definition:
     #  {}: 'net', 'start', 'end', 'type (short/long)', 'vol', 'type', 'equity',
@@ -77,7 +77,7 @@ class FMACDRobot(robot):
         self.contract_size = xvar['contract_size']  # here too! add
 
         # == Preparation ==
-        self.prepare_period = self.PREPARE_PERIOD # Because of SMA200
+        self.prepare_period = self.PREPARE_PERIOD  # Because of SMA200
         self.instrument_type = "Forex"  # Default
 
         # == Indicator Data ==
@@ -107,7 +107,7 @@ class FMACDRobot(robot):
         self.balance = []  # Previous Balance OR Starting capital, + Realised P/L OR Equity - Unrealised P/L OR
         #                       Free_Margin + Margin - Unrealised P/L
         self.free_balance = []  # Previous F.Balance or Starting capital, +- Realised P/L + Buy-ins OR Curr Balance -
-        #                                                                                               Cur.Buy-ins
+        #                                                                                       (Margin) Cur.Buy-ins
         #                     OR Free_Margin - Unrealised P/L
         # Buy-in: Forex Margin OR Stock Asset price - Liability price
         # Unrealised P/L: - Buy-in + Close-pos/Sell-in - Close-pos
@@ -115,7 +115,7 @@ class FMACDRobot(robot):
         self.profit = []  # Realised P/L
         self.unrealised_profit = []  # Unrealised P/L
         self.gross_profit = []  # Cumulative Realised Gross Profit
-        self.gross_loss_data = []  # Cumulative Realised Gross Loss
+        self.gross_loss = []  # Cumulative Realised Gross Loss
 
         self.asset = []  # Open Long Position price
         self.liability = []  # Open Short Position Price
@@ -123,7 +123,7 @@ class FMACDRobot(robot):
         self.margin = []  # Margin (Max(Long_Margin), Max(Short_Margin))
         self.free_margin = []  # Balance - Margin + Unrealised P/L
 
-        self.equity = []  # Asset (Long) - Liabilities (Short) OR Forex Free_Margin + Margin
+        self.equity = []  # Free_Balance + Asset (Long) - Liabilities (Short) OR Forex Free_Margin + Margin
         self.margin_level = []  # Equity / Margin * 100%, Otherwise 0%
         self.stat_datetime = []
 
@@ -136,7 +136,6 @@ class FMACDRobot(robot):
         self.test_mode = False
         self.market_active = False  # FMACDRobot is not aware of actual money
         self.started = False
-        self.last_date = datetime.now()
 
         # == Testing Only ==
         self.indicators_test = {
@@ -206,7 +205,7 @@ class FMACDRobot(robot):
         self.profit = []  # Realised P/L
         self.unrealised_profit = []  # Unrealised P/L
         self.gross_profit = []  # Cumulative Realised Gross Profit
-        self.gross_loss_data = []  # Cumulative Realised Gross Loss
+        self.gross_loss = []  # Cumulative Realised Gross Loss
 
         self.asset = []  # Open Long Position price
         self.liability = []  # Open Short Position Price
@@ -227,7 +226,6 @@ class FMACDRobot(robot):
         self.test_mode = False
         self.market_active = False  # FMACDRobot is not aware of actual money
         self.started = False
-        self.last_date = datetime.now()
 
         # == Testing Only ==
         self.indicators_test = {
@@ -276,7 +274,7 @@ class FMACDRobot(robot):
         self.profit.append(0)
         self.unrealised_profit.append(0)
         self.gross_profit.append(0)
-        self.gross_loss_data.append(0)
+        self.gross_loss.append(0)
 
         self.asset.append(0)
         self.liability.append(0)
@@ -332,90 +330,38 @@ class FMACDRobot(robot):
 
         # == Step 4: Signals =============
 
-        # ==    a: Check to close deals
+        # ==    a1: Check to close deals
         for signal in self.open_signals:
-
             sgn = math.copysign(signal['vol'], 1)  # +ve for long, -ve for short
             stop, take = signal['stop_loss'], signal['take_profit']
             # Stop-loss OR Take-profit
             if sgn * self.last.Close <= sgn * stop or sgn * self.last.Close >= sgn * take:
                 self.close_signal(signal)
-        # todo here =======================================================
+
         # == =   b1: Check to create signals =============
 
         # Generate signals
         signal = self.generate_signal()
-        action = (signal['open_price'] - self.last.Close) * signal['vol'] * self.leverage
-        if self.instrument_type == "Forex":
-            # Differentiate here
-            pass
-        else:
-            if sgn:
-                self.asset[-1] += signal['vol'] * self.last.Close
-            else:
-                self.liability[-1] += signal['vol'] * self.last.Close
-            pass
-        margin = signal['vol'] * self.contract_size / self.leverage
 
         # == =   b2: Check indicators =============
 
         #  Check indicators
-        if signal:
-            pass
+        if signal:  # Type- 0: None; 1: Long; 2: Short
+            checks = self.check_indicators(signal['type'])
+            check = True
+            for _check in checks:
+                if not _check:
+                    check = False
+                    break
 
             # == =   b3: Confirm Signal =============
 
-            # if okay, deduct assets and call open_signals
-            pass
+            # Create signal, virtual if failed check
 
-        # ==    c: =============
-
-        # Imagine if this is real: Money - use API to get, Open_Signals, do store - but made AND call to server!
-        # reconfigure later -
-        # Closing signals might be done differently, so do a diff check algorithm!
+            self.create_signal(signal, check)
 
         # == Step 5: Cleanup =============
         # Do nothing
-
-        # delete useless methods!
-
-        # do test version
-
-        # close open positions
-        open_positions = [_signal for _signal in self.signals if not _signal['end']]
-        for i in range(open_positions):
-            signal = open_positions[i]
-
-            stop_loss = signal['stop_loss']
-            take_profit = signal['take_profit']
-
-            # use data[-1] as latest
-            last_value = self.last.Close
-            if signal['type'] == 1:
-                if last_value < stop_loss or last_value > take_profit:
-                    signal = self.close_signal(signal)
-                    open_positions[i] = signal
-            elif signal['type'] == 2:
-                if last_value > stop_loss or last_value < take_profit:
-                    signal = self.close_signal(signal)
-                    open_positions[i] = signal
-
-        # check signals
-
-        # how todo
-
-        check_dict = self.check_indicators()  # indicator check dictionary
-        f_check = check_dict.values()[0]
-        for key in check_dict.keys():
-            if not f_check:
-                continue
-            if f_check != check_dict[key]:
-                f_check = 0
-        # make signals
-        self.create_signal(f_check, check_dict, candlesticks[-1])
-
-        # Update profit/Equity record
-        # self.assign_equity()  # Assign final values
 
     def test_next(self, candlestick: pd.DataFrame):
         """Same as .next() but does not recalculate indicators at every step."""
@@ -522,13 +468,12 @@ class FMACDRobot(robot):
 
     # Check
 
-    def check_indicators(self):
+    def check_indicators(self, type):
         """Returns a list of integer-bools according to the signal-generating indicators.
         0: False, 1: Long, 2: Short"""
         return {
-            'MACD': self.check_macd(),
-            'MACD_HIST': self.check_macd_hist(),
-            'SMA': self.check_sma(),
+            'MACD_HIST': self.check_macd_hist(type),
+            'SMA': self.check_sma(type),
         }
 
     def check_macd(self):
@@ -541,118 +486,69 @@ class FMACDRobot(robot):
                     return 2
         return 0
 
-    def check_macd_hist(self):
+    def check_macd_hist(self, type):
         if self.indicators['MACD_HIST'][-1] > 0:
             if self.indicators['MACD_HIST'][-1] > self.indicators['MACD_HIST'][-2]:
-                return 1
+                return type == 1
         else:
             if self.indicators['MACD_HIST'][-1] < self.indicators['MACD_HIST'][-2]:
-                return 2
+                return type == 2
         return 0
 
-    def check_sma(self):
+    def check_sma(self, type):
         if self.indicators['SMA200'][-1] > self.df['close'][-1]:
-            return 1
+            return type == 1
         else:
-            return 2
+            return type == 2
+        return 0
+        
+    def check_sma_bundle(self):
+        pass
 
     # Signal (Signal scripts give buy/sell signals. Does not handle stop-loss or take-profit etc.)
 
-    def generate_signal(self, check):
-
-
-
-
+    def generate_signal(self):
+        type = self.check_macd()
+        if not type:
+            signal = generate_base_signal_dict()
+            # Assign dict values
+            signal['type'] = type
+            signal['start'] = self.last.index[-1]
+            signal['vol'] = self.assign_lots(type)
+            signal['leverage'] = self.xvar['leverage']
+            signal['margin'] = signal['vol'] / self.xvar['leverage'] * self.xvar['contract_size']
+            signal['open_price'] = self.last.Close[-1]
+            # signal['virtual'] = True  # Determined after 'create_signal'
+            return signal
         return None
 
-    def create_signal(self, check):
-
-        start = self.get_curr_data_time()
-        start_price = self.latest_d['close'][0]
-        amount = self.assign_capital()
-        self.free_margin -= amount
+    def create_signal(self, signal, check):
 
         if check:
-            signal = generate_base_signal_dict()
-            signal['type'] = check
-            signal['start'] = start
-            signal['start_price'] = start_price
-            signal['vol'] = amount / start_price
-            # when you long, you deduct margin and gain asset value = vol*curr
-            # you also lose the initial margin. gain it back to free_margin/balance on close
-            # note! todo gain * leverage, lose * leverage
+            sgn = math.copysign(signal['vol'], 1)
+            self.add_margin(-sgn, signal['margin'])
+            self.calc_equity()
+            signal['virtual'] = False
+        signal['virtual'] = not check
 
-            # when you short, you deduct initial margin too. your asset value is negative (decreasing is better)
-            # asset value then adds how much you sold. eg. +1.5 * 100 as asset, lose margin, -X * 100.
-            # Equity = Margin + (Sold_Rate - Buy_Rate) * vol * lev at every second (SHORT)
-            # Equity = Margin + (Sell_Rate - Bought_Rate) * vol * lev (LONG)
-            # Buy_Rate and Sell_Rate changes per tick. Bought_Rate digs into balance.
-            # Sold_Rate should raise free_margin, but it doesn't
-
-            # Equity = Margin + Balance' + ... So we increase Balance? But we do not receive cash! it is an asset!
-            # Equity = Margin + Balance' + Sell_Price * vol * lev
-
-            margin = amount
-            if check == 1:  # long
-                self.trade += margin
-            else:  # short
-                self.trade -= margin
-                # self.equity -= margin  # Equity calculated separately
-            self.signals.append(signal)
-            # Adjust equity and capital
-            # 'type': None,
-            # 'start': None,
-            # 'end': None,
-            # 'vol': None,  # +ve for long, -ve for short
-            # 'net': None,
-            # 'leverage': None,
-            # # P/L values
-            # 'initial_margin': None,
-            # 'start_price': None,  # Price on open
-            # 'end_price': None,
+        self.open_signals.append(signal)
 
     def close_signal(self, signal):
 
-        # Realise Profit/Loss
-        action = (signal['open_price'] - self.last.Close[-1]) * signal['vol'] * self.leverage
-        signal['end'] = self.last.index[-1]
+        if not signal['virtual']:
+            # Realise Profit/Loss
+            action = (signal['open_price'] - self.last.Close[-1]) * signal['vol'] * self.leverage
+            signal['end'] = self.last.index[-1]
+            sgn = math.copysign(signal['vol'], 1)
 
-#         File "pandas/_libs/tslibs/timestamps.pyx", line 348, in pandas._libs.tslibs.timestamps._Timestamp.__sub__
-# TypeError: Timestamp subtraction must have the same timezones or no timezones
+            # Release margin, release unrealised P/L
+            self.add_profit(action)
+            self.add_margin(sgn, signal['margin'])
+            self.calc_equity()
 
-        sgn = math.copysign(signal['vol'], 1)  # +ve for long, -ve for short
-        stop, take = signal['stop_loss'], signal['take_profit']
-        # Stop-loss OR Take-profit
-        if sgn * self.last.Close <= sgn * stop or sgn * self.last.Close >= sgn * take:
-            self.close_signal(signal)
-
-        end_price = self.latest_d['close'][0]
-        if signal['type'] == 1:  # long
-            signal['net'] = signal['vol'] * (signal['start_price'] - end_price)
-        else:  # short
-            signal['net'] = signal['vol'] * (end_price - signal['start_price'])
-        signal['end'] = self.latest_d['datetime'][0]
-        signal['end_price'] = end_price
-        self.trade -= signal['net']
-        self.free_margin += signal['net']
-        # if self.instrument_type == "Forex":
-        #     # Differentiate here
-        #     pass
-        # else:
-        #     if sgn:
-        #         self.asset[-1] += signal['vol'] * self.last.Close
-        #     else:
-        #         self.liability[-1] += signal['vol'] * self.last.Close
-        #     pass
-
-
-        # VOL * CONTRACT_SIZE / LEVERAGE = 1 * 100,000 / 100 = 1,000 (MARGIN)
-        # n_lots * size/lot / leverage
-
-        # PROFITLOSS = VOL * PRICE_ACTION * LEVERAGE
-        #              n_lots * $ * leverage
-
-        return signal
+        # Add signal to signals, remove from open signals
+        self.open_signals.remove(signal)
+        self.signals.add(signal)
 
     def confirm_signal(self, check, signal):
         pass
@@ -666,6 +562,40 @@ class FMACDRobot(robot):
 
     # Statistic update
 
+    def get_current_equity(self):
+        """Connect to platform to query current positions."""
+        pass
+
+    def add_profit(self, profit):
+        self.unrealised_profit[-1] -= profit
+        self.profit += profit
+        if profit > 0:
+            self.gross_profit[-1] += profit
+        else:
+            self.gross_loss[-1] -= profit
+        pass
+
+    def add_margin(self, sgn, margin):
+        """Adding margins reduce free margin"""
+        if sgn > 0:
+            self.long_margin[-1] -= margin
+        else:
+            self.short_magin[-1] -= margin
+        self.margin[-1] = max([self.short_margin[-1], self.long_margin[-1]])
+
+    def calc_equity(self, profit):
+        self.free_balance[-1] = self.balance[-1] - self.margin[-1]
+        # Note, unrealised_profit not updated yet -
+        self.free_margin[-1] = self.free_balance[-1] + self.unrealised_profit[-1]
+        self.equity[-1] = self.free_margin[-1] + self.margin[-1]
+        # Assets and Liabilities untouched
+        if self.margin[-1]:
+            self.margin_level[-1] = self.equity[-1] / self.margin[-1] * 100
+        else:
+            self.margin_level[-1] = 0
+
+    # Risk Management
+
     def assign_equity(self, check):
         assigned = self.free_margin * 0.1
         external_assigner = False
@@ -673,11 +603,17 @@ class FMACDRobot(robot):
             pass
         return assigned
 
-    def add_equity(self, margin):
-        pass
+    def assign_lots(self, type):
+        sgn = 1
+        if type == 2:
+            sgn = -1
+        return sgn * 0.01 * self.free_margin[-1]/1000
 
-    def add_margin(self, margin):
-        pass
+# Things that change first: Unrealised P/L
+    # Margin
+    # Realised P/L
+
+    # Second: Margins, Free Margins, Free balance, Balance changes.
 
     # def calculate_equity(self):
     #     _equity = 0
@@ -693,17 +629,17 @@ class FMACDRobot(robot):
 
     def next_statistics(self, candlestick):
         self.balance.append(self.balance[-1])
-        self.free_balance.append(self.free_balance[-1])
+        self.free_balance.append(self.balance[-1])
 
         self.profit.append(self.profit[-1])
-        self.unrealised_profit.append(0)
+        self.unrealised_profit.append(self.unrealised_profit[-1])
         self.gross_profit.append(self.gross_profit[-1])
-        self.gross_loss_data.append(self.gross_loss_data[-1])
+        self.gross_loss.append(self.gross_loss[-1])
 
-        self.short_margin.append(0)
-        self.long_margin.append(0)
-        self.asset.append(0)
-        self.liability.append(0)
+        self.short_margin.append(self.short_margin[-1])
+        self.long_margin.append(self.long_margin[-1])
+        self.asset.append(self.asset[-1])
+        self.liability.append(self.liability[-1])
         for signal in self.open_signals:
             if signal['type'] == 'short':
                 # Calculate margin
@@ -715,10 +651,11 @@ class FMACDRobot(robot):
                 (candlestick[-1:].Close - signal['start_price']) * signal['vol'], signal['vol'])
 
         self.margin.append(max([self.short_margin[-1], self.long_margin[-1]]))
+        self.free_balance[-1] -= self.margin[-1]
         self.free_margin.append(self.balance[-1] - self.margin[-1] + self.unrealised_profit[-1])
 
         # self.equity.append(self.asset[-1] - self.liability[-1])
-        self.equity.append(self.free_margin[-1] + self.marin[-1])
+        self.equity.append(self.free_margin[-1] + self.margin[-1])
         if self.margin == 0:
             self.margin_level.append(0)
         else:

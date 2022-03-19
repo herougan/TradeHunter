@@ -19,18 +19,19 @@ def get_arg_range(args, args_range, idx):
 
 def generate_base_signal_dict():
     signal = {
-        'type': None,
+        'type': None,  # 0: None/Error, 1: Long, 2: Short
         'start': None,
         'end': None,
-        'vol': None,  # +ve for long, -ve for short
-        'lot': None,  # Price * vol * lot
+        'vol': None,  # +ve for long, -ve for short (.# of lots)
         'net': None,
         'leverage': None,
         # P/L values
-        'initial_margin': None,
+        'margin': None,
         'open_price': None,  # Price on open
         'close_price': None,  # Price on close
-        # Misc_Fail variables here:
+        # Success/Failure
+        'virtual': True,  # Order success/indicator success
+        # Misc_Fail variables here:  # Describe which indicators failed
         # MACD_Hist: False
         # MACD_Hist_weight: 0.5
 
