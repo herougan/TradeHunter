@@ -470,13 +470,18 @@ def generate_ivar(ta_name: str):
     folder = F'robot/ivar'
     ivar_file = F'{ta_name}_ivar'
     path = F'{folder}/{ivar_file}.csv'
-    args_str = eval(F'{ta_name}.{ta_name}.ARGS_STR')
-    args = eval(F'{ta_name}.{ta_name}.ARGS_DEFAULT')
+    # args_str = eval(F'{ta_name}.{ta_name}.ARGS_STR')
+    # args = eval(F'{ta_name}.{ta_name}.ARGS_DEFAULT')
+    args_dict = eval(F'{ta_name}.{ta_name}.ARGS_DICT')
     data = {
         'name': ['*Default'],
     }
-    for i in range(len(args_str)):
-        data.update({args_str[i]: args[i]})
+    # for i in range(len(args_str)):
+    #     data.update({args_str[i]: args[i]})
+    for key in args_dict.keys:
+        data.update({
+            key: args_dict[key]['default']
+        })
 
     df = pd.DataFrame(data)
     df.to_csv(path)
