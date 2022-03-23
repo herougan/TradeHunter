@@ -25,7 +25,7 @@ def strtotimedelta(s: str):
             t += timedelta(hours=d)
         elif a == "d" or a.casefold() in "days".casefold():
             t += timedelta(days=d)
-        elif a == "w" or a.casefold() in "weeks".casefold():
+        elif a == "wk" or a.casefold() in "weeks".casefold():
             t += timedelta(weeks=d)
         elif a == "mo" or a.casefold() in "months".casefold():
             t += timedelta(weeks=d * 4)
@@ -273,6 +273,26 @@ def try_key(dict: {}, key: str):
     else:
         return "-"
 
+
+def try_divide(n1 ,n2):
+    if n2 == 0:
+        return 0
+    return n1 / n2
+
+
+def try_max(list):
+    if len(list) < 1:
+        return 0
+    return max(list)
+
+
+def try_mean(list):
+    if len(list) < 1:
+        return 0
+    t = 0
+    for i in list:
+        t += i
+    return i / len(list)
 
 # XVar
 

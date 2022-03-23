@@ -22,7 +22,7 @@ from util.dataRetrievalUtil import load_trade_advisor_list, get_dataset_changes,
     load_symbol_suggestions, load_interval_suggestions, load_period_suggestions, update_all_dataset_changes, \
     retrieve_ds, clear_dataset_changes, load_df_list, load_df, load_ivar_list, get_test_steps, \
     load_ivar, init_robot, load_lag_suggestions, load_leverage_suggestions, load_instrument_type_suggestions, \
-    load_ivar_as_list, translate_xvar_dict
+    load_ivar_as_list, translate_xvar_dict, load_flat_commission_suggestions
 from util.dataTestingUtil import step_test_robot, DataTester, write_test_result, write_test_meta
 from util.langUtil import normify_name, try_int, leverage_to_float
 
@@ -246,7 +246,7 @@ class TradeHunterApp:
                 clear_dataset_changes()
 
                 # In case of change, update datesets display
-                self.datasetpane.build_dataset_instruments(self.datasetpane.combo.currentText())
+                left.build_dataset_instruments(left.combo.currentText())
 
             def import_clicked():
                 pass
@@ -320,11 +320,6 @@ class TradeHunterApp:
 
                 def add_table_text(string, colIdx):
                     set_col_cell_sheet(self.table, string, colIdx)
-
-                # def load_selected_dataset(event):
-                #     print("Selected ", event.text())
-                #     self.build_dataset_instruments(event.text())
-                #     self.saved = True
 
                 def load_combo_dataset(event):
                     self.build_dataset_instruments(self.combo.currentText())
@@ -404,7 +399,7 @@ class TradeHunterApp:
 
                 def create_button_clicked():
                     self.create_window = self.CreateDatasetWindow()
-                    self.create_window.bind_rebuild(self.build_dataset_list)
+                    self.create_window.bind_rebuild(self.build_dataset_list)  # dont double build and MOVE TO NEW INDEX!
                     self.create_window.show()
 
                 def save_button_clicked():
@@ -438,9 +433,9 @@ class TradeHunterApp:
                 self.table.currentItemChanged.connect(self.on_cell_change)
 
             def build_dataset_list(self):
-                # self.select.clear()
                 dataset_list = load_dataset_list()
                 i = 0
+                self.combo.clear()
                 for dataset in dataset_list:
                     # item = QListWidgetItem(F'{dataset}', self.select)
                     self.combo.insertItem(i, F'{dataset}')
@@ -474,6 +469,7 @@ class TradeHunterApp:
                     tail = QHBoxLayout()
 
                     name = QTextEdit()
+                    name.setFixedHeight(20)
                     name_label = QLabel('Name')
 
                     cancel_button = QPushButton('Cancel')
@@ -800,7 +796,8 @@ class TradeHunterApp:
                 ds_names.append(dataset_combo.currentText())
                 set_dataset_table(dataset_table, ds_names)
 
-            dataset_combo.currentIndexChanged.connect(add_dataset)
+            # dataset_combo.currentIndexChanged.connect(add_dataset)
+            dataset_combo.activated.connect(add_dataset)
 
             # Choose ivar
             ivar_label = QLabel('Initial Variables')
@@ -842,9 +839,10 @@ class TradeHunterApp:
                     self.alert_window.setLayout(alert_layout)
                     return self.alert_window
 
-                if not lag_combo.currentText() or \
+                if not lag_combo.currentText() or not commission_combo.currentText() or \
                         not leverage_combo.currentText() or not instrument_combo.currentText() or \
                         not type_combo.currentText():
+
                     self.alert_window = QWidget()
                     alert_layout = QVBoxLayout()
                     alert = QMessageBox(self.alert_window)
@@ -855,6 +853,8 @@ class TradeHunterApp:
 
                     self.alert_window.setLayout(alert_layout)
                     return self.alert_window
+
+                name_text.setPlainText(normify_name(name_text.document().toPlainText()))
 
                 if not name_text.document().toPlainText():
                     self.alert_window = QWidget()
@@ -868,8 +868,8 @@ class TradeHunterApp:
                     self.alert_window.setLayout(alert_layout)
                     return self.alert_window
                 
-                if not commission_text.document().toPlainText():
-                    capital_text.document().setPlaintText('0')
+                # if not commission_combo.document().toPlainText():
+                #     capital_text.document().setPlaintText('0')
                 if not capital_text.document().toPlainText():
                     capital_text.document().setPlaintText('0')
 
@@ -892,7 +892,7 @@ class TradeHunterApp:
                 # Get XVar
                 xvar = {'lag': lag_combo.currentText(),
                         'capital': try_int(capital_text.document().toPlainText()),
-                        'leverage': leverage_to_float(leverage_combo.currentText()),
+                        'leverage': leverage_combo.currentText(),
                         'instrument_type': instrument_combo.currentText(),
                         # test specific
                         'test_type': type_combo.currentText()}
@@ -922,15 +922,9 @@ class TradeHunterApp:
                 ds_names = get_dataset_table(dataset_table)
                 test_result, test_meta = data_tester.test(robot_name, ivar, ds_names, test_name)
 
-                # Get data
-                data_tester.get_data()
-
-                # Write stuff
-                write_test_result(test_name, test_result)
-                write_test_meta(test_name, test_meta)
-
                 # Move to Results
                 self.rap = TradeHunterApp.ResultAnalysisPage()
+                self.rap.load(test_result, test_meta, test_name)
                 self.rap.show()
                 self.close()
 
@@ -972,13 +966,15 @@ class TradeHunterApp:
             instrument_combo = QComboBox()
             type_label = QLabel('Type')  # Singular/Multi
             type_combo = QComboBox()
-            commission_label = QLabel('Comission')
-            commission_text = QTextEdit()
+            commission_label = QLabel('Commission')
+            commission_combo = QComboBox()
+            commission_combo.setFixedHeight(20)
 
             test_types = ['Single', 'Multi']
             lag_types = load_lag_suggestions()
             leverage_types = load_leverage_suggestions()
             instrument_types = load_instrument_type_suggestions()
+            commission_types = load_flat_commission_suggestions()
 
             # Fill in xvar combo options
             for type in test_types:
@@ -989,6 +985,13 @@ class TradeHunterApp:
                 leverage_combo.insertItem(0, type)
             for type in instrument_types:
                 instrument_combo.insertItem(0, type)
+            for type in commission_types:
+                commission_combo.insertItem(0, str(type))
+            type_combo.setCurrentIndex(0)
+            lag_combo.setCurrentIndex(0)
+            leverage_combo.setCurrentIndex(0)
+            instrument_combo.setCurrentIndex(0)
+            commission_combo.setCurrentIndex(0)
 
             # Labels on the left, Widgets on the right
             xvar_left_body = QVBoxLayout()
@@ -1008,7 +1011,7 @@ class TradeHunterApp:
             xvar_right_body.addWidget(leverage_combo, 1.5)
             xvar_right_body.addWidget(instrument_combo, 1.5)
             xvar_right_body.addWidget(type_combo, 1.5)
-            xvar_right_body.addWidget(commission_text, 1.5)
+            xvar_right_body.addWidget(commission_combo, 1.5)
 
             xvar_pane.addLayout(xvar_left_body)
             xvar_pane.addLayout(xvar_right_body)
@@ -1140,7 +1143,7 @@ class TradeHunterApp:
 
             for key in self.summary_dict:
                 _label = QLabel(key)
-                _label2 = QLabel(self.summary_dict[key])
+                _label2 = QLabel(str(self.summary_dict[key]))
 
                 left_result_body.addWidget(_label)
                 right_result_body.addWidget(_label2)
@@ -1161,6 +1164,9 @@ class TradeHunterApp:
             drawdown = QLabel('Drawdown')
             # Display as [x[0] < av < x[1]]
             g_drawdown = QLabel('GDrawdown')
+            pass
+
+        def graph_pane(self):
             pass
 
     class OptimisationPage(QWidget):

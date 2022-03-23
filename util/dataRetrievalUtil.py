@@ -1,6 +1,8 @@
 # Stats Imports
 import math
 import platform
+from statistics import stdev
+
 import GPUtil
 
 import pandas as pd
@@ -21,10 +23,10 @@ import glob
 import settings
 from util.statMathUtil import date_to_string as datestring
 from util.langUtil import strtotimedelta, timedeltatosigstr, normify_name, yahoolimitperiod, yahoolimitperiod_leftover, \
-    get_size_bytes, try_int
+    get_size_bytes, try_int, craft_instrument_filename
 
 # Robots
-from robot import FMACDRobot, FilterRobot
+from robot import FMACDRobot
 
 
 #   DataFrame
@@ -33,8 +35,8 @@ def retrieve_str(s: str,
                  interval: str,
                  period: str,
                  write: bool = False,
-                 progress: bool = False):
-    return retrieve(s, datetime.now() - strtotimedelta(period), datetime.now(), interval, write, progress)
+                 progress: bool = False, name=""):
+    return retrieve(s, datetime.now() - strtotimedelta(period), datetime.now(), interval, write, progress, name)
 
 
 def retrieve(
@@ -43,9 +45,10 @@ def retrieve(
         end: datetime,
         interval: str,
         write: bool = False,
-        progress: bool = False):
+        progress: bool = False, name = ""):
     period = end - start
-    name = F'{s}-{interval}-{timedeltatosigstr(period)}'
+    if not name:
+        name = craft_instrument_filename(s, interval, timedeltatosigstr(period))  # F'{s}-{interval}-{timedeltatosigstr(period)}'
     print(F'Retrieving {name}, write: {write}')
 
     # Loop through smaller time periods if period is too big for given interval (denied by yfinance)
@@ -83,7 +86,8 @@ def retrieve(
 def retrieve_ds(ds_name: str, write: bool = False, progress: bool = False):
     df = load_dataset(ds_name)
     for index, row in df.iterrows():
-        df, suc = retrieve_str(row['symbol'], row['interval'], row['period'], write, progress)
+        name = craft_instrument_filename(row['symbol'], row['interval'], row['period'])
+        df, suc = retrieve_str(row['symbol'], row['interval'], row['period'], write, progress, name)
         if not suc:
             remove_from_dataset(ds_name, row['symbol'], row['interval'], row['period'])
 
@@ -91,9 +95,11 @@ def retrieve_ds(ds_name: str, write: bool = False, progress: bool = False):
 # Read/Write from local
 def write_df(df, name: str):
     folder = F'static/data'
+    if not name.endswith('.csv'):
+        name += '.csv'
     os.makedirs(folder, exist_ok=True)
-    df.to_csv(F'{folder}/{name}.csv')
-    print(F'Creating {folder}/{name}.csv')
+    df.to_csv(F'{folder}/{name}')
+    print(F'Creating {folder}/{name}')
 
 
 def load_df(name: str):
@@ -180,7 +186,7 @@ def remove_from_dataset(ds_name, symbol, interval, period):
     dsf = load_dataset(ds_name)
     dsf = dsf.drop(dsf[(dsf.symbol == symbol) & (dsf.interval == interval) & (dsf.period == period)].index)
     print(F"Removing {symbol}-{interval}-{period} from {ds_name}")
-    dsf.reset_index()
+    dsf = dsf.reset_index(drop=True)
     write_dataset(ds_name, dsf)
 
 
@@ -285,6 +291,10 @@ def set_dataset_changes(dsc: pd.DataFrame):
 
 
 # List of instrument
+
+def load_contract_size_suggestions():
+    return settings.SUGGESTIONS['contract_size']
+
 
 def load_flat_commission_suggestions():
     return settings.SUGGESTIONS['flat_commission']
@@ -478,7 +488,7 @@ def generate_ivar(ta_name: str):
     }
     # for i in range(len(args_str)):
     #     data.update({args_str[i]: args[i]})
-    for key in args_dict.keys:
+    for key in args_dict.keys():
         data.update({
             key: args_dict[key]['default']
         })
@@ -554,7 +564,7 @@ def translate_xvar_dict(xvar):
     # '10 ms' -> 10
     if not 'lag' in xvar.keys():
         xvar['lag'] = load_lag_suggestions()[0]
-    xvar['lag'] = try_int(['lag'].split(' ')[0])
+    xvar['lag'] = try_int(xvar['lag'].split(' ')[0])
 
     # 10000 or '10000' -> 10000
     if not 'capital' in xvar.keys():
@@ -564,7 +574,8 @@ def translate_xvar_dict(xvar):
     # '1:100' -> 100, '10:1' -> 0.1
     if not 'leverage' in xvar.keys():
         xvar['leverage'] = load_leverage_suggestions()[0]
-    xvar['leverage'] = (lambda x: x[1]/x[0])(xvar['leverage'].split(':'))
+    # leverage_to_float
+    xvar['leverage'] = (lambda x: try_int(x[1])/try_int(x[0]))(xvar['leverage'].split(':'))
 
     # Currency_Type # Do nothing
 
@@ -572,6 +583,10 @@ def translate_xvar_dict(xvar):
     if not 'commission' in xvar.keys():
         xvar['commission'] = load_flat_commission_suggestions()[0]
     xvar['commission'] = try_int(xvar['commission'])
+
+    if not 'contract_size' in xvar.keys():
+        xvar['contract_size'] = load_contract_size_suggestions()[0]
+    xvar['contract_size'] = try_int(xvar['contract_size'])
 
     return xvar
 
@@ -685,6 +700,13 @@ def get_computer_specs():
         })
 
     return specs
+
+# Stats
+
+def try_stdev(list):
+    if len(list) < 2:
+        return 0
+    return stdev(list)
 
 # https://www.thepythoncode.com/article/get-hardware-system-information-python
 # ======================================== System Information ========================================

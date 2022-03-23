@@ -345,14 +345,15 @@ def test_1():
 
 def test_0():
 
-    df = yf.download("EURUSD=X",
-                     start=date.today() - timedelta(days=1),
+    df = yf.download("JPY=X",
+                     start=date.today() - timedelta(days=5),
                      end=date.today(),
                      interval='1m')
     last = df[-1:]
-    print(df.Open[0])
-
+# todo no data for sun sat. shouldn to use date.today() but
+# last available day
+# problems with robot due to timezone arithmetic.
 
 if __name__ == '__main__':
-    # test_3()
-    test_0()
+    test_3()
+    # test_0()

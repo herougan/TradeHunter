@@ -40,9 +40,10 @@ SUGGESTIONS = {
     'intervals': ['1M', '2M', '5M', '15M', '30M', '60M', '1h', '90M', '1d', '5d', '1wk', '2wk', '1m', '3m', ],
     'periods': ['1d', '5d', '1wk', '1mo', '3mo', '6mo', '1y', '2y', '5y', 'max', ],
     'lag': ['0 ms', '10 ms', '100 ms', '1 s', '10 s', ],
-    'leverage': ['10:1', '1:1', '1:10', '1:100', '1:500', '1:1000', '1:10000', ],
-    'instrument_type': ['1/1000 Forex', '1/100 Forex', 'Crypto', 'Stock', 'Index', 'Futures', 'Hedge'],
+    'leverage': ['10:1', '1:1', '1:10', '1:100', '1:200', '1:500', '1:1000', ],
+    'instrument_type': ['Forex', '0.01 Forex', 'Crypto', 'Stock', 'Index', 'Futures', 'Hedge'],
     'sim_speed': ['0.5x', '1x', '2x', '5x', '10x', '25x', '100x', '500x', '1000x'],
     'capital': [1000, 10000, 100000, 1000000,],
-    'flat_commission': [0.01, 0.1, 1,],
+    'flat_commission': [0, 0.01, 0.1, 1,],
+    'contract_size': [100000, 10000, 1000],  # Set in stone
 }

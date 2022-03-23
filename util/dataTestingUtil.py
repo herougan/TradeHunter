@@ -1,4 +1,5 @@
 import datetime
+import os
 from datetime import datetime, timedelta
 import math
 from math import *
@@ -12,14 +13,15 @@ from PyQt5.QtWidgets import QProgressBar, QWidget
 
 from robot.abstract.robot import robot
 from settings import EVALUATION_FOLDER
-from util.dataRetrievalUtil import load_dataset, load_df, get_computer_specs, number_of_datafiles, retrieve
-from util.langUtil import craft_instrument_filename, strtodatetime, try_key, remove_special_char, strtotimedelta
+from util.dataRetrievalUtil import load_dataset, load_df, get_computer_specs, number_of_datafiles, retrieve, try_stdev
+from util.langUtil import craft_instrument_filename, strtodatetime, try_key, remove_special_char, strtotimedelta, \
+    try_divide, try_max, try_mean
 
 import numpy as np
 from sklearn.linear_model import LinearRegression
 
 #  Robot
-from robot import FMACDRobot, FilterRobot
+from robot import FMACDRobot
 
 
 def step_test_robot(r: robot, step: int):
@@ -60,7 +62,7 @@ def create_signal_df_from_list(completed, leftover, headers):
 
 def base_summary_dict():
     summary_dict = {
-        'period': 0,
+        'period': timedelta(0),
         'n_bars': 0,
         'ticks': 0,
         #
@@ -140,9 +142,14 @@ def base_summary_dict():
 # == Testing ==
 
 
-def create_summary_df_from_list(profit_d, equity_d, signals, df, additional={}):
+def create_summary_df_from_list(stats_dict, signals_dict, df, additional={}):
     """Takes in the profit-loss dataframe, buy-sell signals,
     produces the data-1 summary stat dictionary"""
+
+    # (profit_d, equity_d, signals, df, additional={}
+    profit_d = stats_dict['profit']
+    equity_d = stats_dict['equity']
+    signals = signals_dict['signals']
 
     summary_dict = base_summary_dict()
     summary_dict.update(additional)
@@ -158,19 +165,19 @@ def create_summary_df_from_list(profit_d, equity_d, signals, df, additional={}):
                 loss_signals.append(signal)
         else:
             incomplete_signals.append(signal)
-        if signal['pos'].lower() == "long":
-            long_signals.add(signal)
+        if signal['type'] == 1:  # 1 is long, 2 is short
+            long_signals.append(signal)
         else:
-            short_signals.add(signal)
+            short_signals.append(signal)
 
     l = len(complete_signals)
-    l2 = len(incomplete_signals)
+    l2 = len(signals_dict['open_signals'])
     l3 = len(profit_signals)
     l4 = len(loss_signals)
     l5 = len(long_signals)
     l6 = len(short_signals)
 
-    summary_dict['period'] = strtodatetime(df.at(0, 'datetime')) - strtodatetime(df.at(len(df), 'datetime'))
+    summary_dict['period'] = stats_dict['datetime'][-1] - stats_dict['datetime'][0]
     summary_dict['n_bars'] = len(df.index)
     summary_dict['ticks'] = -1  # not applicable here
     #
@@ -191,10 +198,10 @@ def create_summary_df_from_list(profit_d, equity_d, signals, df, additional={}):
     for signal in signals:
         mean += signal['net']
         gmean *= signal['net']
-    summary_dict['AHPR'] = mean / l
-    summary_dict['GHPR'] = math.pow(gmean, 1 / l)
+    summary_dict['AHPR'] = try_divide(mean, l)
+    summary_dict['GHPR'] = math.pow(gmean, try_divide(1, l))
 
-    summary_dict['profit_factor'] = summary_dict['total_profit'] / summary_dict['gross_profit']
+    summary_dict['profit_factor'] = try_divide(summary_dict['total_profit'], summary_dict['gross_profit'])
     # summary_dict['recovery_factor'] = summary_dict['total_profit'] / summary_dict['max_drawdown']  # Implemented below
 
     summary_dict['total_trades'] = l
@@ -202,40 +209,41 @@ def create_summary_df_from_list(profit_d, equity_d, signals, df, additional={}):
 
     prev_d = 0
     drawdown, drawdowns = False, []
-    drawdown_l, lowest_drawdown = 0, 0
+    drawdown_l, lowest_d = 1, 0
     for d in profit_d:  # Detect drawdowns
         if drawdown:
             if d < prev_d:
                 drawdown_l += 1
-                if d < lowest_drawdown:
-                    lowest_drawdown = d
+                if d < lowest_d:
+                    lowest_d = d
             else:
                 drawdowns.append({
                     'length': drawdown_l,
-                    'depth': prev_d - lowest_drawdown,
+                    'depth': prev_d - lowest_d,
                     'ledge': prev_d,
                 })
                 # reset
                 prev_d = d
                 drawdown = False
-                drawdown_l, lowest_drawdown = 0, 0
-        if d < prev_d:
-            drawdown = True
-            lowest_drawdown = d
-        prev_d = d
+                drawdown_l, lowest_d = 1, 0
+        else:
+            if d < prev_d:
+                drawdown = True
+                lowest_d = d
+            prev_d = d
     if drawdown:  # last 'unsettled' drawdown
         drawdowns.append({
             'length': drawdown_l + 1,
-            'depth': 0,
+            'depth': prev_d - lowest_d,
             'ledge': prev_d,
         })
     greatest_depth, avg_depth = 0, 0  # depths are positive
     greatest_len, avg_len = 0, 0
     for drawdown in drawdowns:
         avg_depth += drawdown['depth']
-        avg_len += drawdown['len']
-        if greatest_len < drawdown['len']:
-            greatest_len = drawdown['len']
+        avg_len += drawdown['length']
+        if greatest_len < drawdown['length']:
+            greatest_len = drawdown['length']
     p_min = min(profit_d)
     summary_dict['balance_drawdown_abs'] = profit_d[0] - p_min
     summary_dict['balance_drawdown_max'] = greatest_depth
@@ -244,33 +252,37 @@ def create_summary_df_from_list(profit_d, equity_d, signals, df, additional={}):
         summary_dict['balance_drawdown_rel'] = min_drawdown[0]['ledge'] - p_min
     else:
         summary_dict['balance_drawdown_rel'] = profit_d[0] - p_min
-    summary_dict['balance_drawdown_avg'] = avg_depth / len(drawdowns)
-    summary_dict['balance_drawdown_len_avg'] = avg_len / len(drawdowns)
+    summary_dict['balance_drawdown_avg'] = 0
+    summary_dict['balance_drawdown_len_avg'] = 0
+    if len(drawdowns) != 0:
+        summary_dict['balance_drawdown_avg'] = try_divide(avg_depth, len(drawdowns))
+        summary_dict['balance_drawdown_len_avg'] = try_divide(avg_len, len(drawdowns))
     summary_dict['balance_drawdown_len_max'] = greatest_len
 
-    prev_d = 0
+    prev_d = 0  # Same as above but for equity
     drawdown, drawdowns = False, []
-    drawdown_l, lowest_drawdown = 0, 0
+    drawdown_l, lowest_d = 0, 0
     for d in equity_d:  # Detect drawdowns
         if drawdown:
             if d < prev_d:
                 drawdown_l += 1
-                if d < lowest_drawdown:
-                    lowest_drawdown = d
+                if d < lowest_d:
+                    lowest_d = d
             else:
                 drawdowns.append({
                     'length': drawdown_l,
-                    'depth': prev_d - lowest_drawdown,
+                    'depth': prev_d - lowest_d,
                     'ledge': prev_d,
                 })
                 # reset
                 prev_d = d
                 drawdown = False
-                drawdown_l, lowest_drawdown = 0, 0
-        if d < prev_d:
-            drawdown = True
-            lowest_drawdown = d
-        prev_d = d
+                drawdown_l, lowest_d = 0, 0
+        else:
+            if d < prev_d:
+                drawdown = True
+                lowest_d = d
+            prev_d = d
     if drawdown:  # last 'unsettled' drawdown
         drawdowns.append({
             'length': drawdown_l + 1,
@@ -281,9 +293,9 @@ def create_summary_df_from_list(profit_d, equity_d, signals, df, additional={}):
     greatest_len, avg_len = 0, 0
     for drawdown in drawdowns:
         avg_depth += drawdown['depth']
-        avg_len += drawdown['len']
-        if greatest_len < drawdown['len']:
-            greatest_len = drawdown['len']
+        avg_len += drawdown['length']
+        if greatest_len < drawdown['length']:
+            greatest_len = drawdown['length']
     p_min = min(profit_d)
     summary_dict['equity_drawdown_abs'] = profit_d[0] - p_min
     summary_dict['equity_drawdown_max'] = greatest_depth
@@ -292,19 +304,22 @@ def create_summary_df_from_list(profit_d, equity_d, signals, df, additional={}):
         summary_dict['equity_drawdown_rel'] = min_drawdown[0]['ledge'] - p_min
     else:
         summary_dict['equity_drawdown_rel'] = profit_d[0] - p_min
-    summary_dict['equity_drawdown_avg'] = avg_depth / len(drawdowns)
-    summary_dict['equity_drawdown_len_avg'] = avg_len / len(drawdowns)
+    summary_dict['equity_drawdown_avg'] = try_divide(avg_depth, len(drawdowns))
+    summary_dict['equity_drawdown_len_avg'] = try_divide(avg_len, len(drawdowns))
     summary_dict['equity_drawdown_len_max'] = greatest_len
 
     expected_payoff = 0
     for signal in complete_signals:
         expected_payoff += signal['net']
-    summary_dict['expected_payoff'] = summary_dict['total_profit'] / l
+    summary_dict['expected_payoff'] = try_divide(summary_dict['total_profit'], l)
     summary_dict['sharpe_ratio'] = 0  # No risk-free proxy
     summary_dict['standard_deviation'] = 0
     summary_dict['LR_correlation'] = 0  # no line correlation yet
     summary_dict['LR_standard_error'] = 0
-    summary_dict['recovery_factor'] = summary_dict['total_profit'] / summary_dict['max_drawdown']
+    if summary_dict['equity_drawdown_max'] == 0:
+        summary_dict['recovery_factor'] = 0
+    else:
+        summary_dict['recovery_factor'] = summary_dict['total_profit'] / summary_dict['equity_drawdown_max']
 
     summary_dict['total_short_trades'] = l6
     summary_dict['total_long_trades'] = l5
@@ -333,13 +348,24 @@ def create_summary_df_from_list(profit_d, equity_d, signals, df, additional={}):
     # summary_dict['longest_loss_trade'] = 0
     # summary_dict['average_trade_period'] = 0
 
+    if 'Datetime' in df.columns:  # -1 - -2 doesn't work
+        interval = (strtodatetime(df.iloc[1].Datetime) - strtodatetime(df.iloc[0].Datetime)).total_seconds()
+    elif 'Date' in df.columns:
+        interval = (strtodatetime(df.iloc[1].Date) - strtodatetime(df.iloc[0].Date)).total_seconds()
+    else:
+        col = df.columns[0]
+        interval = (strtodatetime(df.iloc[1][col]) - strtodatetime(df.iloc[0][col])).total_seconds()
+
     period_to_net, period_to_gross, avg_period = 0, 0, 0
     avg_profit_period, avg_loss_period = 0, 0
-    longest_length, shortest_length = timedelta(), timedelta()
-    for signal in signal:
+    longest_length, shortest_length = 0, len(df)
+    winning, losing = False, False
+    win_length, lose_length = 0, 0
+    win_amount, lose_amount = 0, 0
+    win_streak, lose_streak = [], []
+    for signal in signals:
         net = abs(signal['net'])
-        period = (strtodatetime(signal['end']) - strtodatetime(signal['start'])).total_seconds()
-        period_to_net += net / period
+        period = (strtodatetime(signal['end']) - strtodatetime(signal['start'])).total_seconds() / interval
         avg_period += period
         if signal['net'] > 0:
             avg_profit_period += period
@@ -349,64 +375,61 @@ def create_summary_df_from_list(profit_d, equity_d, signals, df, additional={}):
             longest_length = period
         if shortest_length > period:
             shortest_length = period
+        period_to_net += net / period
         if signal['net'] > 0:
             period_to_gross += net / period
-
-    summary_dict['period_to_profit'] = period_to_net / l
-    summary_dict['period_to_gross'] = period_to_gross / l3
-
-    summary_dict['longest_trade_length'] = longest_length
-    summary_dict['shortest_trade_length'] = shortest_length
-    summary_dict['average_trade_length'] = avg_period / l
-    summary_dict['average_profit_length'] = avg_profit_period / l3
-    summary_dict['average_loss_length'] = avg_loss_period / l4
-
-    winning, losing = False, False
-    win_length, lose_length = 0, 0
-    win_amount, lose_amount = 0, 0
-    win_streak, lose_streak = [], []
-    for signal in signals:
         if signal['net'] > 0:
             if winning:
                 win_length += 1
                 win_amount += signal['net']
             else:
                 winning = True
-                win_length += 1
-                win_amount += signal['net']
+                win_length = 1
+                win_amount = signal['net']
 
-            losing = False
-            lose_streak.append({
-                'length': lose_length,
-                'amount': lose_amount,  # negative number
-            })
-            lose_length, lose_amount = 0, 0
+            if losing:
+                losing = False
+                lose_streak.append({
+                    'length': lose_length,
+                    'amount': lose_amount,  # negative number
+                })
+                lose_length, lose_amount = 0, 0
         else:
             if losing:
                 lose_length += 1
                 lose_amount += signal['net']
             else:
                 losing = True
-                lose_length += 1
-                lose_amount += signal['net']
+                lose_length = 1
+                lose_amount = signal['net']
 
-            winning = False
-            win_streak.append({
-                'length': win_length,
-                'amount': win_amount,
-            })
-            win_length, win_amount = 0, 0
+            if winning:
+                win_streak.append({
+                    'length': win_length,
+                    'amount': win_amount,
+                })
+                winning = False
+                win_length, win_amount = 0, 0
+
+    summary_dict['period_to_profit'] = try_divide(period_to_net, l)
+    summary_dict['period_to_gross'] = try_divide(period_to_gross, l3)
+
+    summary_dict['longest_trade_length'] = longest_length
+    summary_dict['shortest_trade_length'] = shortest_length
+    summary_dict['average_trade_length'] = try_divide(avg_period, l)
+    summary_dict['average_profit_length'] = try_divide(avg_profit_period, l3)
+    summary_dict['average_loss_length'] = try_divide(avg_loss_period, l4)
 
     mean = lambda list: sum(list) / len(list)
-    summary_dict['max_consecutive_wins'] = max([s['length'] for s in win_streak])
-    summary_dict['max_consecutive_profit'] = max([s['amount'] for s in win_streak])
-    summary_dict['avg_consecutive_wins'] = mean([s['length'] for s in win_streak])
-    summary_dict['avg_consecutive_profit'] = mean([s['amount'] for s in win_streak])
+    summary_dict['max_consecutive_wins'] = try_max([s['length'] for s in win_streak])
+    summary_dict['max_consecutive_profit'] = try_max([s['amount'] for s in win_streak])
+    summary_dict['avg_consecutive_wins'] = try_mean([s['length'] for s in win_streak])
+    summary_dict['avg_consecutive_profit'] = try_mean([s['amount'] for s in win_streak])
 
-    summary_dict['max_consecutive_losses'] = max([s['length'] for s in lose_streak])
-    summary_dict['max_consecutive_loss'] = max([s['amount'] for s in lose_streak])
-    summary_dict['avg_consecutive_losses'] = mean([s['length'] for s in lose_streak])
-    summary_dict['avg_consecutive_loss'] = mean([s['amount'] for s in lose_streak])
+    summary_dict['max_consecutive_losses'] = try_max([s['length'] for s in lose_streak])
+    summary_dict['max_consecutive_loss'] = try_max([s['amount'] for s in lose_streak])
+    summary_dict['avg_consecutive_losses'] = try_mean([s['length'] for s in lose_streak])
+    summary_dict['avg_consecutive_loss'] = try_mean([s['amount'] for s in lose_streak])
 
     summary_dict['n_symbols'] = 1
     summary_dict['margin_level'] = 0
@@ -425,52 +448,54 @@ def aggregate_summary_df_in_dataset(ds_name: str, summary_dict_list: List):
     # gross_profits = [d['gross_profit'] for d in summary_dict_list]
     # gross_loss = [d['gross_loss'] for d in summary_dict_list]
 
-    summary_dict = base_summary_dict()
-    for i in range(summary_dict_list):
+    summary_dict = base_summary_dict().copy()
+    for i in range(len(summary_dict_list)):
         for key in summary_dict_list[i]:
-            summary_dict[key] += summary_dict[i][key]
+            summary_dict[key] += summary_dict_list[i][key]
     for key in summary_dict:
-        summary_dict[key] /= len(summary_dict_list)
+        if len(summary_dict_list) > 0:
+            summary_dict[key] /= len(summary_dict_list)
+        else:
+            summary_dict[key] = 0
 
     final_summary_dict = {
         'n_instruments': len(summary_dict_list),
-        'standard_deviation_profit': stdev(profits),
+        'standard_deviation_profit': try_stdev(profits),
         #
         'dataset': ds_name,
     }
 
-    final_summary_dict.update(summary_dict)
+    summary_dict.update(final_summary_dict)
+    final_summary_dict = summary_dict
     return final_summary_dict
 
 
 def aggregate_summary_df_in_datasets(summary_dict_list: List):
     """Aggregate summary and dataset summaries"""
 
-    summary_dict_list = [summary_dict for summary_dict in summary_dict_list if len(summary_dict.keys) > 0]
+    summary_dict_list = [summary_dict for summary_dict in summary_dict_list if len(summary_dict.keys()) > 0]
     if len(summary_dict_list) < 1:
         return {}
-    summary_dict = summary_dict_list[0]
+
+    final_summary_dict = summary_dict_list[0].copy()
     total_instruments = 0
-    for i in range(summary_dict_list):
+    for i in range(len(summary_dict_list)):
         if i == 0:
             continue
         for key in summary_dict_list[i]:
-            summary_dict[key] += summary_dict[i][key] * summary_dict[i]['n_instruments']
-        total_instruments += summary_dict[i]['n_instruments']
+            final_summary_dict[key] += summary_dict_list[i][key] * summary_dict_list[i]['n_instruments']
+        total_instruments += summary_dict_list[i]['n_instruments']
 
-    for key in summary_dict:
+    for key in final_summary_dict:
         if not key.lower() == 'dataset':
-            summary_dict[key] /= total_instruments
+            final_summary_dict[key] /= total_instruments
 
-    final_summary_dict = {
+    final_summary_dict.update({
         'n_datasets': len(summary_dict_list),
         'dataset': 'Total'
-    }
+    })
 
-    final_summary_dict.update(summary_dict)
-    summary_dict_list.append(final_summary_dict)
-
-    return summary_dict_list
+    return final_summary_dict
 
 
 def create_test_meta(test_name, ivar, xvar, other):
@@ -516,28 +541,36 @@ def create_test_result(test_name: str, summary_dict_list, meta_df: pd.DataFrame)
     meta_df.to_csv(meta_path)
 
 
-def write_test_result(test_name, summary_dicts: List):
-    folder = EVALUATION_FOLDER
+def write_test_result(test_name, summary_dicts: List, robot_name: str):
+    folder = F'{EVALUATION_FOLDER}/{robot_name}'
     path = F'{folder}/{test_name}.csv'
+
+    if not os.path.exists(folder):
+        os.makedirs(folder)
 
     sdfs = []
     for summary_dict in summary_dicts:
-        sdfs.append(pd.DataFrame(summary_dict))
+        sdfs.append(summary_dict)
+    sdfs = pd.DataFrame(sdfs)
+    sdfs.to_csv(path)
 
-    summary_df = pd.DataFrame(sdfs[0])
-    for i in range(sdfs):
-        if i != 0:
-            summary_df = summary_df.append(pd.DataFrame(sdfs[i]))
+    # summary_df = pd.DataFrame(sdfs[0])
+    # for i in range(sdfs):
+    #     if i != 0:
+    #         summary_df = summary_df.append(pd.DataFrame(sdfs[i]))
 
     print(F'Writing test result at {path}')
     return sdfs
 
 
-def write_test_meta(test_name, meta_dict):
-    folder = F'static/results/evaluation'
+def write_test_meta(test_name, meta_dict, robot_name: str):
+    folder = F'{EVALUATION_FOLDER}/{robot_name}'
     meta_path = F'{folder}/{test_name}__meta.csv'
 
-    meta = pd.DataFrame(meta_dict, index=False)
+    if not os.path.exists(folder):
+        os.makedirs(folder)
+
+    meta = pd.DataFrame([meta_dict])
     meta.to_csv(meta_path)
     print(F'Writing test result at {meta_path}')
     return meta
@@ -566,6 +599,7 @@ class DataTester:
 
     def __init__(self, xvar):
 
+        self.robot = None
         self.xvar = xvar
         self.progress_bar = None
         self.start_time = None
@@ -583,10 +617,9 @@ class DataTester:
         self.start_time = datetime.now()
 
         ta_name = remove_special_char(ta_name)
-        print(ivar)
         # need to un-df ivar!
-        print('Going to test: ' + F'{ta_name}.{ta_name}({ivar})')
-        self.robot = eval(F'{ta_name}.{ta_name}({ivar})')
+        print('Going to test: ' + F'{ta_name}.{ta_name}({ivar}) with i:{ivar}, x:{self.xvar}')
+        self.robot = eval(F'{ta_name}.{ta_name}({ivar}, {self.xvar})')
 
         if self.p_bar:
             self.p_bar.setMaximum(number_of_datafiles(ds_names) + 1)
@@ -608,39 +641,35 @@ class DataTester:
                 df = load_df(d_name)
                 # If dataframe cannot be found:
                 if len(df) < 1:
+                    print(F'Testing: {d_name} cannot be found...')
                     continue
 
                 # Testing dataframe here
                 self.p_window.setWindowTitle(F'Testing against {d_name}')
-                profit_d, equity_d, signal_d = test_data(df, row['symbol'], row['interval'], row['period'])
-                summary_dict_list.append(create_summary_df_from_list(profit_d, equity_d, signal_d, df))
+                stats_dict, signals_dict, robot_dict = test_data(df, row['symbol'], row['interval'], row['period'])
+                summary_dict_list.append(create_summary_df_from_list(stats_dict, signals_dict, df))
 
             return aggregate_summary_df_in_dataset(ds_name, summary_dict_list)
 
         def test_data(df, sym, interval, period):
 
-            self.robot.start(sym, interval, period)
-            df = retrieve("symbol", datetime.now(), datetime.now()
-                          - strtotimedelta(interval) * robot.PREPARE_PERIOD,
-                          interval,
-                          False, False)
-            self.robot.retrieve_prepare(df)
+            # Set robot to testing mode
+            print(F"Robot {self.robot} starting test {sym}-{interval}-{period}...")
+            self.robot.start(sym, interval, period, df, True)
+            # Robot
+            # df = retrieve("symbol", datetime.now(), datetime.now()
+            #               - strtotimedelta(interval) * robot.PREPARE_PERIOD,
+            #               interval,
+            #               False, False)
+            # self.robot.retrieve_prepare(df)
 
-            # for each data point in datafile
-            for index, row in df.iterrows():
-                print(index, row)
-                robot.next(row)
+            # Test
+            self.robot.test()
+            # for index, row in df.iterrows():
+            #     print(index, row)
+            #     robot.next(row)
 
-            robot.finish()
-            profit_d, equity_d = robot.get_profit()
-            signal_d = robot.get_signals()
-
-            # Convert to df
-            # self.profit_df = create_profit_df_from_list(self.profit_data, self.asset_data)
-            # self.signal_df = create_signal_df_from_list(self.completed_signals, self.signals)
-            # self.summary_df = create_summary_df_from_list(self.profit_data, self.asset_data, self.completed_signals)
-
-            return profit_d, equity_d, signal_d
+            return self.robot.finish()
 
         # ===== Testing starts here! =====
         full_summary_dict_list = []
@@ -660,14 +689,21 @@ class DataTester:
             'end': self.end_time,
             'time_taken': self.start_time - self.end_time,
         }
-        test_meta = create_test_meta(test_name, ivar, self.xvar, meta)  # Returns dict
+        meta.update(self.robot.get_robot_meta())
+        _ivar = {
+            'name': ivar[0]
+        }
+        for i in range(1, len(ivar)):
+            _ivar.update({
+                F'arg{i}': ivar[i]
+            })
+
+        test_meta = create_test_meta(test_name, _ivar, self.xvar, meta)  # Returns dict
         test_result = full_summary_dict_list
 
         # Write Meta and Result
-        print('METAMETA', meta)
-        print('TEST RESULT', test_result)
-        write_test_meta(test_name, meta)
-        write_test_result(test_name, test_result)
+        write_test_meta(test_name, meta, meta['name'])
+        write_test_result(test_name, test_result, meta['name'])
 
         if self.p_bar:
             self.p_bar.setValue(self.p_bar.maximum())
