@@ -274,7 +274,7 @@ def try_key(dict: {}, key: str):
         return "-"
 
 
-def try_divide(n1 ,n2):
+def try_divide(n1, n2):
     if n2 == 0:
         return 0
     return n1 / n2
@@ -293,6 +293,7 @@ def try_mean(list):
     for i in list:
         t += i
     return i / len(list)
+
 
 # XVar
 
@@ -371,6 +372,18 @@ def from_dataname(s: str):
     if len(arr) < 3:
         return ('Str_Error', '', '')
     return (arr[0], arr[1], arr[2])
+
+
+# Test
+
+def get_test_name(s: str):
+    if s.endswith('.csv'):
+        return s[0:-5]
+    s_arr = s.split('.')
+    if len(s_arr) == 1:
+        return s
+    return '.'.join(s_arr[0:-2])
+
 
 # data = yf.download(  # or pdr.get_data_yahoo(...
 #         # tickers list or string as well

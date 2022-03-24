@@ -7,15 +7,16 @@ from os import listdir
 from os.path import isfile, join
 from statistics import stdev
 from typing import List
+from pathlib import Path
 
 import pandas as pd
 from PyQt5.QtWidgets import QProgressBar, QWidget
 
 from robot.abstract.robot import robot
-from settings import EVALUATION_FOLDER
+from settings import EVALUATION_FOLDER, OPTIMISATION_FOLDER
 from util.dataRetrievalUtil import load_dataset, load_df, get_computer_specs, number_of_datafiles, retrieve, try_stdev
 from util.langUtil import craft_instrument_filename, strtodatetime, try_key, remove_special_char, strtotimedelta, \
-    try_divide, try_max, try_mean
+    try_divide, try_max, try_mean, get_test_name
 
 import numpy as np
 from sklearn.linear_model import LinearRegression
@@ -488,7 +489,7 @@ def aggregate_summary_df_in_datasets(summary_dict_list: List):
 
     for key in final_summary_dict:
         if not key.lower() == 'dataset':
-            final_summary_dict[key] /= total_instruments
+            final_summary_dict[key] = try_divide(final_summary_dict[key], total_instruments)
 
     final_summary_dict.update({
         'n_datasets': len(summary_dict_list),
@@ -518,6 +519,29 @@ def create_test_meta(test_name, ivar, xvar, other):
 
 
 # Forex type
+
+def get_optimised_robot_list():
+    folder = F'{OPTIMISATION_FOLDER}'
+    os.makedirs(folder, exist_ok=True)
+    folders = os.listdir(F'{folder}')
+    return folders
+
+
+def get_tested_robot_list():
+    folder = F'{EVALUATION_FOLDER}'
+    os.makedirs(folder, exist_ok=True)
+    folders = os.listdir(F'{folder}')
+    return folders
+
+
+def get_tests_list(robot_name: str):
+    folder = F'{EVALUATION_FOLDER}/{robot_name}'
+    os.makedirs(folder, exist_ok=True)
+    files = os.listdir(F'{folder}')
+    _files = []
+    for file in files:
+        _files.append(get_test_name(file))
+    return _files
 
 
 def create_test_result(test_name: str, summary_dict_list, meta_df: pd.DataFrame):

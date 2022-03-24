@@ -23,8 +23,9 @@ from util.dataRetrievalUtil import load_trade_advisor_list, get_dataset_changes,
     retrieve_ds, clear_dataset_changes, load_df_list, load_df, load_ivar_list, get_test_steps, \
     load_ivar, init_robot, load_lag_suggestions, load_leverage_suggestions, load_instrument_type_suggestions, \
     load_ivar_as_list, translate_xvar_dict, load_flat_commission_suggestions
-from util.dataTestingUtil import step_test_robot, DataTester, write_test_result, write_test_meta
-from util.langUtil import normify_name, try_int, leverage_to_float
+from util.dataTestingUtil import step_test_robot, DataTester, write_test_result, write_test_meta, load_test_result, \
+    load_test_meta, get_tested_robot_list, get_tests_list
+from util.langUtil import normify_name, try_int, leverage_to_float, get_test_name
 
 
 class TradeHunterApp:
@@ -233,13 +234,14 @@ class TradeHunterApp:
                 #     print(F"File: {row['name']}")
 
                 self.p_window, self.d_progress = progress_window(len(files_df.index))
+                self.p_window.showMinimized()
                 self.p_window.show()
 
                 print("Updating...")
                 for index, row in files_df.iterrows():
+                    self.download_progress.setValue(self.download_progress.value() + 1)
                     self.p_window.setWindowTitle(F"Downloading {row['name']}")
                     retrieve_ds(row['name'], True)
-                    self.download_progress.setValue(self.download_progress.value() + 1)
 
                 self.p_window.setWindowTitle(F"Download complete. You may close the window.")
 
@@ -275,6 +277,9 @@ class TradeHunterApp:
             back_button.clicked.connect(back)
             import_button.clicked.connect(import_clicked)
             update_all_button.clicked.connect(update_all)
+
+            progress_bar = QProgressBar()
+            progress_bar.setWindowTitle("Progress Bar")
 
             tail.addWidget(back_button)
             tail.addWidget(import_button)
@@ -521,6 +526,13 @@ class TradeHunterApp:
         def __init__(self):
             self.keyPressed = QtCore.pyqtSignal(QtCore.QEvent)
             super().__init__()
+
+            # pages
+            self.tr_window = None
+            self.or_window = None
+            self.rr_window = None
+            self.od_window = None
+
             self.window()
 
         def keyPressEvent(self, event):
@@ -546,6 +558,7 @@ class TradeHunterApp:
             def on_test_robot_button_pressed():
 
                 def test_robot_window():
+
                     tr_window = QWidget()
 
                     select_layout = QHBoxLayout()
@@ -652,49 +665,13 @@ class TradeHunterApp:
 
             def on_robot_results_button_pressed():
 
-                def optimise_robot_window():
+                def results_analysis_window():
+                    # link to result analysis page
+                    result_analysis_window = TradeHunterApp.ResultAnalysisPage()
+                    return result_analysis_window
 
-                    or_window = QWidget()
-                    select_layout = QHBoxLayout()
-                    robot_label = QLabel('Robot')
-                    robot_select = QListWidget()
-                    select_layout.addWidget(robot_label)
-                    select_layout.addWidget(robot_select)
-
-                    for ta in load_trade_advisor_list():
-                        item = QListWidgetItem(ta, robot_select)
-                    robot_select.setFixedHeight(20)
-
-                    layout = QVBoxLayout()
-
-                    button_layout = QHBoxLayout()
-                    confirm_button = QPushButton('Confirm')
-                    cancel_button = QPushButton('Cancel')
-
-                    def on_confirm():
-                        self.close()
-                        if not robot_select.currentItem():
-                            QMessageBox('You have not selected a robot')
-                        else:
-                            print("Select:", robot_select.currentItem().text())
-                        self.test_chamber_window = TradeHunterApp.TestingChamberPage()
-
-                    def on_cancel():
-                        or_window.close()
-
-                    confirm_button.clicked.connect(on_confirm)
-                    cancel_button.clicked.connect(on_cancel)
-                    button_layout.addWidget(cancel_button)
-                    button_layout.addWidget(confirm_button)
-
-                    layout.addLayout(select_layout)
-                    layout.addLayout(button_layout)
-
-                    or_window.setLayout(layout)
-                    return or_window
-
-                self.or_window = optimise_robot_window()
-                self.or_window.show()
+                self.rr_window = results_analysis_window()
+                self.rr_window.show()
 
             robot_results_button.clicked.connect(on_robot_results_button_pressed)
 
@@ -842,7 +819,6 @@ class TradeHunterApp:
                 if not lag_combo.currentText() or not commission_combo.currentText() or \
                         not leverage_combo.currentText() or not instrument_combo.currentText() or \
                         not type_combo.currentText():
-
                     self.alert_window = QWidget()
                     alert_layout = QVBoxLayout()
                     alert = QMessageBox(self.alert_window)
@@ -867,7 +843,7 @@ class TradeHunterApp:
 
                     self.alert_window.setLayout(alert_layout)
                     return self.alert_window
-                
+
                 # if not commission_combo.document().toPlainText():
                 #     capital_text.document().setPlaintText('0')
                 if not capital_text.document().toPlainText():
@@ -924,7 +900,7 @@ class TradeHunterApp:
 
                 # Move to Results
                 self.rap = TradeHunterApp.ResultAnalysisPage()
-                self.rap.load(test_result, test_meta, test_name)
+                self.rap.force_load(test_result, test_meta, test_name, robot_name)
                 self.rap.show()
                 self.close()
 
@@ -1016,6 +992,9 @@ class TradeHunterApp:
             xvar_pane.addLayout(xvar_left_body)
             xvar_pane.addLayout(xvar_right_body)
 
+            # Bottom progress_bar
+            p_bar2 = QProgressBar()
+
             # Add panes
             panes.addLayout(left_pane)
             panes.addLayout(xvar_pane)
@@ -1050,12 +1029,19 @@ class TradeHunterApp:
         def window(self):
             vis_button = QPushButton('Visualise')  # Load graphs
 
+        # delete ivars etc
+
     class ResultAnalysisPage(QWidget):
 
-        def __init__(self, result_name='Default'):
-            if result_name != 'Default':
-                pass
-            else:
+        def __init__(self, robot_name='Default', test_name='Default'):
+            super().__init__()
+
+            self.test_name = ""
+            self.test_result = {}
+            self.test_meta = {}
+            self.summary_dict = {}
+            if robot_name.lower() == 'default' or test_name.lower() == 'default':
+                # Default Test Result, not Robot Ivar
                 self.summary_dict = {
                     'period': 0,
                     'n_bars': 0,
@@ -1125,49 +1111,199 @@ class TradeHunterApp:
                     'margin_level': 0,
                     'z_score': 0,
                     #
+                    'dataset': 'None',
                 }
+            else:
+                self.get_and_load_name(robot_name, test_name)
+
+            # Interact-able UI Elements:
+            self.robot_combo = None
+            self.test_combo = None
+            self.labels = []  # for deletion and re-addition
+            self.labels_2 = []
+            self.layouts = []
+            self.d_p = None
+            self.w_p = None
+
+
+            self.canvas = None
             self.window()
 
         def window(self):
 
-            main_layout = QHBoxLayout()
+            # Panes laid out vertically
+            main_layout = QVBoxLayout()
+
+            head_layout = QVBoxLayout()
+            body_layout = QVBoxLayout()
+            tail_layout = QVBoxLayout()
+
+            main_layout.addLayout(head_layout)
+            main_layout.addLayout(body_layout)
+            main_layout.addLayout(tail_layout)
 
             # Choice Pane
             choice_pane = QHBoxLayout()
-            test_select = QListWidget()
+            left_choice = QVBoxLayout()
+            right_choice = QVBoxLayout()
+            self.robot_combo = QComboBox()
+            self.test_combo = QComboBox()
+            self.robot_combo.setFixedHeight(20)
+            self.test_combo.setFixedHeight(20)
+            robot_label = QLabel('Select Robot')
+            test_label = QLabel('Select Test')
+            left_choice.addWidget(robot_label)
+            left_choice.addWidget(test_label)
+            right_choice.addWidget(self.robot_combo)
+            right_choice.addWidget(self.test_combo)
+            choice_pane.addLayout(left_choice)
+            choice_pane.addLayout(right_choice)
+            head_layout.addLayout(choice_pane)
 
-            # Result Pane
-            result_pane = QHBoxLayout()
-            left_result_body = QVBoxLayout()
-            right_result_body = QVBoxLayout()
+            self.robot_combo_update()
+            # load_tests([])  # Wait for selection
 
-            for key in self.summary_dict:
-                _label = QLabel(key)
-                _label2 = QLabel(str(self.summary_dict[key]))
+            self.robot_combo.activated.connect(self.test_combo_update)
+            self.test_combo.activated.connect(self.get_and_load)
 
-                left_result_body.addWidget(_label)
-                right_result_body.addWidget(_label2)
+            # Result Pane]
+            self.d_p = self.data_pane()
+            self.g_p = self.graph_pane()
+            body_layout.addLayout(self.d_p)
+            tail_layout.addLayout(self.g_p)
 
-            result_pane.addLayout(left_result_body)
-            result_pane.addLayout(right_result_body)
-
-            main_layout.addWidget(choice_pane)
-            main_layout.addWidget(result_pane)
+            main_layout.addLayout(head_layout)
+            main_layout.addLayout(body_layout)
+            main_layout.addLayout(tail_layout)
 
             self.setLayout(main_layout)
 
         def data_pane(self):
-            robot_select = QListWidget()
-            test_select = QListWidget()
-            optimisation_select = QListWidget()
-
-            drawdown = QLabel('Drawdown')
-            # Display as [x[0] < av < x[1]]
-            g_drawdown = QLabel('GDrawdown')
-            pass
+            data_pane = QHBoxLayout()
+            return data_pane
 
         def graph_pane(self):
-            pass
+            graph_pane = QVBoxLayout()
+            graphs = ['1']
+            for graph in graphs:
+                plot = TradeHunterApp.MplCanvas()
+                graph_pane.addWidget(plot)
+            return graph_pane
+
+        # Reload data pane
+        def create_labels(self):
+
+            labels = []
+            labels_2 = []
+            layouts = []
+
+            col_layouts = 1 + len(self.summary_dict.keys()) // 20
+            keys = self.summary_dict.keys()
+
+            for i in range(col_layouts):
+
+                left_result_body = QVBoxLayout()
+                right_result_body = QVBoxLayout()
+
+                for key in keys:
+                    _label = QLabel(key)
+                    _label_2 = QLabel(str(self.summary_dict[key]))
+
+                    labels.append(_label)
+                    labels_2.append(_label_2)
+
+                    left_result_body.addWidget(_label)
+                    right_result_body.addWidget(_label_2)
+
+                self.d_p.addLayout(left_result_body)
+                self.d_p.addLayout(right_result_body)
+
+                layouts.append(left_result_body)
+                layouts.append(right_result_body)
+
+            self.labels = labels
+            self.labels_2 = labels_2
+            self.layouts = layouts
+
+        def delete_labels(self):
+            for label in self.labels:
+                label.deleteLater()
+            for label in self.labels_2:
+                label.deleteLater()
+
+        # Update combo boxes
+        def robot_combo_update(self):
+            self.robot_combo.clear()
+            robots = get_tested_robot_list()
+            for robot in robots:
+                self.robot_combo.addItem(robot)
+            if len(robots) < 1:
+                alert_w = QMessageBox('No tests found')
+                alert_w.show()
+            if self.robot_combo.currentText():
+                self.test_combo_update()
+
+        def test_combo_update(self):
+            robot_name = self.robot_combo.currentText()
+            tests = get_tests_list(robot_name)
+            self.test_combo.clear()
+            if len(tests) < 1:
+                alert_w = QMessageBox(F'No tests under {robot_name} found')
+                alert_w.show()
+            for test in tests:
+                self.test_combo.addItem(test)
+
+        # Load results
+
+        def force_load(self, test_result, test_meta, test_name, robot_name):
+            self.load(test_result, test_meta, test_name)
+
+            # Combo Selection to reflect this:
+            self.robot_combo_update()
+            idx = self.robot_combo.findText(robot_name)
+            if idx == -1:
+                idx == 0
+            if self.robot_combo.count() < 1:
+                return
+            self.robot_combo.setCurrentIndex(idx)
+
+            # Test Selection
+            self.test_combo_update()
+            idx = self.test_combo.findText(test_name)
+            if self.test_combo.count() < 1:
+                return
+            self.test_combo.setCurrentIndex(idx)
+
+        def load(self, test_result, test_meta, test_name):
+            self.test_name = test_name
+            self.test_result = test_result
+            self.test_meta = test_meta
+            self.summary_dict = test_result[-1]
+
+            self.delete_labels()
+            self.create_labels()
+
+        def get_and_load(self):
+
+            robot_name = self.robot_combo.currentText()
+            test_name = self.test_combo.currentText()
+            test_name = get_test_name(test_name)
+
+            self.get_and_load_name(robot_name, test_name)
+
+        def get_and_load_name(self, robot_name, test_name):
+
+            self.robot_name = robot_name
+            self.test_name = test_name
+
+            test_result_name = F'{self.test_name}.csv'
+            test_meta_name = F'{self.test_name}__meta.csv'
+
+            # Load results and meta
+            self.test_result = load_test_result(test_result_name)
+            self.test_meta = load_test_meta(test_meta_name)
+
+            self.load(self.test_result, self.test_meta, self.test_name)
 
     class OptimisationPage(QWidget):
 
@@ -1200,6 +1336,11 @@ class TradeHunterApp:
             p_layout.addWidget(p_bar)
 
             self.setLayout(p_layout)
+
+    # - Plotter
+
+    class SimPlotter(QWidget):
+        pass
 
     # -- Utility
 

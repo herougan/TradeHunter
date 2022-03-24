@@ -45,10 +45,11 @@ def retrieve(
         end: datetime,
         interval: str,
         write: bool = False,
-        progress: bool = False, name = ""):
+        progress: bool = False, name=""):
     period = end - start
     if not name:
-        name = craft_instrument_filename(s, interval, timedeltatosigstr(period))  # F'{s}-{interval}-{timedeltatosigstr(period)}'
+        name = craft_instrument_filename(s, interval,
+                                         timedeltatosigstr(period))  # F'{s}-{interval}-{timedeltatosigstr(period)}'
     print(F'Retrieving {name}, write: {write}')
 
     # Loop through smaller time periods if period is too big for given interval (denied by yfinance)
@@ -560,7 +561,6 @@ def build_generic_xvar():
 
 
 def translate_xvar_dict(xvar):
-
     # '10 ms' -> 10
     if not 'lag' in xvar.keys():
         xvar['lag'] = load_lag_suggestions()[0]
@@ -575,7 +575,7 @@ def translate_xvar_dict(xvar):
     if not 'leverage' in xvar.keys():
         xvar['leverage'] = load_leverage_suggestions()[0]
     # leverage_to_float
-    xvar['leverage'] = (lambda x: try_int(x[1])/try_int(x[0]))(xvar['leverage'].split(':'))
+    xvar['leverage'] = (lambda x: try_int(x[1]) / try_int(x[0]))(xvar['leverage'].split(':'))
 
     # Currency_Type # Do nothing
 
@@ -700,6 +700,7 @@ def get_computer_specs():
         })
 
     return specs
+
 
 # Stats
 

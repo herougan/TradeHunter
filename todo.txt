@@ -18,10 +18,8 @@ try download again (once), continue.
 
 Main Features:
 
-1) Creating dataset(s), auto-downloading
-
-2) Create custom robots (by yourself) that matches TradeHunter specs:
-Test that robot against dataset(s), producing result data
+1) Result Analysis page, default page
+1a) Progress bar not be in another window
 
 3) Optimise robots against dataset(s) producing recommended initial variables (iVars)
 - single type testing vs multi type
@@ -38,6 +36,7 @@ Test that robot against dataset(s), producing result data
 
 8) Shapesetdef contains data specific to certain chart profiles. One can test their robot against these chart profiles
 to see which type of trends/shapes/market conditions it is better at trading in.
+
 
 
 
