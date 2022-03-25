@@ -1,4 +1,5 @@
 import math
+import os
 from datetime import timedelta, datetime
 import unicodedata
 from typing import List
@@ -374,11 +375,15 @@ def from_dataname(s: str):
     return (arr[0], arr[1], arr[2])
 
 
+def get_file_name(s: str):
+    return os.path.splitext(s)[0]
+
+
 # Test
 
 def get_test_name(s: str):
     if s.endswith('.csv'):
-        return s[0:-5]
+        return s[0:-4]
     s_arr = s.split('.')
     if len(s_arr) == 1:
         return s

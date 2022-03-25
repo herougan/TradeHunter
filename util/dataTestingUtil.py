@@ -16,7 +16,7 @@ from robot.abstract.robot import robot
 from settings import EVALUATION_FOLDER, OPTIMISATION_FOLDER
 from util.dataRetrievalUtil import load_dataset, load_df, get_computer_specs, number_of_datafiles, retrieve, try_stdev
 from util.langUtil import craft_instrument_filename, strtodatetime, try_key, remove_special_char, strtotimedelta, \
-    try_divide, try_max, try_mean, get_test_name
+    try_divide, try_max, try_mean, get_test_name, get_file_name
 
 import numpy as np
 from sklearn.linear_model import LinearRegression
@@ -540,7 +540,8 @@ def get_tests_list(robot_name: str):
     files = os.listdir(F'{folder}')
     _files = []
     for file in files:
-        _files.append(get_test_name(file))
+        if not get_file_name(file).endswith('__meta'):
+            _files.append(get_test_name(file))
     return _files
 
 
@@ -600,19 +601,23 @@ def write_test_meta(test_name, meta_dict, robot_name: str):
     return meta
 
 
-def load_test_result(test_name: str):
-    folder = F'static/results/evaluation'
-    result_path = F'{folder}/{test_name}.csv'
+def load_test_result(test_name: str, robot_name: str):
+    folder = F'{EVALUATION_FOLDER}'
+    if not test_name.endswith('.csv'):
+        test_name += '.csv'
+    result_path = F'{folder}/{robot_name}/{test_name}'
 
-    trdf = pd.read_csv(result_path)
+    trdf = pd.read_csv(result_path, index_col=0)
     return trdf
 
 
-def load_test_meta(meta_name: str):
-    folder = F'static/results/evaluation'
-    meta_path = F'{folder}/{meta_name}.csv'
+def load_test_meta(meta_name: str, robot_name: str):
+    folder = F'{EVALUATION_FOLDER}'
+    if not meta_name.endswith('.csv'):
+        meta_name += '.csv'
+    meta_path = F'{folder}/{robot_name}/{meta_name}'
 
-    tmdf = pd.read_csv(meta_path)
+    tmdf = pd.read_csv(meta_path, index_col=0)
     return tmdf
 
 
@@ -752,6 +757,10 @@ class DataTester:
 
 def load_test_result_list():
     folder = 'static/results/evaluation'
+    # Get list of folders
+    folders = []
+    for folder in folders:
+        pass
     # Get list of files that end with .csv
     tr_list = [f for f in listdir(folder) if isfile(join(folder, f)) and f.endswith('.csv')]
     return tr_list

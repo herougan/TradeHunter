@@ -69,7 +69,7 @@ class TradeHunterApp:
 
             dm_button = QPushButton('Data Management')
             ta_button = QPushButton('Trade Advisor')
-            sp_button = QPushButton('Simple Plotter')
+            sp_button = QPushButton('General Plotter')
 
             def on_dm_click():
                 self.dm_window = TradeHunterApp.DataManagementPage()
@@ -82,7 +82,7 @@ class TradeHunterApp:
                 self.close()
 
             def on_sp_click():
-                self.sp_window = TradeHunterApp.SimplePlotterPage()
+                self.sp_window = TradeHunterApp.GeneralPlotterPage()
                 self.sp_window.show()
                 self.close()
 
@@ -98,47 +98,69 @@ class TradeHunterApp:
             self.show()
 
     # Main Pages
-    class SimplePlotterPage(QWidget):
+    class GeneralPlotterPage(QWidget):
         def __init__(self):
             super().__init__()
+
+            self.splot_window = None
+            self.ssim_window = None
+            self.stest_window = None
+            self.rc_window = None
+            self.dc_window = None
+
             self.window()
 
         def window(self):
-
             layout = QVBoxLayout()
+
+            splot_button = QPushButton('Simple Plotter')
+            ssim_button = QPushButton('Single Sim')
+            stest_button = QPushButton('Single Test')
+            rc_button = QPushButton('Robot Comparison')
+            dc_button = QPushButton('Data Comparison')
+            back_button = QPushButton('Back')
 
             body = QVBoxLayout()
 
-            df_layout = QHBoxLayout()
-            df_select = QListWidget()
-            df_select.setFixedHeight(20)
-            for df_path in load_df_list():
-                item = QListWidgetItem(df_path, df_select)
-
-            df_layout.addWidget(QLabel('Data file:'))
-            df_layout.addWidget(df_select)
-
-            body.addLayout(df_layout)
+            body.addWidget(splot_button)
+            body.addWidget(ssim_button)
+            body.addWidget(stest_button)
+            body.addWidget(rc_button)
+            body.addWidget(dc_button)
+            body.addWidget(back_button)
 
             tail = QVBoxLayout()
             button_layout = QHBoxLayout()
 
-            back_button = QPushButton('Back')
-            test_button = QPushButton('Plot')
+            def splot_clicked():
+                self.splot_window = TradeHunterApp.SimplePlotter()
+                self.splot_window.show()
 
-            def test_button_clicked():
-                if not df_select.currentItem():
-                    QMessageBox('You have not selected a data file')
-                else:
-                    print("Select:", df_select.currentItem().text())
-                    self.plot(df_select.currentItem().text())
+            def ssim_clicked():
+                self.ssim_window = TradeHunterApp.SimPlotter()
+                self.ssim_window.show()
+
+            def stest_clicked():
+                self.ssim_window = TradeHunterApp.SimPlotter()
+                self.ssim_window.show()
+
+            def rc_button_clicked():
+                self.ssim_window = TradeHunterApp.SimPlotter()
+                self.ssim_window.show()
+
+            def dc_button_clicked():
+                self.ssim_window = TradeHunterApp.SimPlotter()
+                self.ssim_window.show()
 
             # This window does not close upon plotting.
+            splot_button.clicked.connect(splot_clicked)
+            ssim_button.clicked.connect(ssim_clicked)
+            stest_button.clicked.connect(stest_clicked)
+            rc_button.clicked.connect(rc_button_clicked)
+            dc_button.clicked.connect(dc_button_clicked)
             back_button.clicked.connect(self.back)
-            test_button.clicked.connect(test_button_clicked)
 
             button_layout.addWidget(back_button)
-            button_layout.addWidget(test_button)
             tail.addLayout(button_layout)
 
             layout.addLayout(body)
@@ -164,7 +186,6 @@ class TradeHunterApp:
             self.p_window.show()
 
         def plot_window(self, canvas: FigureCanvasQTAgg, name: str) -> QWidget:
-
             p_window = QWidget()
 
             layout = QVBoxLayout()
@@ -420,10 +441,16 @@ class TradeHunterApp:
                     # Rebuild instrument list (e.g. Bad rows will be deleted)
                     self.build_dataset_instruments(ds_name)
 
+                def delete_button_clicked():
+                    AreYouSureWindow = QWidget()
+
+
                 create_button = QPushButton('New')
                 save_button = QPushButton('Save')
+                delete_button = QPushButton('Delete')
                 create_button.clicked.connect(create_button_clicked)
                 save_button.clicked.connect(save_button_clicked)
+                delete_button.clicked.connect(delete_button_clicked)
 
                 tail = QHBoxLayout()
                 tail.addWidget(create_button)
@@ -568,7 +595,6 @@ class TradeHunterApp:
                     robot_combo = QComboBox()
                     select_layout.addWidget(robot_label)
                     select_layout.addWidget(robot_combo)
-                    # select_layout.addWidget(robot_select)
 
                     for ta in load_trade_advisor_list():
                         # item = QListWidgetItem(ta, robot_select)
@@ -900,7 +926,7 @@ class TradeHunterApp:
 
                 # Move to Results
                 self.rap = TradeHunterApp.ResultAnalysisPage()
-                self.rap.force_load(test_result, test_meta, test_name, robot_name)
+                self.rap.force_load(test_name, robot_name)
                 self.rap.show()
                 self.close()
 
@@ -1022,6 +1048,7 @@ class TradeHunterApp:
                 dataset_select.setFixedHeight(20)
 
     class RobotAnalysis(QWidget):
+
         def __init__(self):
             self.window()
             self.show()
@@ -1033,7 +1060,7 @@ class TradeHunterApp:
 
     class ResultAnalysisPage(QWidget):
 
-        def __init__(self, robot_name='Default', test_name='Default'):
+        def __init__(self, robot_name='default', test_name='default'):
             super().__init__()
 
             self.test_name = ""
@@ -1125,7 +1152,6 @@ class TradeHunterApp:
             self.d_p = None
             self.w_p = None
 
-
             self.canvas = None
             self.window()
 
@@ -1160,6 +1186,10 @@ class TradeHunterApp:
             choice_pane.addLayout(right_choice)
             head_layout.addLayout(choice_pane)
 
+            quit_button = QPushButton('Exit')
+            quit_button.clicked.connect(self.back)
+            choice_pane.addWidget(quit_button)
+
             self.robot_combo_update()
             # load_tests([])  # Wait for selection
 
@@ -1170,7 +1200,7 @@ class TradeHunterApp:
             self.d_p = self.data_pane()
             self.g_p = self.graph_pane()
             body_layout.addLayout(self.d_p)
-            tail_layout.addLayout(self.g_p)
+            # tail_layout.addLayout(self.g_p)  # no graph to display
 
             main_layout.addLayout(head_layout)
             main_layout.addLayout(body_layout)
@@ -1190,6 +1220,9 @@ class TradeHunterApp:
                 graph_pane.addWidget(plot)
             return graph_pane
 
+        def back(self):
+            self.close()
+
         # Reload data pane
         def create_labels(self):
 
@@ -1197,7 +1230,9 @@ class TradeHunterApp:
             labels_2 = []
             layouts = []
 
-            col_layouts = 1 + len(self.summary_dict.keys()) // 20
+            data_per_col = 20
+
+            col_layouts = 1 + len(self.summary_dict.keys()) // data_per_col
             keys = self.summary_dict.keys()
 
             for i in range(col_layouts):
@@ -1205,7 +1240,12 @@ class TradeHunterApp:
                 left_result_body = QVBoxLayout()
                 right_result_body = QVBoxLayout()
 
-                for key in keys:
+                for u in range(i * data_per_col, (i + 1) * data_per_col):
+
+                    if len(keys) <= u:
+                        break
+                    key = keys[u]
+
                     _label = QLabel(key)
                     _label_2 = QLabel(str(self.summary_dict[key]))
 
@@ -1255,8 +1295,8 @@ class TradeHunterApp:
 
         # Load results
 
-        def force_load(self, test_result, test_meta, test_name, robot_name):
-            self.load(test_result, test_meta, test_name)
+        def force_load(self, test_name, robot_name):
+            self.get_and_load_name(robot_name, test_name)
 
             # Combo Selection to reflect this:
             self.robot_combo_update()
@@ -1278,7 +1318,7 @@ class TradeHunterApp:
             self.test_name = test_name
             self.test_result = test_result
             self.test_meta = test_meta
-            self.summary_dict = test_result[-1]
+            self.summary_dict = self.test_result.iloc[-1]
 
             self.delete_labels()
             self.create_labels()
@@ -1300,8 +1340,8 @@ class TradeHunterApp:
             test_meta_name = F'{self.test_name}__meta.csv'
 
             # Load results and meta
-            self.test_result = load_test_result(test_result_name)
-            self.test_meta = load_test_meta(test_meta_name)
+            self.test_result = load_test_result(test_result_name, robot_name)
+            self.test_meta = load_test_meta(test_meta_name, robot_name)
 
             self.load(self.test_result, self.test_meta, self.test_name)
 
@@ -1339,8 +1379,147 @@ class TradeHunterApp:
 
     # - Plotter
 
+    class SimplePlotter(QWidget):
+
+        def __init__(self):
+            super().__init__()
+            self.window()
+
+        def window(self):
+
+            layout = QVBoxLayout()
+
+            body = QVBoxLayout()
+
+            df_layout = QHBoxLayout()
+            df_select = QComboBox()
+            df_select.setFixedHeight(20)
+            for df_path in load_df_list():
+                df_select.addItem(df_path)
+            df_select.setCurrentIndex(0)
+
+            df_layout.addWidget(QLabel('Data file:'))
+            df_layout.addWidget(df_select)
+
+            body.addLayout(df_layout)
+
+            tail = QVBoxLayout()
+            button_layout = QHBoxLayout()
+
+            back_button = QPushButton('Back')
+            test_button = QPushButton('Plot')
+
+            def test_button_clicked():
+                if not df_select.currentItem():
+                    QMessageBox('You have not selected a data file')
+                else:
+                    print("Select:", df_select.currentItem().text())
+                    self.plot(df_select.currentItem().text())
+
+            # This window does not close upon plotting.
+            back_button.clicked.connect(self.back)
+            test_button.clicked.connect(test_button_clicked)
+
+            button_layout.addWidget(back_button)
+            button_layout.addWidget(test_button)
+            tail.addLayout(button_layout)
+
+            layout.addLayout(body)
+            layout.addLayout(tail)
+
+            self.setLayout(layout)
+            self.show()
+
+        def back(self):
+            self.close()
+
     class SimPlotter(QWidget):
-        pass
+
+        def __init__(self):
+            super().__init__()
+
+            self.robot_select = None
+            self.df_select = None
+
+            self.window()
+
+        def window(self):
+
+            layout = QVBoxLayout()
+
+            head = QVBoxLayout()
+            body = QVBoxLayout()
+            tail = QVBoxLayout()
+
+            # Build Options
+            df_layout = QHBoxLayout()
+            left_layout = QVBoxLayout()
+            right_layout = QVBoxLayout()
+
+            df_label = QLabel('Data')
+            df_select = QComboBox()
+            robot_label = QLabel('Robot')
+            robot_select = QComboBox()
+            df_select.setFixedHeight(20)
+            robot_select.setFixedHeight(20)
+
+            left_layout.addWidget(df_label)
+            left_layout.addWidget(robot_label)
+
+            right_layout.addWidget(df_select)
+            right_layout.addWidget(robot_select)
+
+            for df_path in load_df_list():
+                df_select.addItem(df_path)
+            df_select.setCurrentIndex(0)
+            for robot in load_trade_advisor_list():
+                robot_select.addItem(robot)
+            robot_select.setCurrentIndex(0)
+
+            self.robot_select = robot_select
+            self.df_select = df_select
+
+            df_layout.addLayout(left_layout)
+            df_layout.addLayout(right_layout)
+            body.addLayout(df_layout)
+
+            button_layout = QHBoxLayout()
+
+            back_button = QPushButton('Back')
+            test_button = QPushButton('Simulate')
+
+            def test_button_clicked():
+                if not df_select.currentText():
+                    QMessageBox('You have not selected a data file')
+                elif not robot_select.currentText():
+                    QMessageBox('You have not selected a robot!')
+                else:
+                    print("Select:", df_select.currentItem().text())
+                    self.plot(df_select.currentItem().text())
+
+            # This window does not close upon plotting.
+            back_button.clicked.connect(self.back)
+            test_button.clicked.connect(test_button_clicked)
+
+            button_layout.addWidget(back_button)
+            button_layout.addWidget(test_button)
+            tail.addLayout(button_layout)
+
+            layout.addLayout(head)
+            layout.addLayout(body)
+            layout.addLayout(tail)
+
+            self.setLayout(layout)
+            self.show()
+
+        def begin_test(self):
+            robot = self.robot_select.currentText()
+            data = self.df_select.currentText()
+
+
+
+        def back(self):
+            self.close()
 
     # -- Utility
 
@@ -1363,6 +1542,34 @@ class TradeHunterApp:
 
         def back(self):
             self.close()
+
+    class WarningBox(QWidget):
+
+        def __init__(self):
+            super().__init__()
+            self.window()
+
+            self.binded = None
+
+        def window(self):
+            main_layout = QVBoxLayout()
+
+            confirm_label = QLabel('Are you sure')
+            back_button = QPushButton('Ok')
+            cancel_button = QPushButton('Cancel')
+
+            back_button.clicked.connect(self.confirms)
+            cancel_button.clicked.connect(self.back)
+
+
+        def back(self):
+            self.close()
+
+        def confirm(self):
+            self.binded()
+
+        def bind_method(self, f):
+            self.binded = f
 
     # -- Canvas
     class MplCanvas(FigureCanvasQTAgg):

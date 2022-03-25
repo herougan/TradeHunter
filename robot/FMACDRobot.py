@@ -107,6 +107,9 @@ class FMACDRobot(robot):
     MARGIN_RISK_PER_TRADE = 0
     LOSS_PERCENTAGE = 0
 
+    # Plotting variables
+    PLOT_NO = [0, 0, 1]  # (Trailing)
+
     VERSION = '0.1'
     NAME = 'FMACDRobot'
 
@@ -793,4 +796,7 @@ class FMACDRobot(robot):
         return self.df[self.df.index.isin(self.stat_datetime)]
 
 
-# todo concurrent tester
+# todo concurrent tester - testing different ivars
+
+    def set_multiple_ivars(self, ivars):
+        self.ivars = ivars
