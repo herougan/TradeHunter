@@ -795,6 +795,37 @@ class FMACDRobot(robot):
     def get_concurr_data(self):
         return self.df[self.df.index.isin(self.stat_datetime)]
 
+    # Draw
+
+    # Drawing requirements:
+    # MACD Main + MACD Signal + SMA 200 on main ax
+    # MACD Histogram on ax 2
+
+    def get_draw_method(self):
+        """Returns a list of tuple-dicts:
+        {ax index, df, type - macd_hist etc.}"""
+        return [
+            [0, self.indicators['MACD']]
+        ]
+
+    
+    def draw_ax(self, idx, ax):
+        if idx == 0:
+            pass
+        elif idx == 1:
+            pass
+        elif idx == 2:
+            pass
+        elif idx == 3:
+            pass
+
+    # def draw_buy_signals(self):
+    #     pass
+    # Use draw util
+    # plot_signals
+    # shouldn't use FMACDRobot to plot- instead, test gets data
+    # how would tester know how to draw?
+
 
 # todo concurrent tester - testing different ivars
 

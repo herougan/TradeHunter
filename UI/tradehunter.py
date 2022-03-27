@@ -22,7 +22,7 @@ from util.dataRetrievalUtil import load_trade_advisor_list, get_dataset_changes,
     load_symbol_suggestions, load_interval_suggestions, load_period_suggestions, update_all_dataset_changes, \
     retrieve_ds, clear_dataset_changes, load_df_list, load_df, load_ivar_list, get_test_steps, \
     load_ivar, init_robot, load_lag_suggestions, load_leverage_suggestions, load_instrument_type_suggestions, \
-    load_ivar_as_list, translate_xvar_dict, load_flat_commission_suggestions
+    load_ivar_as_list, translate_xvar_dict, load_flat_commission_suggestions, load_speed_suggestions, load_ivar_as_dict
 from util.dataTestingUtil import step_test_robot, DataTester, write_test_result, write_test_meta, load_test_result, \
     load_test_meta, get_tested_robot_list, get_tests_list
 from util.langUtil import normify_name, try_int, leverage_to_float, get_test_name
@@ -173,29 +173,6 @@ class TradeHunterApp:
             window = TradeHunterApp.MainWindow()
             window.show()
             self.close()
-
-        def plot(self, name):
-            df = load_df(name)
-            # f, ax = plot_single()
-            # candlestick(ax, df)
-
-            c = TradeHunterApp.MplCanvas(self, width=12, height=6, dpi=100)
-            candlestick(c.axes, df)
-
-            self.p_window = self.plot_window(c, F"{name}")
-            self.p_window.show()
-
-        def plot_window(self, canvas: FigureCanvasQTAgg, name: str) -> QWidget:
-            p_window = QWidget()
-
-            layout = QVBoxLayout()
-            layout.addWidget(canvas)
-
-            p_window.setLayout(layout)
-
-            p_window.setWindowTitle(name)
-
-            return p_window
 
     class DataManagementPage(QWidget):
 
@@ -443,7 +420,6 @@ class TradeHunterApp:
 
                 def delete_button_clicked():
                     AreYouSureWindow = QWidget()
-
 
                 create_button = QPushButton('New')
                 save_button = QPushButton('Save')
@@ -923,6 +899,7 @@ class TradeHunterApp:
 
                 ds_names = get_dataset_table(dataset_table)
                 test_result, test_meta = data_tester.test(robot_name, ivar, ds_names, test_name)
+                # Test Result and Meta are saved inside .test()
 
                 # Move to Results
                 self.rap = TradeHunterApp.ResultAnalysisPage()
@@ -1433,6 +1410,29 @@ class TradeHunterApp:
         def back(self):
             self.close()
 
+        def plot(self, name):
+            df = load_df(name)
+            # f, ax = plot_single()
+            # candlestick(ax, df)
+
+            c = TradeHunterApp.MplCanvas(self, width=12, height=6, dpi=100)
+            candlestick(c.axes, df)
+
+            self.p_window = self.plot_window(c, F"{name}")
+            self.p_window.show()
+
+        def plot_window(self, canvas: FigureCanvasQTAgg, name: str) -> QWidget:
+            p_window = QWidget()
+
+            layout = QVBoxLayout()
+            layout.addWidget(canvas)
+
+            p_window.setLayout(layout)
+
+            p_window.setWindowTitle(name)
+
+            return p_window
+
     class SimPlotter(QWidget):
 
         def __init__(self):
@@ -1440,6 +1440,17 @@ class TradeHunterApp:
 
             self.robot_select = None
             self.df_select = None
+            self.ivar_select = None
+            self.sim_speed = None
+
+            self.ivar_label_dict = None
+            self.canvas = None
+
+            # Variables
+            self.df = None
+            self.xvar = {}  # XVar manual selection
+            self.ivar = {}  # IVar choice
+            self.svar = {}  # Sim Speed only
 
             self.window()
 
@@ -1447,62 +1458,209 @@ class TradeHunterApp:
 
             layout = QVBoxLayout()
 
-            head = QVBoxLayout()
+            head = QHBoxLayout()
             body = QVBoxLayout()
             tail = QVBoxLayout()
 
-            # Build Options
-            df_layout = QHBoxLayout()
-            left_layout = QVBoxLayout()
-            right_layout = QVBoxLayout()
+            # Select Options
+            df_layout = QHBoxLayout()  # Combo Boxes
+            df_left_layout = QVBoxLayout()
+            df_right_layout = QVBoxLayout()
 
             df_label = QLabel('Data')
             df_select = QComboBox()
             robot_label = QLabel('Robot')
             robot_select = QComboBox()
+            ivar_label = QLabel('IVar')
+            ivar_select = QComboBox()
             df_select.setFixedHeight(20)
             robot_select.setFixedHeight(20)
+            ivar_select.setFixedHeight(20)
 
-            left_layout.addWidget(df_label)
-            left_layout.addWidget(robot_label)
+            sim_label = QLabel('Speed')
+            sim_speed = QComboBox()  # Sim Variables
 
-            right_layout.addWidget(df_select)
-            right_layout.addWidget(robot_select)
+            df_left_layout.addWidget(df_label, 0.25)
+            df_left_layout.addWidget(robot_label, 0.25)
+            df_left_layout.addWidget(ivar_label, 0.25)
+            df_left_layout.addWidget(sim_label, 0.25)
+            df_right_layout.addWidget(df_select, 0.25)
+            df_right_layout.addWidget(robot_select, 0.25)
+            df_right_layout.addWidget(ivar_select, 0.25)
+            df_right_layout.addWidget(sim_speed, 0.25)
 
             for df_path in load_df_list():
                 df_select.addItem(df_path)
-            df_select.setCurrentIndex(0)
             for robot in load_trade_advisor_list():
                 robot_select.addItem(robot)
+            for speed in load_speed_suggestions():
+                sim_speed.addItem(str(speed))
+            df_select.setCurrentIndex(0)
+            sim_speed.setCurrentIndex(0)
             robot_select.setCurrentIndex(0)
+            df_select.setFixedHeight(20)
+            sim_speed.setFixedHeight(20)
+            robot_select.setFixedHeight(20)
+
+            df_layout.addLayout(df_left_layout)
+            df_layout.addLayout(df_right_layout)
 
             self.robot_select = robot_select
             self.df_select = df_select
+            self.ivar_select = ivar_select
+            self.sim_speed = sim_speed
 
-            df_layout.addLayout(left_layout)
-            df_layout.addLayout(right_layout)
-            body.addLayout(df_layout)
+            # IVar Layout
+            ivar_layout = QHBoxLayout()
+            ivar_left_layout = QVBoxLayout()
+            ivar_right_layout = QVBoxLayout()
+            self.ivar_label_dict = {}
+
+            def load_ivar_label_list():
+                robot = self.robot_select.currentText()
+                ivars = load_ivar_list(robot)
+                for ivar in ivars:
+                    self.ivar_select.addItem(ivar)
+                self.ivar_select.setCurrentIndex(0)
+
+            def load_ivar_labels():
+                ivar = self.ivar_select.currentText()
+                robot = self.robot_select.currentText()
+                ivar_df = load_ivar_as_dict(robot, ivar)
+                self.ivar = load_ivar_as_list(robot, ivar)
+
+                keys = self.ivar_label_dict.keys()
+                for _key in ivar_df.keys():
+                    if _key.lower() == 'name':
+                        continue
+                    if _key not in keys:
+                        _label = QLabel(_key)
+                        # _value = QLabel(str(ivar_df[_key].values[0]))
+                        _value = QLabel(str(ivar_df[_key]))
+                        self.ivar_label_dict.update({_label: _value})
+                        ivar_left_layout.addWidget(_label)
+                        ivar_right_layout.addWidget(_value)
+                    else:
+                        self.ivar_label_dict[_key].setText(ivar_df[_key])
+
+            def load_df():
+                df_name = df_select.currentText()
+                self.df = df_name
+
+            load_ivar_label_list()
+            load_ivar_labels()
+            load_df()
+
+            ivar_select.activated.connect(load_ivar_labels)
+            df_select.activated.connect(load_df)
+
+            ivar_layout.addLayout(ivar_left_layout)
+            ivar_layout.addLayout(ivar_right_layout)
+
+            # XVar Layout
+            xvar_layout = QHBoxLayout()  # Xvar
+
+            xvar_left_layout = QVBoxLayout()
+            xvar_right_layout = QVBoxLayout()
+
+            name_label = QLabel('Test Name')
+            name_text = QTextEdit()
+            name_text.setFixedHeight(20)
+            lag_label = QLabel('Lag')
+            lag_combo = QComboBox()
+            capital_label = QLabel('Capital')
+            capital_text = QTextEdit()
+            capital_text.setFixedHeight(20)
+            leverage_label = QLabel('Leverage')
+            leverage_combo = QComboBox()
+            instrument_label = QLabel('Instrument')
+            instrument_combo = QComboBox()
+            type_label = QLabel('Type')  # Singular/Multi
+            type_combo = QComboBox()
+            commission_label = QLabel('Commission')
+            commission_combo = QComboBox()
+            commission_combo.setFixedHeight(20)
+
+            test_types = ['Single', 'Multi']
+            lag_types = load_lag_suggestions()
+            leverage_types = load_leverage_suggestions()
+            instrument_types = load_instrument_type_suggestions()
+            commission_types = load_flat_commission_suggestions()
+
+            # Fill in xvar combo options
+            for type in test_types:
+                type_combo.insertItem(0, type)
+            for type in lag_types:
+                lag_combo.insertItem(0, type)
+            for type in leverage_types:
+                leverage_combo.insertItem(0, type)
+            for type in instrument_types:
+                instrument_combo.insertItem(0, type)
+            for type in commission_types:
+                commission_combo.insertItem(0, str(type))
+            type_combo.setCurrentIndex(0)
+            lag_combo.setCurrentIndex(0)
+            leverage_combo.setCurrentIndex(0)
+            instrument_combo.setCurrentIndex(0)
+            commission_combo.setCurrentIndex(0)
+
+            xvar_left_layout.addWidget(name_label, 1)
+            xvar_left_layout.addWidget(lag_label, 1)
+            xvar_left_layout.addWidget(capital_label, 1)
+            xvar_left_layout.addWidget(leverage_label, 1)
+            xvar_left_layout.addWidget(instrument_label, 1)
+            xvar_left_layout.addWidget(type_label, 1)
+            xvar_left_layout.addWidget(commission_label, 1)
+
+            xvar_right_layout.addWidget(name_text, 1.5)
+            xvar_right_layout.addWidget(lag_combo, 1.5)
+            xvar_right_layout.addWidget(capital_text, 1.5)
+            xvar_right_layout.addWidget(leverage_combo, 1.5)
+            xvar_right_layout.addWidget(instrument_combo, 1.5)
+            xvar_right_layout.addWidget(type_combo, 1.5)
+            xvar_right_layout.addWidget(commission_combo, 1.5)
+
+            xvar_layout.addLayout(xvar_left_layout, 1)
+            xvar_layout.addLayout(xvar_right_layout, 1)
+
+            head.addLayout(df_layout)
+            head.addLayout(ivar_layout)
+            head.addLayout(xvar_layout)
+
+            self.canvas = TradeHunterApp.MplCanvas()
+            body.addWidget(self.canvas)
 
             button_layout = QHBoxLayout()
 
             back_button = QPushButton('Back')
-            test_button = QPushButton('Simulate')
+            sim_button = QPushButton('Simulate')
 
-            def test_button_clicked():
+            def sim_button_clicked():
+                # self.ivar = {}  # Saved on ivar selection
+                self.xvar = {'lag': lag_combo.currentText(),
+                             'capital': try_int(capital_text.document().toPlainText()),
+                             'leverage': leverage_combo.currentText(),
+                             'instrument_type': instrument_combo.currentText(),
+                             # test specific
+                             'test_type': type_combo.currentText()}
+                self.xvar = translate_xvar_dict(self.xvar)
+                self.svar = {
+                    'speed': sim_speed.currentText()
+                }
                 if not df_select.currentText():
                     QMessageBox('You have not selected a data file')
                 elif not robot_select.currentText():
                     QMessageBox('You have not selected a robot!')
                 else:
-                    print("Select:", df_select.currentItem().text())
-                    self.plot(df_select.currentItem().text())
+                    print("Select:", df_select.currentText(), robot_select.currentText())
+                    self.test(self.xvar, self.ivar, self.svar)
 
             # This window does not close upon plotting.
             back_button.clicked.connect(self.back)
-            test_button.clicked.connect(test_button_clicked)
+            sim_button.clicked.connect(sim_button_clicked)
 
             button_layout.addWidget(back_button)
-            button_layout.addWidget(test_button)
+            button_layout.addWidget(sim_button)
             tail.addLayout(button_layout)
 
             layout.addLayout(head)
@@ -1512,11 +1670,12 @@ class TradeHunterApp:
             self.setLayout(layout)
             self.show()
 
-        def begin_test(self):
-            robot = self.robot_select.currentText()
-            data = self.df_select.currentText()
+        def test(self, xvar, ivar, svar):
+            data_tester = DataTester(xvar)
+            # self.canvas
+            # self.df
 
-
+            pass
 
         def back(self):
             self.close()
@@ -1560,7 +1719,6 @@ class TradeHunterApp:
 
             back_button.clicked.connect(self.confirms)
             cancel_button.clicked.connect(self.back)
-
 
         def back(self):
             self.close()

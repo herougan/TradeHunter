@@ -293,6 +293,9 @@ def set_dataset_changes(dsc: pd.DataFrame):
 
 # List of instrument
 
+def load_speed_suggestions():
+    return settings.SUGGESTIONS['simulation']['speed']
+
 def load_contract_size_suggestions():
     return settings.SUGGESTIONS['contract_size']
 
@@ -437,6 +440,16 @@ def load_ivar(ta_name: str, ivar_name: str):
     return idf[idf['name'] == ivar_name]
 
 
+def load_ivar_as_dict(ta_name: str, ivar_name: str):
+    idf = load_ivar(ta_name, ivar_name)
+    ivar_dict = {}
+    for col in idf.columns:
+        ivar_dict.update({
+            col: idf[col][0]
+        })
+    return ivar_dict
+
+
 def load_ivar_df(ta_name: str) -> pd.DataFrame:
     folder = F'robot/ivar'
     ivar_file = F'{ta_name}_ivar'
@@ -450,6 +463,7 @@ def load_ivar_df(ta_name: str) -> pd.DataFrame:
 
 
 def load_ivar_as_list(ta_name: str, ivar_name: str):
+    """Robot takes in input as a List."""
     idf = load_ivar(ta_name, ivar_name)
     ivars = []
     for col in idf.columns:

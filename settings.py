@@ -46,4 +46,7 @@ SUGGESTIONS = {
     'capital': [1000, 10000, 100000, 1000000,],
     'flat_commission': [0, 0.01, 0.1, 1,],
     'contract_size': [100000, 10000, 1000],  # Set in stone
+    'simulation': {
+        'speed': [0.5, 1, 2, 4, 8, 16]
+    }
 }

@@ -145,8 +145,8 @@ def mac_diagram(ax, macd_df):
 # Signals
 
 
-def plot_signals(signal_d, df: pd.DataFrame, see_fail=False):
-    pass
+def plot_signals(signal_d, df: pd.DataFrame, canvas, see_fail=False):
+    axes = canvas.axes
 
 
 # Util

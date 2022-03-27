@@ -740,6 +740,9 @@ class DataTester:
 
         return test_result, test_meta
 
+    def simulate_single(self, ta_name, ivar, df_name, canvas):
+        pass
+
     def print_results(self):
         pass
 
