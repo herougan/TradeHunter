@@ -239,6 +239,11 @@ def is_not_rnumber(s: str):
     return s == s.rstrip('0123456789')
 
 
+def is_datetime(v):
+    return isinstance(v, datetime)
+
+
+
 # Names/File Names
 
 
@@ -264,6 +269,13 @@ def remove_special_char(s: str):
 def try_int(s: str) -> int:
     try:
         return int(s)
+    except ValueError:
+        return 0
+
+
+def try_float(s :str) -> float:
+    try:
+        return float(s)
     except ValueError:
         return 0
 

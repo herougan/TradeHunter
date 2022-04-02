@@ -1,5 +1,6 @@
 import datetime
 import os
+import time
 from datetime import datetime, timedelta
 import math
 from math import *
@@ -11,12 +12,16 @@ from pathlib import Path
 
 import pandas as pd
 from PyQt5.QtWidgets import QProgressBar, QWidget
+from matplotlib import pyplot as plt
+from matplotlib.pyplot import clf
 
 from robot.abstract.robot import robot
 from settings import EVALUATION_FOLDER, OPTIMISATION_FOLDER
+from util.dataGraphingUtil import plot_robot_instructions, plot_signals, plot_open_signals, candlestick_plot, \
+    get_interval
 from util.dataRetrievalUtil import load_dataset, load_df, get_computer_specs, number_of_datafiles, retrieve, try_stdev
 from util.langUtil import craft_instrument_filename, strtodatetime, try_key, remove_special_char, strtotimedelta, \
-    try_divide, try_max, try_mean, get_test_name, get_file_name
+    try_divide, try_max, try_mean, get_test_name, get_file_name, get_instrument_from_filename, is_datetime
 
 import numpy as np
 from sklearn.linear_model import LinearRegression
@@ -349,13 +354,14 @@ def create_summary_df_from_list(stats_dict, signals_dict, df, additional={}):
     # summary_dict['longest_loss_trade'] = 0
     # summary_dict['average_trade_period'] = 0
 
-    if 'Datetime' in df.columns:  # -1 - -2 doesn't work
-        interval = (strtodatetime(df.iloc[1].Datetime) - strtodatetime(df.iloc[0].Datetime)).total_seconds()
-    elif 'Date' in df.columns:
-        interval = (strtodatetime(df.iloc[1].Date) - strtodatetime(df.iloc[0].Date)).total_seconds()
-    else:
-        col = df.columns[0]
-        interval = (strtodatetime(df.iloc[1][col]) - strtodatetime(df.iloc[0][col])).total_seconds()
+    interval = get_interval(df).total_seconds()
+    # if 'Datetime' in df.columns:  # -1 - -2 doesn't work
+    #     interval = (strtodatetime(df.iloc[1].Datetime) - strtodatetime(df.iloc[0].Datetime)).total_seconds()
+    # elif 'Date' in df.columns:
+    #     interval = (strtodatetime(df.iloc[1].Date) - strtodatetime(df.iloc[0].Date)).total_seconds()
+    # else:
+    #     col = df.columns[0]
+    #     interval = (strtodatetime(df.iloc[1][col]) - strtodatetime(df.iloc[0][col])).total_seconds()
 
     period_to_net, period_to_gross, avg_period = 0, 0, 0
     avg_profit_period, avg_loss_period = 0, 0
@@ -641,6 +647,7 @@ class DataTester:
     # Test test_result, result_meta '{robot_name}__{ivar_name}__{test_name}.csv',
     # '{robot_name}__{ivar_name}__{test_name}__meta.csv'
 
+    # == Test ==
     def test(self, ta_name: str, ivar: List[float], ds_names: List[str], test_name: str):
 
         self.start_time = datetime.now()
@@ -740,20 +747,86 @@ class DataTester:
 
         return test_result, test_meta
 
-    def simulate_single(self, ta_name, ivar, df_name, canvas):
+    # == Visual ==
+    def simulate_single(self, ta_name, ivar, svar, df_name, canvas):
+
+        ta_name = remove_special_char(ta_name)
+        print('Starting visual simulation: ' + F'{ta_name}.{ta_name}({ivar}) with i:{ivar}, x:{self.xvar}')
+
+        self.robot = eval(F'{ta_name}.{ta_name}({ivar}, {self.xvar})')
+        sym, interval, period = get_instrument_from_filename(df_name)
+        df = load_df(df_name)
+        if len(df) < self.robot.PREPARE_PERIOD:
+            print(F"Not enough data! Minimum {self.robot.PREPARE_PERIOD} for {ta_name}")
+            return
+
+        # Variables
+        sleep_time = 1 / svar['speed']  # seconds
+        start = 1
+
+        # Plotting handles
+        signals = []
+        instructions = []
+        axes = canvas.axes
+        main_ax = axes[0][0]  # row 0, col 0
+
+        self.robot.start(sym, interval, period, df[0: start])
+        # Simulate and plot
+        self.robot.sim_start()
+        for i in range(start, len(df)):
+
+            # Clear figure
+            clf
+
+            # Fetch data
+            self.robot.sim_next(df[i:i + 1])
+            # indicator = self.robot.get_indicator_df()
+            _df = df[:i+1]
+            signals, open_signals = self.robot.get_signals()
+            instructions = self.robot.get_instructions()
+
+            # Convert x to indices, remove weekends
+            _dates = _df.index
+            _df.index = range(len(_df.index))
+
+            for instruction in instructions:
+                instruction['data'].index = _df.index
+            for signal in signals:
+                # for key in signal.keys():
+                #     if is_datetime(signal['key']):
+                #         signal[key] = _df.index[_dates == signal[key]]
+                if 'updated' in signal:
+                    continue
+                signal['start'] = _df.index[_dates == signal['start']]
+                signal['end'] = _df.index[_dates == signal['end']]
+                signal['updated'] = True
+            for signal in open_signals:
+                if 'updated' in signal:
+                    continue
+                signal['start'] = _df.index[_dates == signal['start']]
+                signal['end'] = signal['start'] + 1
+                signal['updated'] = True
+
+            # Plot data
+            plot_robot_instructions(axes, instructions)
+            plot_signals(main_ax, signals)
+            plot_open_signals(main_ax, open_signals)
+            candlestick_plot(main_ax, _df)
+
+            # Switch back to dates
+            # x_tick_labels = []
+            # for _date in dates:
+            #     x_tick_labels.append(_date.strftime(date_format_dict[interval]))
+            # ax2.set(xticklabels=x_tick_labels)
+
+
+            # Wait before each step
+            # time.sleep(sleep_time)
+            plt.show()
+
+    # == Optimise ==
+    def optimise(self):
         pass
-
-    def print_results(self):
-        pass
-
-    # full test_data, produces more data '{robot_name}__{ivar_name}__{optim_name}.csv',
-    # '{robot_name}__{ivar_name}__{optim_name}__meta.csv'
-    # ivar_choices: [ivar1[], ivar2[], ivar3[]...]
-
-    def single_test(self):
-        pass
-
-    # Optimise, optim_result, optim_meta
 
 
 #  General

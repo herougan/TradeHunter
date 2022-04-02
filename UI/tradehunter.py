@@ -16,16 +16,17 @@ from matplotlib.figure import Figure
 
 from UI.QTUtil import get_datatable_sheet, set_datatable_sheet, clear_table, set_col_cell_sheet, get_dataset_table, \
     set_dataset_table
-from util.dataGraphingUtil import plot_single, candlestick, init_plot
+from util.dataGraphingUtil import plot_single, candlestick_plot, init_plot
 from util.dataRetrievalUtil import load_trade_advisor_list, get_dataset_changes, update_specific_dataset_change, \
     write_new_empty_dataset, load_dataset_list, save_dataset, add_as_dataset_change, load_dataset, \
     load_symbol_suggestions, load_interval_suggestions, load_period_suggestions, update_all_dataset_changes, \
     retrieve_ds, clear_dataset_changes, load_df_list, load_df, load_ivar_list, get_test_steps, \
     load_ivar, init_robot, load_lag_suggestions, load_leverage_suggestions, load_instrument_type_suggestions, \
-    load_ivar_as_list, translate_xvar_dict, load_flat_commission_suggestions, load_speed_suggestions, load_ivar_as_dict
+    load_ivar_as_list, translate_xvar_dict, load_flat_commission_suggestions, load_speed_suggestions, load_ivar_as_dict, \
+    load_capital_suggestions
 from util.dataTestingUtil import step_test_robot, DataTester, write_test_result, write_test_meta, load_test_result, \
     load_test_meta, get_tested_robot_list, get_tests_list
-from util.langUtil import normify_name, try_int, leverage_to_float, get_test_name
+from util.langUtil import normify_name, try_int, leverage_to_float, get_test_name, try_float
 
 
 class TradeHunterApp:
@@ -1387,11 +1388,11 @@ class TradeHunterApp:
             test_button = QPushButton('Plot')
 
             def test_button_clicked():
-                if not df_select.currentItem():
+                if not df_select.currentText():
                     QMessageBox('You have not selected a data file')
                 else:
-                    print("Select:", df_select.currentItem().text())
-                    self.plot(df_select.currentItem().text())
+                    print("Select:", df_select.currentText())
+                    self.plot(df_select.currentText())
 
             # This window does not close upon plotting.
             back_button.clicked.connect(self.back)
@@ -1416,7 +1417,7 @@ class TradeHunterApp:
             # candlestick(ax, df)
 
             c = TradeHunterApp.MplCanvas(self, width=12, height=6, dpi=100)
-            candlestick(c.axes, df)
+            candlestick_plot(c.axes, df)
 
             self.p_window = self.plot_window(c, F"{name}")
             self.p_window.show()
@@ -1438,19 +1439,26 @@ class TradeHunterApp:
         def __init__(self):
             super().__init__()
 
+            # Combo options
             self.robot_select = None
             self.df_select = None
             self.ivar_select = None
             self.sim_speed = None
 
-            self.ivar_label_dict = None
+            # Handles for particular components
             self.canvas = None
+            self.head = None
+            self.body = None
+            self.tail = None
 
             # Variables
             self.df = None
             self.xvar = {}  # XVar manual selection
             self.ivar = {}  # IVar choice
             self.svar = {}  # Sim Speed only
+
+            self.ivar_label_dict = {}
+            self.summary_dict = {}
 
             self.window()
 
@@ -1461,6 +1469,9 @@ class TradeHunterApp:
             head = QHBoxLayout()
             body = QVBoxLayout()
             tail = QVBoxLayout()
+            self.head = head
+            self.body = body
+            self.tail = tail
 
             # Select Options
             df_layout = QHBoxLayout()  # Combo Boxes
@@ -1510,7 +1521,7 @@ class TradeHunterApp:
             self.ivar_select = ivar_select
             self.sim_speed = sim_speed
 
-            # IVar Layout
+            # === IVar Layout ===
             ivar_layout = QHBoxLayout()
             ivar_left_layout = QVBoxLayout()
             ivar_right_layout = QVBoxLayout()
@@ -1557,20 +1568,17 @@ class TradeHunterApp:
             ivar_layout.addLayout(ivar_left_layout)
             ivar_layout.addLayout(ivar_right_layout)
 
-            # XVar Layout
+            # === XVar Layout ===
             xvar_layout = QHBoxLayout()  # Xvar
 
             xvar_left_layout = QVBoxLayout()
             xvar_right_layout = QVBoxLayout()
 
-            name_label = QLabel('Test Name')
-            name_text = QTextEdit()
-            name_text.setFixedHeight(20)
             lag_label = QLabel('Lag')
             lag_combo = QComboBox()
             capital_label = QLabel('Capital')
-            capital_text = QTextEdit()
-            capital_text.setFixedHeight(20)
+            capital_combo = QComboBox()
+            capital_combo.setFixedHeight(20)
             leverage_label = QLabel('Leverage')
             leverage_combo = QComboBox()
             instrument_label = QLabel('Instrument')
@@ -1581,8 +1589,9 @@ class TradeHunterApp:
             commission_combo = QComboBox()
             commission_combo.setFixedHeight(20)
 
-            test_types = ['Single', 'Multi']
+            test_types = ['SingleSim']
             lag_types = load_lag_suggestions()
+            capital_types = load_capital_suggestions()
             leverage_types = load_leverage_suggestions()
             instrument_types = load_instrument_type_suggestions()
             commission_types = load_flat_commission_suggestions()
@@ -1592,6 +1601,8 @@ class TradeHunterApp:
                 type_combo.insertItem(0, type)
             for type in lag_types:
                 lag_combo.insertItem(0, type)
+            for type in capital_types:
+                capital_combo.insertItem(0, str(type))
             for type in leverage_types:
                 leverage_combo.insertItem(0, type)
             for type in instrument_types:
@@ -1600,11 +1611,11 @@ class TradeHunterApp:
                 commission_combo.insertItem(0, str(type))
             type_combo.setCurrentIndex(0)
             lag_combo.setCurrentIndex(0)
+            capital_combo.setCurrentIndex(0)
             leverage_combo.setCurrentIndex(0)
             instrument_combo.setCurrentIndex(0)
             commission_combo.setCurrentIndex(0)
 
-            xvar_left_layout.addWidget(name_label, 1)
             xvar_left_layout.addWidget(lag_label, 1)
             xvar_left_layout.addWidget(capital_label, 1)
             xvar_left_layout.addWidget(leverage_label, 1)
@@ -1612,9 +1623,8 @@ class TradeHunterApp:
             xvar_left_layout.addWidget(type_label, 1)
             xvar_left_layout.addWidget(commission_label, 1)
 
-            xvar_right_layout.addWidget(name_text, 1.5)
             xvar_right_layout.addWidget(lag_combo, 1.5)
-            xvar_right_layout.addWidget(capital_text, 1.5)
+            xvar_right_layout.addWidget(capital_combo, 1.5)
             xvar_right_layout.addWidget(leverage_combo, 1.5)
             xvar_right_layout.addWidget(instrument_combo, 1.5)
             xvar_right_layout.addWidget(type_combo, 1.5)
@@ -1627,7 +1637,15 @@ class TradeHunterApp:
             head.addLayout(ivar_layout)
             head.addLayout(xvar_layout)
 
-            self.canvas = TradeHunterApp.MplCanvas()
+            # Graph, 3 rows 1 column
+            self.canvas = TradeHunterApp.MplMultiCanvas(self, 5, 4, 100, 3, 1)
+            axes = self.canvas.get_axes()
+            for i in range(len(axes)):
+                for u in range(len(axes[i])):
+                    if i != len(axes):
+                        axes[i][u].get_xaxis().set_visible(False)
+                    if u != 0:
+                        axes[i][u].get_yaxis().set_visible(False)
             body.addWidget(self.canvas)
 
             button_layout = QHBoxLayout()
@@ -1638,22 +1656,25 @@ class TradeHunterApp:
             def sim_button_clicked():
                 # self.ivar = {}  # Saved on ivar selection
                 self.xvar = {'lag': lag_combo.currentText(),
-                             'capital': try_int(capital_text.document().toPlainText()),
+                             'capital': try_int(capital_combo.currentText()),
                              'leverage': leverage_combo.currentText(),
                              'instrument_type': instrument_combo.currentText(),
                              # test specific
                              'test_type': type_combo.currentText()}
                 self.xvar = translate_xvar_dict(self.xvar)
                 self.svar = {
-                    'speed': sim_speed.currentText()
+                    'speed': try_float(sim_speed.currentText())
                 }
                 if not df_select.currentText():
-                    QMessageBox('You have not selected a data file')
+                    QMessageBox('You have not selected a data file!')
+                elif not capital_combo.currentText():
+                    QMessageBox("Please enter a valid number! e.g. 10000")
                 elif not robot_select.currentText():
                     QMessageBox('You have not selected a robot!')
                 else:
                     print("Select:", df_select.currentText(), robot_select.currentText())
-                    self.test(self.xvar, self.ivar, self.svar)
+                    self.test(self.xvar, self.ivar, self.svar, self.robot_select.currentText(),
+                              df_select.currentText(), self.canvas)
 
             # This window does not close upon plotting.
             back_button.clicked.connect(self.back)
@@ -1670,15 +1691,44 @@ class TradeHunterApp:
             self.setLayout(layout)
             self.show()
 
-        def test(self, xvar, ivar, svar):
+        def test(self, xvar, ivar, svar, ta_name, df_name, canvas):
             data_tester = DataTester(xvar)
-            # self.canvas
-            # self.df
-
-            pass
+            data_tester.simulate_single(ta_name, ivar, svar, df_name, canvas)
 
         def back(self):
             self.close()
+
+        def build_summary(self):
+            self.tail
+            self.summary_layout.deleteLater()
+
+            summary_layout = QHBoxLayout()
+
+            keys = self.summary_dict.keys()
+            n_per_col = 20
+
+            n_col = keys // n_per_col + 1
+            for i in range(n_col):
+
+                _left = QVBoxLayout()
+                _right = QVBoxLayout()
+
+                for j in range(n_per_col):
+                    k = n_per_col * i + j
+                    key = keys[k]
+
+                    _label = QLabel(key)
+                    _value = QLabel(self.summary_dict[key])
+
+                    _left.addWidget(_label)
+                    _right.addWidget(_value)
+
+                    summary_layout.addLayout(_left)
+                    summary_layout.addLayout(_right)
+
+            # Replace old summary layout
+            self.tail.addLayout(summary_layout)
+            self.summary_layout = summary_layout
 
     # -- Utility
 
@@ -1735,11 +1785,28 @@ class TradeHunterApp:
         def __init__(self, parent=None, width=5, height=4, dpi=100):
             fig = Figure(figsize=(width, height), dpi=dpi)
             self.axes = fig.add_subplot(111)
-            print(fig.axes)
             super(TradeHunterApp.MplCanvas, self).__init__(fig)
 
         def get_axes(self):
             return self.axes
+
+    class MplMultiCanvas(FigureCanvasQTAgg):
+
+        def __init__(self, parent=None, width=5, height=4, dpi=100, rows=1, cols=1):
+            fig = Figure(figsize=(width, height), dpi=dpi)
+            self.axes = []
+            for i in range(rows):
+                _axes = []
+                for j in range(cols):
+                    _axes.append(fig.add_subplot(rows, cols, i * cols + j + 1))
+                self.axes.append(_axes)
+            super(TradeHunterApp.MplMultiCanvas, self).__init__(fig)
+
+        def get_axes(self):
+            return self.axes
+
+        def get_ax(self, row, col):
+            return self.axes[row][col]
 
     class MplSubCanvas(FigureCanvasQTAgg):
 

@@ -111,7 +111,7 @@ def load_df(name: str):
     if not file_exists(path):
         print(F'{path} datafile not found')
         return pd.DataFrame()
-    df = pd.read_csv(path)
+    df = pd.read_csv(path, index_col=0)
     print(F'Reading {path}')
     return df
 

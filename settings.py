@@ -50,3 +50,17 @@ SUGGESTIONS = {
         'speed': [0.5, 1, 2, 4, 8, 16]
     }
 }
+PLOTTING_SETTINGS = {
+    'bar_width_to_interval': {
+        '60m': 0.6,
+        '90m': 0.8,
+        '1d': 1,
+        '1wk': 2,
+    },
+    'date_format_to_interval': {
+        '60m': '%Y-%m-%d %H:%M',
+        '90m': '%Y-%m-%d %H:%M',
+        '1d': '%Y-%m-%d',
+        '1wk': '%Y-%m-%d',
+    }
+}

@@ -34,12 +34,5 @@ def generate_base_signal_dict():
         # Misc_Fail variables here:  # Describe which indicators failed
         # MACD_Hist: False
         # MACD_Hist_weight: 0.5
-
-        # Calculated values
-        # 'asset_value':    vol * start_price - vol * end_price; same for long and short
-        # 'base cost':      vol * start_price
-        # transaction 'net'/realised P/L =
-        #                   asset_value - base_price
-        #                   (-ve sign flips base_price value and asset_value for short)
     }
     return signal

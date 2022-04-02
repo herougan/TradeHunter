@@ -26,7 +26,6 @@ from matplotlib import pyplot as plt
 import matplotlib as mpl
 import talib
 import pandas as pd
-from robot import *
 
 
 def test_4():

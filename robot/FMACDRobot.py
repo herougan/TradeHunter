@@ -21,7 +21,7 @@ from datetime import datetime, timedelta
 # and MACD hist and SMA200 as secondary conditions.
 #
 #
-from util.langUtil import strtotimedelta, get_instrument_type
+from util.langUtil import strtotimedelta, get_instrument_type, strtodatetime
 from util.robotDataUtil import generate_base_signal_dict
 
 
@@ -175,24 +175,26 @@ class FMACDRobot(robot):
             'MACD': pd.DataFrame(),
             'MACD_SIGNAL': pd.DataFrame(),
         }
-        self.indicators_start = {
-            # Used to align indicator indices between and with data
-            'SMA5': 0,
-            'SMA50': 0,
-            'SMA200': 0,
-            'SMA200_HIGH': 0,
-            'EMA200': 0,
-            # Critical (No check = Fail)
-            'MACD_HIST': 0,
-            'MACD_DF': 0,
-            # Signal generators
-            'MACD': 0,
-            'MACD_SIGNAL': 0,
-            # Use length differences instead. If length = 0, indicator has no start
-        }
+        # self.indicators_start = {
+        #     # Used to align indicator indices between and with data
+        #     'SMA5': 0,
+        #     'SMA50': 0,
+        #     'SMA200': 0,
+        #     'SMA200_HIGH': 0,
+        #     'EMA200': 0,
+        #     # Critical (No check = Fail)
+        #     'MACD_HIST': 0,
+        #     'MACD_DF': 0,
+        #     # Signal generators
+        #     'MACD': 0,
+        #     'MACD_SIGNAL': 0,
+        #     # Use length differences instead. If length = 0, indicator has no start
+        # }
+        self.new_indicators = {}
         # == Signals ==
         self.signals = []  # { Standard_Dict, FMACD_Specific_Dict }
         self.open_signals = []  # Currently open signals
+        self.new_signals = [] # By definition, open
         # self.failed_signals = []  # So that the robot doesn't waste time on failed signals;
         # failure saved for analysis. Add failed signals directly to signals...
         # Failed signals should still calculate stop-loss and take-profit for hindsight
@@ -297,10 +299,11 @@ class FMACDRobot(robot):
         self.margin_level.append(0)
         # First datetime data point is relative to the data. If none, fill in post-run
         if len(pre_data) > 0 and not self.test_mode:
-            if 'Datetime' in pre_data.columns:
-                self.stat_datetime.append(parser.parse(pre_data.iloc[-1].Datetime))
-            else:
-                self.stat_datetime.append(parser.parse(pre_data.iloc[-1].Date))
+            self.stat_datetime.append(strtodatetime(pre_data.index[-1]))
+            # if 'Datetime' in pre_data.columns:
+            #     self.stat_datetime.append(parser.parse(pre_data.iloc[-1].Datetime))
+            # else:
+            #     self.stat_datetime.append(parser.parse(pre_data.iloc[-1].Date))
         else:
             self.stat_datetime.append(None)  # Fill in manually later.
 
@@ -347,13 +350,14 @@ class FMACDRobot(robot):
             self.build_indicators()
 
         self.last = candlesticks.iloc[-1]
-        if 'Datetime' in candlesticks.columns:
-            self.last_date = candlesticks.iloc[-1]['Datetime']
-        elif 'Date' in candlesticks.columns:
-            self.last_date = candlesticks.iloc[-1]['Date']
-        else:
-            col = self.df.columns[0]
-            self.last_date = candlesticks.iloc[-1][col]
+        self.last_date = candlesticks.index[-1]
+        # if 'Datetime' in candlesticks.columns:
+        #     self.last_date = candlesticks.iloc[-1]['Datetime']
+        # elif 'Date' in candlesticks.columns:
+        #     self.last_date = candlesticks.iloc[-1]['Date']
+        # else:
+        #     col = self.df.columns[0]
+        #     self.last_date = candlesticks.iloc[-1][col]
 
         # == Step 2: Update Stats =============
 
@@ -399,19 +403,6 @@ class FMACDRobot(robot):
         # == Step 5: Cleanup =============
         # Do nothing
 
-    def test(self):
-        """Same as .text_next() but produces less result data. Robots in general
-        either do a scan for signals (fast) or check for signals without scan if possible (faster)"""
-        length = len(self.df)
-        start = self.prepare_period
-        if start > length:
-            start = 0
-        self.test_idx = start
-        # self.indicator_idx = 0
-        for i in range(start, length):
-            self.next(self.df[self.test_idx: self.test_idx + 1])
-            self.test_idx = i
-
     def finish(self):
 
         if not self.stat_datetime[0]:
@@ -456,6 +447,30 @@ class FMACDRobot(robot):
         }
         return robot_dict
 
+    # External control
+
+    def test(self):
+        """Same as .text_next() but produces less result data. Robots in general
+        either do a scan for signals (fast) or check for signals without scan if possible (faster)"""
+        length = len(self.df)
+        start = self.prepare_period
+        if start > length:
+            start = 0
+        self.test_idx = start
+        # self.indicator_idx = 0
+        for i in range(start, length):
+            self.next(self.df[self.test_idx: self.test_idx + 1])
+            self.test_idx = i
+
+    def sim_start(self):
+        # self.test_mode = True
+        # # Since sim, test from 0.
+        # self.test_idx = 0
+        pass
+
+    def sim_next(self, candlesticks: pd.DataFrame):
+        self.next(candlesticks)
+
     # Retrieve results
 
     def get_data(self):
@@ -470,9 +485,52 @@ class FMACDRobot(robot):
     def get_signals(self):
         return self.signals
 
+    # Temperature
+
+    def get_signals(self):
+        return self.signals, self.open_signals
+
+    def get_instructions(self):
+        return [
+            {
+                'index': 1,
+                'data': self.indicators['MACD'],
+                'type': 'macd_hist',
+                'colour': 'blue',
+                # Placeholder, for multi-data plotting
+                'other_data': None
+            },
+            {
+                'index': 1,
+                'data': self.indicators['MACD_SIGNAL'],
+                'type': 'line',
+                'colour': 'red',
+            },
+            {
+                'index': 1,
+                'data': self.indicators['MACD_HIST'],
+                'type': 'macd_hist',
+                'colour': 'na',
+            },
+            {
+                'index': 0,
+                'data': self.indicators['SMA200'],
+                'type': 'line',
+                'colour': 'blue',
+            },
+        ]
+
+    def get_new_signals(self):
+        pass
+
+    def get_new_instructions(self):
+        pass
+
     # Indicator (Indicators give go-long or go-short suggestions. They DO NOT give signals)
 
     def rebuild_macd(self, period):
+        if len(self.df.Close) < 0:
+            return
         self.indicators['MACD'], self.indicators['MACD_SIGNAL'], self.indicators['MACD_HIST'] = \
             talib.MACD(self.df.Close, fastperiod=self.fast_period,
                        slowperiod=self.slow_period, signalperiod=self.signal_period)
@@ -541,10 +599,10 @@ class FMACDRobot(robot):
 
         if len(self.indicators['MACD']) > 2 and len(self.indicators['MACD_SIGNAL']) > 2:
             if self.indicators['MACD'].iloc[rev_idx] > self.indicators['MACD_SIGNAL'].iloc[rev_idx]:
-                if self.indicators['MACD'].iloc[rev_idx+1] < self.indicators['MACD_SIGNAL'].iloc[rev_idx+1]:
+                if self.indicators['MACD'].iloc[rev_idx + 1] < self.indicators['MACD_SIGNAL'].iloc[rev_idx + 1]:
                     return 1
             else:
-                if self.indicators['MACD'].iloc[rev_idx+1] > self.indicators['MACD_SIGNAL'].iloc[rev_idx+1]:
+                if self.indicators['MACD'].iloc[rev_idx + 1] > self.indicators['MACD_SIGNAL'].iloc[rev_idx + 1]:
                     return 2
         return 0
 
@@ -609,7 +667,7 @@ class FMACDRobot(robot):
         return None
 
     def create_signal(self, signal, check):
-
+        """Create signal based on signal dict 'mold' input and add into open signals"""
         if check:
             sgn = math.copysign(1, signal['vol'])
             self.add_margin(-sgn, signal['margin'])
@@ -794,40 +852,6 @@ class FMACDRobot(robot):
 
     def get_concurr_data(self):
         return self.df[self.df.index.isin(self.stat_datetime)]
-
-    # Draw
-
-    # Drawing requirements:
-    # MACD Main + MACD Signal + SMA 200 on main ax
-    # MACD Histogram on ax 2
-
-    def get_draw_method(self):
-        """Returns a list of tuple-dicts:
-        {ax index, df, type - macd_hist etc.}"""
-        return [
-            [0, self.indicators['MACD']]
-        ]
-
-    
-    def draw_ax(self, idx, ax):
-        if idx == 0:
-            pass
-        elif idx == 1:
-            pass
-        elif idx == 2:
-            pass
-        elif idx == 3:
-            pass
-
-    # def draw_buy_signals(self):
-    #     pass
-    # Use draw util
-    # plot_signals
-    # shouldn't use FMACDRobot to plot- instead, test gets data
-    # how would tester know how to draw?
-
-
-# todo concurrent tester - testing different ivars
 
     def set_multiple_ivars(self, ivars):
         self.ivars = ivars
