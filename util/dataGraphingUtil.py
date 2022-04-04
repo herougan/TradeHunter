@@ -72,11 +72,14 @@ def plot(nrows, ncols, height_ratios, width_ratios):
 # Plotting functions
 
 def candlestick_plot(ax, df: pd.DataFrame):
-    """Plots candlestick data based on df on ax"""
+    """Plots candlestick data based on df on ax.
+    df index must* be index form, not date form."""
 
     bar_width = 10/len(df)
     if is_datetime(df.index[0]):
         bar_width = get_barwidth_from_interval(get_interval(df))
+
+    # Convert df to index
 
     # Create candlestick chart
     (up, down) = (df[df.Close >= df.Open], df[df.Close < df.Open])
@@ -84,13 +87,17 @@ def candlestick_plot(ax, df: pd.DataFrame):
     (w1, w2) = (bar_width, bar_width / 6)
     # Plot up
     ax.bar(up.index, up.Close - up.Open, w1, bottom=up.Open, color=col1)
-    ax.bar(up.index, up.High - up.Close, w2, bottom=up.Close, color=col1)
-    ax.bar(up.index, up.Low - up.Open, w2, bottom=up.Open, color=col1)
+    ax.bar(up.index, up.High - up.Low, w2, bottom=up.Low, color=col1)
+    # ax.bar(up.index, up.High - up.Close, w2, bottom=up.Close, color=col1)
+    # ax.bar(up.index, up.Low - up.Open, w2, bottom=up.Open, color=col1)
     # Plot down
     ax.bar(down.index, down.Close - down.Open, w1, bottom=down.Open, color=col2)
-    ax.bar(down.index, down.High - down.Open, w2, bottom=down.Open, color=col2)
-    ax.bar(down.index, down.Low - down.Close, w2, bottom=down.Close, color=col2)
-    ax.axis(xmin=df.index[0], xmax=df.index[-1])
+    ax.bar(down.index, down.High - down.Low, w2, bottom=down.Low, color=col2)
+    # ax.bar(down.index, down.High - down.Open, w2, bottom=down.Open, color=col2)
+    # ax.bar(down.index, down.Low - down.Close, w2, bottom=down.Close, color=col2)
+    # ax.axis(xmin=df.index[0], xmax=df.index[-1])
+
+    # convert back
 
     plt.show()
 
@@ -237,7 +244,7 @@ def plot_signals(ax, signals):
         if 'baseline' not in signal:
             signal['baseline'] = signal['start']
         # plot_stop_take_box(ax, signal, style)
-        plot_open_close_pos(signal)
+        plot_open_close_pos(ax, signal)
     plot_stop_take(ax, signals, style)
 
 
@@ -249,7 +256,8 @@ def plot_open_signals(ax, signals):
     for signal in signals:
         if 'baseline' not in signal:
             signal['baseline'] = signal['start']
-        signal['end'] = signal['start']
+        if 'end' not in signal or not signal['end']:
+            signal['end'] = signal['start']
         # plot_stop_take_box(ax, signal, style)
         # plot_open_close_pos(ax, signal, style)  # no close pos
     plot_stop_take(ax, signals, style)
@@ -279,6 +287,16 @@ def plot_stop_take(ax, signals, style={}):
 
             loss_index.append(signal['baseline'])
             loss_height.append(signal['open_price'] - signal['stop_loss'])
+            loss_width.append(signal['end'] - signal['baseline'])
+            loss_base.append(signal['open_price'])
+        elif signal['stop_loss'] >= signal['take_profit']:
+            profit_index.append(signal['baseline'])
+            profit_height.append(signal['open_price'] - signal['take_profit'])
+            profit_width.append(signal['end'] - signal['baseline'])
+            profit_base.append(signal['open_price'])
+
+            loss_index.append(signal['baseline'])
+            loss_height.append(signal['stop_loss'] - signal['open_price'])
             loss_width.append(signal['baseline'] - signal['end'])
             loss_base.append(signal['open_price'])
 
@@ -292,75 +310,77 @@ def plot_stop_take(ax, signals, style={}):
     ax.bar(profit_index, profit_height, profit_width, color=profit_col, alpha=transparency, bottom=profit_base)
     ax.bar(loss_index, loss_height, loss_width, color=loss_col, alpha=transparency, bottom=loss_base)
 
-
-def plot_stop_take_box(ax, signal, style={}, **kwd):
-    """Stop_loss, take_profit rectangle. Mainly only accepts index.
-    WARNING: TEMPORARILY UNUSED - CANNOT GET MATPLOTLIB's RECTANGLE TO WORK"""
-    # Variables
-    stop_loss = signal['stop_loss']
-    take_profit = signal['take_profit']
-    pos_value = signal['open_price']
-
-    # Check if index based or date based
-    if signal['baseline']._typ == 'int64index':
-        baseline_date = signal['baseline']
-        end_date = signal['end']
-        start_date = signal['start']
-        period = baseline_date - end_date
-        # Calculate width
-        width = period
-    else:
-        baseline_date = strtodatetime(signal['baseline'])
-        end_date = strtodatetime(signal['end'])
-        start_date = strtodatetime(signal['start'])
-        period = baseline_date - end_date
-        if 'interval' in signal:
-            interval = strtotimedelta(signal['interval'])  # need interval to calculate rect length
-            width = period / interval
-        elif 'interval' in kwd:
-            interval = strtotimedelta(kwd['interval'])  # need interval to calculate rect length
-            width = period / interval
-        else:
-            width = 5
-    if width < 1:
-        width = 1
-
-    # Style options
-    if 'transparency' not in style:
-        style.update({'transparency': 0.8})
-    transparency = style['transparency']
-
-    # Draw stop loss rectangle
-    profit_rects = []
-    loss_rects = []
-    if take_profit > stop_loss:
-        loss_rects.append(Rectangle((stop_loss, baseline_date), width, pos_value - stop_loss))
-        profit_rects.append(Rectangle((pos_value, baseline_date), width, take_profit - pos_value))
-    else:
-        loss_rects.append(Rectangle((pos_value, baseline_date), width, stop_loss - pos_value))
-        profit_rects.append(Rectangle((take_profit, baseline_date), width, pos_value - take_profit))
-
-    # Add rectangles
-    l_pc = PatchCollection(loss_rects)
-    p_pc = PatchCollection(profit_rects)
-    ax.add_collection(p_pc, facecolor='g', alpha=transparency)
-    ax.add_collection(l_pc, facecolor='r', alpha=transparency)
+#
+# def plot_stop_take_box(ax, signal, style={}, **kwd):
+#     """Stop_loss, take_profit rectangle. Mainly only accepts index.
+#     WARNING: TEMPORARILY UNUSED - CANNOT GET MATPLOTLIB's RECTANGLE TO WORK"""
+#     # Variables
+#     stop_loss = signal['stop_loss']
+#     take_profit = signal['take_profit']
+#     pos_value = signal['open_price']
+#
+#     # Check if index based or date based
+#     if signal['baseline']._typ == 'int64index':
+#         baseline_date = signal['baseline']
+#         end_date = signal['end']
+#         start_date = signal['start']
+#         period = baseline_date - end_date
+#         # Calculate width
+#         width = period
+#     else:
+#         baseline_date = strtodatetime(signal['baseline'])
+#         end_date = strtodatetime(signal['end'])
+#         start_date = strtodatetime(signal['start'])
+#         period = baseline_date - end_date
+#         if 'interval' in signal:
+#             interval = strtotimedelta(signal['interval'])  # need interval to calculate rect length
+#             width = period / interval
+#         elif 'interval' in kwd:
+#             interval = strtotimedelta(kwd['interval'])  # need interval to calculate rect length
+#             width = period / interval
+#         else:
+#             width = 5
+#     if width < 1:
+#         width = 1
+#
+#     # Style options
+#     if 'transparency' not in style:
+#         style.update({'transparency': 0.8})
+#     transparency = style['transparency']
+#
+#     # Draw stop loss rectangle
+#     profit_rects = []
+#     loss_rects = []
+#     if take_profit > stop_loss:
+#         loss_rects.append(Rectangle((stop_loss, baseline_date), width, pos_value - stop_loss))
+#         profit_rects.append(Rectangle((pos_value, baseline_date), width, take_profit - pos_value))
+#     else:
+#         loss_rects.append(Rectangle((pos_value, baseline_date), width, stop_loss - pos_value))
+#         profit_rects.append(Rectangle((take_profit, baseline_date), width, pos_value - take_profit))
+#
+#     # Add rectangles
+#     l_pc = PatchCollection(loss_rects)
+#     p_pc = PatchCollection(profit_rects)
+#     ax.add_collection(p_pc, facecolor='g', alpha=transparency)
+#     ax.add_collection(l_pc, facecolor='r', alpha=transparency)
 
 
 def plot_open_close_pos(ax: matplotlib.axes.Axes, signal, style={}):
     """Start Price and 'Open' for 'Open Position' price are equivalent.
     End date == 'Close' date etc. They do not represent close prices but closing
-    positions!"""
+    positions! Dates must be in datetime or int index format. Strings will not work!"""
 
     # Variables
     open_value = signal['open_price']
     close_value = signal['close_price']
-    if signal['baseline']._typ == 'int64index':
-        end_date = signal['end']
-        start_date = signal['start']
-    else:
-        end_date = strtodatetime(signal['end'])
-        start_date = strtodatetime(signal['start'])
+    end_date = signal['end']
+    start_date = signal['start']
+    # if signal['baseline']._typ == 'int64index':
+    #     end_date = signal['end']
+    #     start_date = signal['start']
+    # else:
+    #     end_date = strtodatetime(signal['end'])
+    #     start_date = strtodatetime(signal['start'])
     net = signal['net']
 
     # Style options
@@ -376,7 +396,7 @@ def plot_open_close_pos(ax: matplotlib.axes.Axes, signal, style={}):
     transparency = style['transparency']
     colour = style['loss_colour']
     if net > 0:
-        colour = 'profit_colour'
+        colour = style['profit_colour']
     marker = style['marker']
 
     # Draw circle on open and close positions

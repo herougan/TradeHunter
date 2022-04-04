@@ -16,7 +16,7 @@ from matplotlib.figure import Figure
 
 from UI.QTUtil import get_datatable_sheet, set_datatable_sheet, clear_table, set_col_cell_sheet, get_dataset_table, \
     set_dataset_table
-from util.dataGraphingUtil import plot_single, candlestick_plot, init_plot
+from util.dataGraphingUtil import plot_single, candlestick_plot, init_plot, DATE_FORMAT_DICT, get_interval
 from util.dataRetrievalUtil import load_trade_advisor_list, get_dataset_changes, update_specific_dataset_change, \
     write_new_empty_dataset, load_dataset_list, save_dataset, add_as_dataset_change, load_dataset, \
     load_symbol_suggestions, load_interval_suggestions, load_period_suggestions, update_all_dataset_changes, \
@@ -26,7 +26,8 @@ from util.dataRetrievalUtil import load_trade_advisor_list, get_dataset_changes,
     load_capital_suggestions
 from util.dataTestingUtil import step_test_robot, DataTester, write_test_result, write_test_meta, load_test_result, \
     load_test_meta, get_tested_robot_list, get_tests_list
-from util.langUtil import normify_name, try_int, leverage_to_float, get_test_name, try_float
+from util.langUtil import normify_name, try_int, leverage_to_float, get_test_name, try_float, strtodatetime, \
+    timedeltatoyahootimestr
 
 
 class TradeHunterApp:
@@ -326,7 +327,8 @@ class TradeHunterApp:
                     set_col_cell_sheet(self.table, string, colIdx)
 
                 def load_combo_dataset(event):
-                    self.build_dataset_instruments(self.combo.currentText())
+                    if event > -1:
+                        self.build_dataset_instruments(self.combo.currentText())
 
                 # dataset_select.currentItemChanged.connect(load_selected_dataset)
                 dataset_combo.currentIndexChanged.connect(load_combo_dataset)
@@ -403,7 +405,7 @@ class TradeHunterApp:
 
                 def create_button_clicked():
                     self.create_window = self.CreateDatasetWindow()
-                    self.create_window.bind_rebuild(self.build_dataset_list)  # dont double build and MOVE TO NEW INDEX!
+                    self.create_window.bind_rebuild(self.build_dataset_list)  # don't double build and MOVE TO NEW INDEX!
                     self.create_window.show()
 
                 def save_button_clicked():
@@ -414,6 +416,7 @@ class TradeHunterApp:
                         return
                     # Save
                     save_dataset(ds_name, dsf)
+                    self.saved = True
                     # Mark as change - updates will re-download all files in dataset marked by "change"
                     add_as_dataset_change(ds_name)
                     # Rebuild instrument list (e.g. Bad rows will be deleted)
@@ -434,6 +437,7 @@ class TradeHunterApp:
                 tail.addWidget(save_button)
 
                 self.addLayout(tail)
+                self.saved = True
 
             def bind(self, table: QTableWidget):
                 self.table = table
@@ -1416,8 +1420,20 @@ class TradeHunterApp:
             # f, ax = plot_single()
             # candlestick(ax, df)
 
+            # convert indices
+            interval = get_interval(df)
+            dates = df.index
+            df.index = range(len(df.index))
+
             c = TradeHunterApp.MplCanvas(self, width=12, height=6, dpi=100)
             candlestick_plot(c.axes, df)
+
+            # Convert axes back
+            x_tick_labels = []
+            for _date in dates:
+                x_tick_labels.append(strtodatetime(_date).strftime(DATE_FORMAT_DICT[timedeltatoyahootimestr(interval)]))
+            c.axes.set(xticklabels=x_tick_labels)
+
 
             self.p_window = self.plot_window(c, F"{name}")
             self.p_window.show()

@@ -1,3 +1,4 @@
+import copy
 import datetime
 import os
 import time
@@ -10,6 +11,7 @@ from statistics import stdev
 from typing import List
 from pathlib import Path
 
+import PyQt5
 import pandas as pd
 from PyQt5.QtWidgets import QProgressBar, QWidget
 from matplotlib import pyplot as plt
@@ -18,7 +20,7 @@ from matplotlib.pyplot import clf
 from robot.abstract.robot import robot
 from settings import EVALUATION_FOLDER, OPTIMISATION_FOLDER
 from util.dataGraphingUtil import plot_robot_instructions, plot_signals, plot_open_signals, candlestick_plot, \
-    get_interval
+    get_interval, DATE_FORMAT_DICT
 from util.dataRetrievalUtil import load_dataset, load_df, get_computer_specs, number_of_datafiles, retrieve, try_stdev
 from util.langUtil import craft_instrument_filename, strtodatetime, try_key, remove_special_char, strtotimedelta, \
     try_divide, try_max, try_mean, get_test_name, get_file_name, get_instrument_from_filename, is_datetime
@@ -644,9 +646,6 @@ class DataTester:
         self.p_bar = p_bar
         self.p_window = p_window
 
-    # Test test_result, result_meta '{robot_name}__{ivar_name}__{test_name}.csv',
-    # '{robot_name}__{ivar_name}__{test_name}__meta.csv'
-
     # == Test ==
     def test(self, ta_name: str, ivar: List[float], ds_names: List[str], test_name: str):
 
@@ -770,59 +769,89 @@ class DataTester:
         axes = canvas.axes
         main_ax = axes[0][0]  # row 0, col 0
 
+        # self.robot.start(sym, interval, period, df, True)
+        # # Robot
+        # # df = retrieve("symbol", datetime.now(), datetime.now()
+        # #               - strtotimedelta(interval) * robot.PREPARE_PERIOD,
+        # #               interval,
+        # #               False, False)
+        # # self.robot.retrieve_prepare(df)
+        #
+        # # Test
+        # self.robot.test()
+
         self.robot.start(sym, interval, period, df[0: start])
         # Simulate and plot
         self.robot.sim_start()
+
+        # for i in range(10):
+        #     for ax_row in axes:
+        #         for ax in ax_row:
+        #             ax.clear()
+        #     main_ax.plot([-x for x in list(range(i))], list(range(i)))
+
         for i in range(start, len(df)):
 
             # Clear figure
-            clf
+            for ax_row in axes:
+                for ax in ax_row:
+                    ax.clear()
 
             # Fetch data
             self.robot.sim_next(df[i:i + 1])
             # indicator = self.robot.get_indicator_df()
             _df = df[:i+1]
-            signals, open_signals = self.robot.get_signals()
+            _signals, _open_signals = self.robot.get_signals()
+            signals = copy.deepcopy(_signals)
+            open_signals = copy.deepcopy(_open_signals)
             instructions = self.robot.get_instructions()
 
             # Convert x to indices, remove weekends
             _dates = _df.index
-            _df.index = range(len(_df.index))
+            _df.index = list(range(len(_df.index)))
 
+            # Instructions
             for instruction in instructions:
                 instruction['data'].index = _df.index
             for signal in signals:
-                # for key in signal.keys():
-                #     if is_datetime(signal['key']):
-                #         signal[key] = _df.index[_dates == signal[key]]
-                if 'updated' in signal:
-                    continue
-                signal['start'] = _df.index[_dates == signal['start']]
-                signal['end'] = _df.index[_dates == signal['end']]
-                signal['updated'] = True
+                # if 'updated' in signal:
+                #     continue
+                signal['start'] = _df.index[_dates == signal['start']][0]
+                signal['end'] = _df.index[_dates == signal['end']][0]
+                # signal['updated'] = True
             for signal in open_signals:
-                if 'updated' in signal:
-                    continue
-                signal['start'] = _df.index[_dates == signal['start']]
+                # if 'updated' in signal:
+                #     continue
+                signal['start'] = _df.index[_dates == signal['start']][0]
                 signal['end'] = signal['start'] + 1
-                signal['updated'] = True
+                # signal['updated'] = True
 
             # Plot data
             plot_robot_instructions(axes, instructions)
-            plot_signals(main_ax, signals)
-            plot_open_signals(main_ax, open_signals)
+            if len(signals) > 0:
+                plot_signals(main_ax, signals)
+            if len(signals) > 0:
+                plot_open_signals(main_ax, open_signals)
             candlestick_plot(main_ax, _df)
 
             # Switch back to dates
-            # x_tick_labels = []
-            # for _date in dates:
-            #     x_tick_labels.append(_date.strftime(date_format_dict[interval]))
-            # ax2.set(xticklabels=x_tick_labels)
-
-
+            x_tick_labels = []
+            for _date in _dates:
+                x_tick_labels.append(_date.strftime(DATE_FORMAT_DICT[interval]))
+            main_ax.set(xticklabels=x_tick_labels)
             # Wait before each step
-            # time.sleep(sleep_time)
+            time.sleep(sleep_time)
+
+            # line1.set_xdata(x)
+            # todo adv. do not replot signals
+            # figure.canvas.draw()
+            # for macd lines... have to manually calculate
+            # otherwise append not possible
+            # get handle for macd, replot- dont clear
+            PyQt5.QtWidgets.QApplication.processEvents()
             plt.show()
+
+        plt.show()
 
     # == Optimise ==
     def optimise(self):

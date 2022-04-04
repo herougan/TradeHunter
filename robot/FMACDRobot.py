@@ -691,7 +691,7 @@ class FMACDRobot(robot):
     def close_signal(self, signal):
 
         # Realise Profit/Loss
-        action = (signal['open_price'] - self.last.Close) * signal['vol'] * self.leverage
+        action = (self.last.Close - signal['open_price']) * signal['vol'] * self.leverage
         signal['end'] = self.last_date
         signal['close_price'] = self.last.Close
         sgn = math.copysign(1, signal['vol'])
