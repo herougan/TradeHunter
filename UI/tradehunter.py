@@ -1434,7 +1434,6 @@ class TradeHunterApp:
                 x_tick_labels.append(strtodatetime(_date).strftime(DATE_FORMAT_DICT[timedeltatoyahootimestr(interval)]))
             c.axes.set(xticklabels=x_tick_labels)
 
-
             self.p_window = self.plot_window(c, F"{name}")
             self.p_window.show()
 
@@ -1658,7 +1657,7 @@ class TradeHunterApp:
             axes = self.canvas.get_axes()
             for i in range(len(axes)):
                 for u in range(len(axes[i])):
-                    if i != len(axes):
+                    if i != len(axes) - 1:
                         axes[i][u].get_xaxis().set_visible(False)
                     if u != 0:
                         axes[i][u].get_yaxis().set_visible(False)
@@ -1679,7 +1678,8 @@ class TradeHunterApp:
                              'test_type': type_combo.currentText()}
                 self.xvar = translate_xvar_dict(self.xvar)
                 self.svar = {
-                    'speed': try_float(sim_speed.currentText())
+                    'speed': try_float(sim_speed.currentText()),
+                    'scope': 100,  # svar:Scope
                 }
                 if not df_select.currentText():
                     QMessageBox('You have not selected a data file!')
@@ -1709,7 +1709,11 @@ class TradeHunterApp:
 
         def test(self, xvar, ivar, svar, ta_name, df_name, canvas):
             data_tester = DataTester(xvar)
-            data_tester.simulate_single(ta_name, ivar, svar, df_name, canvas)
+            success, error = data_tester.simulate_single(ta_name, ivar, svar, df_name, canvas)
+            if not success:
+                alert = QMessageBox(error)
+                alert.show()
+
 
         def back(self):
             self.close()

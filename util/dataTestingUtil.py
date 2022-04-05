@@ -20,10 +20,11 @@ from matplotlib.pyplot import clf
 from robot.abstract.robot import robot
 from settings import EVALUATION_FOLDER, OPTIMISATION_FOLDER
 from util.dataGraphingUtil import plot_robot_instructions, plot_signals, plot_open_signals, candlestick_plot, \
-    get_interval, DATE_FORMAT_DICT
+    get_interval, DATE_FORMAT_DICT, line_plot, plot_line
 from util.dataRetrievalUtil import load_dataset, load_df, get_computer_specs, number_of_datafiles, retrieve, try_stdev
 from util.langUtil import craft_instrument_filename, strtodatetime, try_key, remove_special_char, strtotimedelta, \
-    try_divide, try_max, try_mean, get_test_name, get_file_name, get_instrument_from_filename, is_datetime
+    try_divide, try_max, try_mean, get_test_name, get_file_name, get_instrument_from_filename, is_datetime, \
+    timedeltatoyahootimestr
 
 import numpy as np
 from sklearn.linear_model import LinearRegression
@@ -753,11 +754,11 @@ class DataTester:
         print('Starting visual simulation: ' + F'{ta_name}.{ta_name}({ivar}) with i:{ivar}, x:{self.xvar}')
 
         self.robot = eval(F'{ta_name}.{ta_name}({ivar}, {self.xvar})')
-        sym, interval, period = get_instrument_from_filename(df_name)
+        sym, interval_str, period = get_instrument_from_filename(df_name)
         df = load_df(df_name)
         if len(df) < self.robot.PREPARE_PERIOD:
             print(F"Not enough data! Minimum {self.robot.PREPARE_PERIOD} for {ta_name}")
-            return
+            return False, F"Not enough data! Minimum {self.robot.PREPARE_PERIOD} for {ta_name}"
 
         # Variables
         sleep_time = 1 / svar['speed']  # seconds
@@ -768,27 +769,11 @@ class DataTester:
         instructions = []
         axes = canvas.axes
         main_ax = axes[0][0]  # row 0, col 0
+        last_ax = axes[-1][-1]
 
-        # self.robot.start(sym, interval, period, df, True)
-        # # Robot
-        # # df = retrieve("symbol", datetime.now(), datetime.now()
-        # #               - strtotimedelta(interval) * robot.PREPARE_PERIOD,
-        # #               interval,
-        # #               False, False)
-        # # self.robot.retrieve_prepare(df)
-        #
-        # # Test
-        # self.robot.test()
-
-        self.robot.start(sym, interval, period, df[0: start])
+        self.robot.start(sym, interval_str, period, df[0: start])
         # Simulate and plot
         self.robot.sim_start()
-
-        # for i in range(10):
-        #     for ax_row in axes:
-        #         for ax in ax_row:
-        #             ax.clear()
-        #     main_ax.plot([-x for x in list(range(i))], list(range(i)))
 
         for i in range(start, len(df)):
 
@@ -805,11 +790,11 @@ class DataTester:
             signals = copy.deepcopy(_signals)
             open_signals = copy.deepcopy(_open_signals)
             instructions = self.robot.get_instructions()
+            profit, equity, balance = self.robot.get_profit()
 
             # Convert x to indices, remove weekends
             _dates = _df.index
             _df.index = list(range(len(_df.index)))
-
             # Instructions
             for instruction in instructions:
                 instruction['data'].index = _df.index
@@ -825,33 +810,56 @@ class DataTester:
                 signal['start'] = _df.index[_dates == signal['start']][0]
                 signal['end'] = signal['start'] + 1
                 # signal['updated'] = True
+            xlim = [_df.index[0], _df.index[-1]]
+
+            # Adjust profit data in case of length mismatch
+            if len(profit) > len(_df):
+                profit = profit[len(profit)-len(_df):]
+            elif len(profit) < len(_df):
+                o = [profit[0] for i in range(len(df) - len(profit))]
+                o.extend(profit)
+                profit = o
+            if len(equity) > len(_df):
+                equity = equity[len(equity)-len(_df):]
+            elif len(equity) < len(_df):
+                o = [equity[0] for i in range(len(df) - len(equity))]
+                o.extend(equity)
+                equity = o
+            if len(balance) > len(_df):
+                balance = balance[len(balance)-len(_df):]
+            elif len(balance) < len(_df):
+                o = [balance[0] for i in range(len(df) - len(balance))]
+                o.extend(balance)
+                balance = o
+
 
             # Plot data
-            plot_robot_instructions(axes, instructions)
+            plot_robot_instructions(axes, instructions, xlim)
             if len(signals) > 0:
-                plot_signals(main_ax, signals)
+                plot_signals(main_ax, signals, xlim)
             if len(signals) > 0:
-                plot_open_signals(main_ax, open_signals)
-            candlestick_plot(main_ax, _df)
+                plot_open_signals(main_ax, open_signals, xlim)
+            candlestick_plot(main_ax, _df, xlim)
+            plot_line(last_ax, _df, equity, {'colour': 'g'}, xlim)
+            plot_line(last_ax, _df, balance, {'colour': 'b'}, xlim)
 
             # Switch back to dates
             x_tick_labels = []
             for _date in _dates:
-                x_tick_labels.append(_date.strftime(DATE_FORMAT_DICT[interval]))
-            main_ax.set(xticklabels=x_tick_labels)
+                # todo ! interval is small, so should use THE OTHER DATE_FORMAT_DICT!
+                x_tick_labels.append(strtodatetime(_date).strftime(DATE_FORMAT_DICT[interval_str]))
+            for ax_row in axes:
+                for ax in ax_row:
+                    ax.set(xticklabels=x_tick_labels)
             # Wait before each step
-            time.sleep(sleep_time)
+            # time.sleep(sleep_time)
 
             # line1.set_xdata(x)
-            # todo adv. do not replot signals
-            # figure.canvas.draw()
-            # for macd lines... have to manually calculate
-            # otherwise append not possible
-            # get handle for macd, replot- dont clear
+            canvas.draw()
             PyQt5.QtWidgets.QApplication.processEvents()
-            plt.show()
 
         plt.show()
+        return True, 'No Error'
 
     # == Optimise ==
     def optimise(self):

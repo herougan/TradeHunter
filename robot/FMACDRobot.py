@@ -480,7 +480,7 @@ class FMACDRobot(robot):
         return self.df.index
 
     def get_profit(self):
-        return self.profit_d, self.equity_d
+        return self.profit, self.equity, self.balance
 
     def get_signals(self):
         return self.signals
@@ -809,6 +809,8 @@ class FMACDRobot(robot):
         max_loops = 3
         while turn == self.last.Close:
             for i in range(1 + length2 - rev_idx, 1 + length2 + length - rev_idx):
+                if i >= len(self.df):
+                    break
                 if type == 1:
                     if self.df.Close.iloc[-i] < turn:
                         turn = self.df.Close.iloc[-i]  # Get low

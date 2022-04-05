@@ -12,6 +12,7 @@ from matplotlib.patches import Rectangle, Patch
 from pandas import to_datetime
 import matplotlib as mpl
 
+from settings import PLOTTING_SETTINGS
 from util.langUtil import timedeltatoyahootimestr, strtodatetime, is_datetime, strtotimedelta
 
 BAR_WIDTH = 5
@@ -42,8 +43,8 @@ DATE_FORMAT_DICT = {  # Use parser for parsing slow, use dict for axis format
     '1d': '%Y-%m-%d',
     '5d': '%Y-%m-%d',
     '1wk': '%Y-%m-%d',
-    '1m': '%Y-%m-%d',
-    '3m': '%Y-%m-%d',
+    '1mo': '%Y-%m-%d',
+    '3mo': '%Y-%m-%d',
 }
 FIGSIZE = (24, 12)
 PLOTSTYLE = "seaborn"
@@ -71,7 +72,7 @@ def plot(nrows, ncols, height_ratios, width_ratios):
 
 # Plotting functions
 
-def candlestick_plot(ax, df: pd.DataFrame):
+def candlestick_plot(ax, df: pd.DataFrame, xlim=None):
     """Plots candlestick data based on df on ax.
     df index must* be index form, not date form."""
 
@@ -79,7 +80,8 @@ def candlestick_plot(ax, df: pd.DataFrame):
     if is_datetime(df.index[0]):
         bar_width = get_barwidth_from_interval(get_interval(df))
 
-    # Convert df to index
+    if not xlim:
+        xlim = [df.index[0], df.index[-1]]
 
     # Create candlestick chart
     (up, down) = (df[df.Close >= df.Open], df[df.Close < df.Open])
@@ -96,38 +98,51 @@ def candlestick_plot(ax, df: pd.DataFrame):
     # ax.bar(down.index, down.High - down.Open, w2, bottom=down.Open, color=col2)
     # ax.bar(down.index, down.Low - down.Close, w2, bottom=down.Close, color=col2)
     # ax.axis(xmin=df.index[0], xmax=df.index[-1])
-
-    # convert back
-
-    plt.show()
+    ax.set_xlim(left=xlim[0], right=xlim[1])
 
 
-def macd_histogram_plot(ax, df: pd.DataFrame):
+def macd_histogram_plot(ax, df: pd.DataFrame, xlim=None):
     (up, down) = (df[df >= 0], df[df < 0])
     (up1, up2) = (up[up.lt(up.shift(periods=-1))], up[up.ge(up.shift(periods=-1))])
     (down1, down2) = (down[down.lt(down.shift(periods=-1))], down[down.ge(down.shift(periods=-1))])
     (col1, col2, col3, col4) = ('g', 'r', 'lightgreen', 'lightsalmon')
 
-    w = 1
-    # todo_w = PLOTTING_SETTINGS['bar_width_to_interval'][interval] # todo
+    # Check if there is data to be plotted
+    has_data = len([d for d in df if not math.isnan(d)]) > 1
 
-    ax.bar(up1.index, up1, w, color=col1)
-    ax.bar(up2.index, up2, w, color=col3)
-    ax.bar(down1.index, down1, w, color=col2)
-    ax.bar(down2.index, down2, w, color=col4)
-    ax.axis(xmin=df.index[0], xmax=df.index[-1])
+    if has_data:
+        if not xlim:
+            xlim = [df.index[0], df.index[-1]]
+
+        bar_w = 10 / len(df)
+        if is_datetime(df.index[0]):
+            bar_w = get_barwidth_from_interval(get_interval(df))
+
+        ax.bar(up1.index, up1, bar_w, color=col1)
+        ax.bar(up2.index, up2, bar_w, color=col3)
+        ax.bar(down1.index, down1, bar_w, color=col2)
+        ax.bar(down2.index, down2, bar_w, color=col4)
+        # ax.axis(xmin=df.index[0], xmax=df.index[-1])
+        ax.set_xlim(left=xlim[0], right=xlim[1])
 
 
-def line_plot(ax, df: pd.DataFrame, style={}):
+def line_plot(ax, df: pd.DataFrame, style={}, xlim=None):
     _style = generic_style()
     _style.update(style)
-    ax.plot(df, alpha=_style['alpha'], color=_style['colour'],
-            linewidth=_style['linewidth'], marker=_style['marker'])
-    # style = default_style.update(style)
-    #
-    # x = [open_value, close_value]
-    # y = [start_date, end_date]
-    # ax.plot(x, y, color=colour, marker=marker)
+
+    has_data = len([d for d in df if not math.isnan(d)]) > 1
+
+    if has_data:
+        ax.plot(df, alpha=_style['alpha'], color=_style['colour'],
+                linewidth=_style['linewidth'], marker=_style['marker'])
+        # style = default_style.update(style)
+        #
+        # x = [open_value, close_value]
+        # y = [start_date, end_date]
+        # ax.plot(x, y, color=colour, marker=marker)
+        if not xlim:
+            xlim = [df.index[0], df.index[-1]]
+        ax.set_xlim(left=xlim[0], right=xlim[-1])
 
 
 def generic_style():
@@ -144,10 +159,29 @@ def generic_style():
 
 def plot_timeseries(ax, df: pd.DataFrame, style={}):
     # Style options
-    # if 'transparency' not in style:
-    #     style.update({'transparency': 0.8})
-    # transparency = style['transparency']
-    pass
+    default_style = {
+        'transparency': 0.85,
+        'colour': 'b',
+    }
+    default_style.update(style)
+    style = default_style
+
+    ax.plot(df, color=style['colour'], alpha=style['transparency'])
+
+
+def plot_line(ax, x, y, style={}, xlim=[]):
+    # Style options
+    default_style = {
+        'transparency': 0.85,
+        'colour': 'b',
+    }
+    default_style.update(style)
+    style = default_style
+    if not xlim:
+        xlim = [x[0], x[-1]]
+
+    ax.plot(x, y, color=style['colour'], alpha=style['transparency'])
+    ax.set_xlim(left=xlim[0], right=xlim[1])
 
 # Indicators
 
@@ -203,12 +237,12 @@ def mac_diagram(ax, macd_df):
     pass
 
 
-def plot_robot_instructions(axes, instructions):
+def plot_robot_instructions(axes, instructions, xlim):
     for instruction in instructions:
-        plot_robot_instruction(axes, instruction)
+        plot_robot_instruction(axes, instruction, xlim)
 
 
-def plot_robot_instruction(axes, instruction):
+def plot_robot_instruction(axes, instruction, xlim):
     index = instruction['index']
     data = instruction['data']
     type = instruction['type']
@@ -220,9 +254,9 @@ def plot_robot_instruction(axes, instruction):
     if type == "null":
         pass
     elif type.lower() == "macd_hist":
-        macd_histogram_plot(ax, data)
+        macd_histogram_plot(ax, data, xlim)
     elif type.lower() == "line":
-        line_plot(ax, data, {'colour': colour})
+        line_plot(ax, data, {'colour': colour}, xlim)
     elif type.lower() == "hist":
         pass
     elif type.lower() == "area":
@@ -235,7 +269,7 @@ def plot_robot_instruction(axes, instruction):
 # Signals
 
 
-def plot_signals(ax, signals):
+def plot_signals(ax, signals, xlim):
     style = {
         'transparency': 0.9
     }
@@ -244,11 +278,11 @@ def plot_signals(ax, signals):
         if 'baseline' not in signal:
             signal['baseline'] = signal['start']
         # plot_stop_take_box(ax, signal, style)
-        plot_open_close_pos(ax, signal)
-    plot_stop_take(ax, signals, style)
+        plot_open_close_pos(ax, signal, style, xlim)
+    plot_stop_take(ax, signals, style, xlim)
 
 
-def plot_open_signals(ax, signals):
+def plot_open_signals(ax, signals, xlim):
     # Style
     style = {
         'transparency': 0.6
@@ -260,10 +294,10 @@ def plot_open_signals(ax, signals):
             signal['end'] = signal['start']
         # plot_stop_take_box(ax, signal, style)
         # plot_open_close_pos(ax, signal, style)  # no close pos
-    plot_stop_take(ax, signals, style)
+    plot_stop_take(ax, signals, style, xlim)
 
 
-def plot_stop_take(ax, signals, style={}):
+def plot_stop_take(ax, signals, style={}, xlim=None):
     """Stop_loss, take_profit rectangles drawn using bar plot"""
 
     # index: Where the bar starts, width: distance to bar end,
@@ -309,6 +343,8 @@ def plot_stop_take(ax, signals, style={}):
 
     ax.bar(profit_index, profit_height, profit_width, color=profit_col, alpha=transparency, bottom=profit_base)
     ax.bar(loss_index, loss_height, loss_width, color=loss_col, alpha=transparency, bottom=loss_base)
+    if xlim:
+        ax.set_xlim(xlim[0], xlim[1])
 
 #
 # def plot_stop_take_box(ax, signal, style={}, **kwd):
@@ -365,7 +401,7 @@ def plot_stop_take(ax, signals, style={}):
 #     ax.add_collection(l_pc, facecolor='r', alpha=transparency)
 
 
-def plot_open_close_pos(ax: matplotlib.axes.Axes, signal, style={}):
+def plot_open_close_pos(ax: matplotlib.axes.Axes, signal, style={}, xlim=None):
     """Start Price and 'Open' for 'Open Position' price are equivalent.
     End date == 'Close' date etc. They do not represent close prices but closing
     positions! Dates must be in datetime or int index format. Strings will not work!"""
@@ -403,18 +439,22 @@ def plot_open_close_pos(ax: matplotlib.axes.Axes, signal, style={}):
     x = [open_value, close_value]
     y = [start_date, end_date]
     ax.plot(x, y, color=colour, marker=marker)
+    if xlim:
+        ax.set_xlim(xlim[0], xlim[1])
 
 
 # Util
 
 def get_interval(df: pd.DataFrame) -> str:
-    """Gets closest interval to standard set of intervals"""
-    return strtodatetime(df.index[1]) - strtodatetime(df.index[0])
-    # if "Datetime" in df.columns:
-    #     return to_datetime(df.loc[:, "Datetime"][1]) - to_datetime(df.loc[:, "Datetime"][0])
-    # elif "Date" in df.columns:
-    #     return to_datetime(df.loc[:, "Date"][1]) - to_datetime(df.loc[:, "Date"][0])
-    # return "1M"
+    """Gets interval from dataframe. Must have adjacent data!"""
+    for i in range(1, len(df)):
+        if not math.isnan(df[-i]) and not math.isnan(df[-i-1]):
+            return strtodatetime(df.index[-i]) - strtodatetime(df.index[-i-1])
+    return timedelta(minutes=1)  # default
+
+
+def get_yahoo_interval_str(df: pd.DataFrame) -> str:
+    return timedeltatoyahootimestr(get_interval(df))
 
 
 def get_barwidth_from_interval(interval: timedelta):
