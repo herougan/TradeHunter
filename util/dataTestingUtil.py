@@ -810,7 +810,13 @@ class DataTester:
                 signal['start'] = _df.index[_dates == signal['start']][0]
                 signal['end'] = signal['start'] + 1
                 # signal['updated'] = True
-            xlim = [_df.index[0], _df.index[-1]]
+
+            # Get xlim
+            if len(_df.index) > svar['scope']:
+                xlim = [_df.index[-svar['scope']-1] - 1, _df.index[-1] + 1]
+            else:
+                # xlim = [_df.index[0] - 1, _df.index[-1] + 1]
+                xlim = [0, svar['scope']]
 
             # Adjust profit data in case of length mismatch
             if len(profit) > len(_df):
@@ -840,17 +846,20 @@ class DataTester:
             if len(signals) > 0:
                 plot_open_signals(main_ax, open_signals, xlim)
             candlestick_plot(main_ax, _df, xlim)
-            plot_line(last_ax, _df, equity, {'colour': 'g'}, xlim)
-            plot_line(last_ax, _df, balance, {'colour': 'b'}, xlim)
+            plot_line(last_ax, _df.index, equity, {'colour': 'g'}, xlim)
+            plot_line(last_ax, _df.index, balance, {'colour': 'b'}, xlim)
+            last_ax.set_ylim(bottom=0)  # always flat 0
 
             # Switch back to dates
             x_tick_labels = []
             for _date in _dates:
-                # todo ! interval is small, so should use THE OTHER DATE_FORMAT_DICT!
                 x_tick_labels.append(strtodatetime(_date).strftime(DATE_FORMAT_DICT[interval_str]))
             for ax_row in axes:
                 for ax in ax_row:
                     ax.set(xticklabels=x_tick_labels)
+                    for label in ax.get_xticklabels():
+                        label.set_ha("right")
+                        label.set_rotation(45)
             # Wait before each step
             # time.sleep(sleep_time)
 

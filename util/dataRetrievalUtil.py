@@ -138,6 +138,7 @@ def load_dataset_list():
     """Load list of dataset files in datasetdef."""
     path = F'static/datasetdef/'
     # Get list of files that end with .csv
+    # todo arrange list in alphabetical order
     df_list = [f for f in listdir(path) if isfile(join(path, f)) and f.endswith('.csv')]
     return df_list
 

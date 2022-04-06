@@ -1661,7 +1661,7 @@ class TradeHunterApp:
                         axes[i][u].get_xaxis().set_visible(False)
                     if u != 0:
                         axes[i][u].get_yaxis().set_visible(False)
-            body.addWidget(self.canvas)
+            body.addWidget(self.canvas, 5)
 
             button_layout = QHBoxLayout()
 
@@ -1679,7 +1679,7 @@ class TradeHunterApp:
                 self.xvar = translate_xvar_dict(self.xvar)
                 self.svar = {
                     'speed': try_float(sim_speed.currentText()),
-                    'scope': 100,  # svar:Scope
+                    'scope': 40,  # svar:Scope
                 }
                 if not df_select.currentText():
                     QMessageBox('You have not selected a data file!')
@@ -1711,9 +1711,11 @@ class TradeHunterApp:
             data_tester = DataTester(xvar)
             success, error = data_tester.simulate_single(ta_name, ivar, svar, df_name, canvas)
             if not success:
-                alert = QMessageBox(error)
+                self.alert_window = QWidget()
+                alert_layout = QVBoxLayout()
+                alert = QMessageBox(self.alert_window)
+                alert.setText(error)
                 alert.show()
-
 
         def back(self):
             self.close()

@@ -52,15 +52,26 @@ SUGGESTIONS = {
 }
 PLOTTING_SETTINGS = {
     'bar_width_to_interval': {
-        '60m': 0.6,
-        '90m': 0.8,
-        '1d': 1,
-        '1wk': 2,
+        '60m': 1,
+        '90m': 1.2,
+        '1d': 1.6,
+        '1wk': 2.1,
     },
     'date_format_to_interval': {
         '60m': '%Y-%m-%d %H:%M',
         '90m': '%Y-%m-%d %H:%M',
         '1d': '%Y-%m-%d',
         '1wk': '%Y-%m-%d',
-    }
+    },
+    'candle_width_to_scope': {
+        15: 1,
+        40: 2,  # 15 - 40 etc.
+        100: 5,
+        250: 12,
+        -1: 30,  # 250 - ...
+    },
+    'candle_fixed_width': 8,
+    'candle_ratio': 6,  # Thin part of candle = candle_width / candle_ratio
+    'plot_margin': [0.1, 0.1],
+    'graph_margin': [0.2, 0.2, 0.25],  # x, y, z (if appl.); inner plot margin
 }

@@ -372,6 +372,7 @@ class FMACDRobot(robot):
 
         # ==    a1: Check to close deals
         for signal in self.open_signals:
+            # Checking algorithm here
             sgn = math.copysign(1, signal['vol'])  # +ve for long, -ve for short
             stop, take = signal['stop_loss'], signal['take_profit']
             # Stop-loss OR Take-profit
@@ -495,7 +496,7 @@ class FMACDRobot(robot):
             {
                 'index': 1,
                 'data': self.indicators['MACD'],
-                'type': 'macd_hist',
+                'type': 'line',
                 'colour': 'blue',
                 # Placeholder, for multi-data plotting
                 'other_data': None
@@ -521,9 +522,11 @@ class FMACDRobot(robot):
         ]
 
     def get_new_signals(self):
+        """Optimisation for plotting"""
         pass
 
     def get_new_instructions(self):
+        """Optimisation for plotting"""
         pass
 
     # Indicator (Indicators give go-long or go-short suggestions. They DO NOT give signals)
