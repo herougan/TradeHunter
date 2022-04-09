@@ -87,6 +87,9 @@ def candlestick_plot(ax, df: pd.DataFrame, xlim=None):
         
     # Do not plot things outside the scope
     df = df[df.index > xlim[0]]
+    high = max(df.High)
+    low = min(df.Low)
+    height = (high - low) * PLOTTING_SETTINGS['plot_margin'][1]
 
     # Create candlestick chart
     (up, down) = (df[df.Close >= df.Open], df[df.Close < df.Open])
@@ -104,13 +107,19 @@ def candlestick_plot(ax, df: pd.DataFrame, xlim=None):
     # ax.bar(down.index, down.Low - down.Close, w2, bottom=down.Close, color=col2)
     # ax.axis(xmin=df.index[0], xmax=df.index[-1])
     ax.set_xlim(left=xlim[0], right=xlim[1])
+    ax.set_ylim(top=high + height,
+                bottom=max([0, low - height]))  # do not plot below 0
+    
+    
+def add_candlestick_plot(ax, df: pd.DataFrame):
+    pass
 
 
 def macd_histogram_plot(ax, df: pd.DataFrame, xlim=None):
     (up, down) = (df[df >= 0], df[df < 0])
-    (up1, up2) = (up[up.lt(up.shift(periods=-1))], up[up.ge(up.shift(periods=-1))])
-    # todo, off-shifted by 1. sometimes values can drop at interxions
-    (down1, down2) = (down[down.lt(down.shift(periods=-1))], down[down.ge(down.shift(periods=-1))])
+    (up1, up2) = (up[up.ge(up.shift(periods=1))], up[up.lt(up.shift(periods=1))])
+
+    (down1, down2) = (down[down.lt(down.shift(periods=1))], down[down.ge(down.shift(periods=1))])
     (col1, col2, col3, col4) = ('g', 'r', 'lightgreen', 'lightsalmon')
 
     # Check if there is data to be plotted
@@ -132,6 +141,22 @@ def macd_histogram_plot(ax, df: pd.DataFrame, xlim=None):
         # ax.bar(down.index, down.values, bar_w, color='orange', align='center')
         # ax.axis(xmin=df.index[0], xmax=df.index[-1])
         ax.set_xlim(left=xlim[0], right=xlim[1])
+
+        # Set y_lim to be dependent to the abs value of the macd hist
+        high, low = 0, 0
+        if len(up.values):
+            high = max(up.values)
+        if len(down.values):
+            low = min(down.values)
+        if abs(low) > high:
+            high = abs(low)
+        ylim = ax.get_ylim()
+        n_ylim = [ylim[0], ylim[1]]
+        if ylim[0] > low:
+            n_ylim[0] = low
+        if ylim[1] < high:
+            n_ylim[1] = high
+        ax.set_ylim(bottom=n_ylim[0], top=n_ylim[1])
 
 
 def line_plot(ax, df: pd.DataFrame, style={}, xlim=None):
@@ -190,6 +215,12 @@ def plot_line(ax, x, y, style={}, xlim=[]):
 
     ax.plot(x, y, color=style['colour'], alpha=style['transparency'])
     ax.set_xlim(left=xlim[0], right=xlim[1])
+
+    ylim = ax.get_ylim()
+    yheight = ylim[1] - ylim[0]
+    ax.set_ylim(bottom=0,
+                top=ylim[1] + yheight * PLOTTING_SETTINGS['plot_margin'][1], )
+
 
 # Indicators
 
@@ -264,7 +295,7 @@ def plot_robot_instruction(axes, instruction, xlim):
     elif type.lower() == "macd_hist":
         macd_histogram_plot(ax, data, xlim)
     elif type.lower() == "line":
-        line_plot(ax, data, {'colour': colour}, xlim)
+        line_plot(ax, data, {'colour': colour, 'transparency': 0.8}, xlim)
     elif type.lower() == "hist":
         pass
     elif type.lower() == "area":
@@ -279,7 +310,7 @@ def plot_robot_instruction(axes, instruction, xlim):
 
 def plot_signals(ax, signals, xlim):
     style = {
-        'transparency': 0.9
+        'transparency': 0.3
     }
     for signal in signals:
         # Start date will be different if there is calculated from earlier peak/troughs
@@ -294,7 +325,7 @@ def plot_signals(ax, signals, xlim):
 def plot_open_signals(ax, signals, xlim):
     # Style
     style = {
-        'transparency': 0.6
+        'transparency': 0.2
     }
     for signal in signals:
         if 'baseline' not in signal:
@@ -321,20 +352,42 @@ def plot_stop_take(ax, signals, style={}, xlim=None):
     loss_width = []
     loss_base = []
 
+    # Virtual
+    vprofit_index = []
+    vprofit_height = []
+    vprofit_width = []
+    vprofit_base = []
+
+    vloss_index = []
+    vloss_height = []
+    vloss_width = []
+    vloss_base = []
+
     left_lim = math.inf
     right_lim = 0
     for signal in signals:
         # if signal['stop_loss'] < signal['take_profit']:
         if signal['vol'] >= 0:  # long
-            profit_index.append(signal['baseline'])
-            profit_height.append(signal['take_profit'] - signal['open_price'])
-            profit_width.append(signal['end'] - signal['baseline'])
-            profit_base.append(signal['open_price'])
+            if signal['virtual']:
+                vprofit_index.append(signal['baseline'])
+                vprofit_height.append(signal['take_profit'] - signal['open_price'])
+                vprofit_width.append(signal['end'] - signal['baseline'])
+                vprofit_base.append(signal['open_price'])
 
-            loss_index.append(signal['baseline'])
-            loss_height.append(signal['open_price'] - signal['stop_loss'])
-            loss_width.append(signal['end'] - signal['baseline'])
-            loss_base.append(signal['stop_loss'])
+                vloss_index.append(signal['baseline'])
+                vloss_height.append(signal['open_price'] - signal['stop_loss'])
+                vloss_width.append(signal['end'] - signal['baseline'])
+                vloss_base.append(signal['stop_loss'])
+            else:
+                profit_index.append(signal['baseline'])
+                profit_height.append(signal['take_profit'] - signal['open_price'])
+                profit_width.append(signal['end'] - signal['baseline'])
+                profit_base.append(signal['open_price'])
+
+                loss_index.append(signal['baseline'])
+                loss_height.append(signal['open_price'] - signal['stop_loss'])
+                loss_width.append(signal['end'] - signal['baseline'])
+                loss_base.append(signal['stop_loss'])
 
             if not xlim and left_lim > signal['baseline']:
                 left_lim = signal['baseline']
@@ -342,15 +395,26 @@ def plot_stop_take(ax, signals, style={}, xlim=None):
                 right_lim = signal['end']
         elif signal['vol'] < 0:  # short
         # elif signal['stop_loss'] >= signal['take_profit']:
-            profit_index.append(signal['baseline'])
-            profit_height.append(signal['open_price'] - signal['take_profit'])
-            profit_width.append(signal['end'] - signal['baseline'])
-            profit_base.append(signal['take_profit'])
+            if signal['virtual']:
+                vprofit_index.append(signal['baseline'])
+                vprofit_height.append(signal['open_price'] - signal['take_profit'])
+                vprofit_width.append(signal['end'] - signal['baseline'])
+                vprofit_base.append(signal['take_profit'])
 
-            loss_index.append(signal['baseline'])
-            loss_height.append(signal['stop_loss'] - signal['open_price'])
-            loss_width.append(signal['end'] - signal['baseline'])
-            loss_base.append(signal['open_price'])
+                vloss_index.append(signal['baseline'])
+                vloss_height.append(signal['stop_loss'] - signal['open_price'])
+                vloss_width.append(signal['end'] - signal['baseline'])
+                vloss_base.append(signal['open_price'])
+            else:
+                profit_index.append(signal['baseline'])
+                profit_height.append(signal['open_price'] - signal['take_profit'])
+                profit_width.append(signal['end'] - signal['baseline'])
+                profit_base.append(signal['take_profit'])
+
+                loss_index.append(signal['baseline'])
+                loss_height.append(signal['stop_loss'] - signal['open_price'])
+                loss_width.append(signal['end'] - signal['baseline'])
+                loss_base.append(signal['open_price'])
 
             if not xlim and left_lim > signal['baseline']:
                 left_lim = signal['baseline']
@@ -358,72 +422,38 @@ def plot_stop_take(ax, signals, style={}, xlim=None):
                 right_lim = signal['end']
 
     # Style options
-    if 'transparency' not in style:
-        style.update({'transparency': 0.8})
-    transparency = style['transparency']
-    profit_col = 'g'
-    loss_col = 'r'
+    _style = {
+        'transparency': 0.8,
+        'profit_col': 'g',
+        'loss_col': 'r',
+        'profit_virtual': 'b',
+        'loss_virtual': 'y',
+    }
+    _style.update(style)
+    style = _style
+    # if 'transparency' not in style:
+    #     style.update({'transparency': 0.8})
+    # transparency = style['transparency']
+    # profit_col = 'g'
+    # loss_col = 'r'
 
     if not xlim:
         xlim = [left_lim - 1, right_lim + 1]
     ax.set_xlim(xlim[0], xlim[1])
 
-    # ax.bar(profit_index, profit_height, profit_width, color=profit_col, alpha=transparency, bottom=profit_base)
-    # ax.bar(loss_index, loss_height, loss_width, color=loss_col, alpha=transparency, bottom=loss_base)
+    # note profit_width and loss_width etc vwidth all same
+    ax.bar(profit_index, profit_height, width=profit_width, color=style['profit_col'], alpha=style['transparency'], bottom=profit_base, align='edge')
+    ax.bar(loss_index, loss_height,  width=loss_width, color=style['loss_col'], alpha=style['transparency'], bottom=loss_base, align='edge')
+    ax.bar(vprofit_index, vprofit_height,  width=vprofit_width, color=style['profit_col'], alpha=style['transparency'], bottom=vprofit_base, align='edge')
+    ax.bar(vloss_index, vloss_height,  width=vloss_width, color=style['loss_col'], alpha=style['transparency'], bottom=vloss_base, align='edge')
 
-#
-# def plot_stop_take_box(ax, signal, style={}, **kwd):
-#     """Stop_loss, take_profit rectangle. Mainly only accepts index.
-#     WARNING: TEMPORARILY UNUSED - CANNOT GET MATPLOTLIB's RECTANGLE TO WORK"""
-#     # Variables
-#     stop_loss = signal['stop_loss']
-#     take_profit = signal['take_profit']
-#     pos_value = signal['open_price']
-#
-#     # Check if index based or date based
-#     if signal['baseline']._typ == 'int64index':
-#         baseline_date = signal['baseline']
-#         end_date = signal['end']
-#         start_date = signal['start']
-#         period = baseline_date - end_date
-#         # Calculate width
-#         width = period
-#     else:
-#         baseline_date = strtodatetime(signal['baseline'])
-#         end_date = strtodatetime(signal['end'])
-#         start_date = strtodatetime(signal['start'])
-#         period = baseline_date - end_date
-#         if 'interval' in signal:
-#             interval = strtotimedelta(signal['interval'])  # need interval to calculate rect length
-#             width = period / interval
-#         elif 'interval' in kwd:
-#             interval = strtotimedelta(kwd['interval'])  # need interval to calculate rect length
-#             width = period / interval
-#         else:
-#             width = 5
-#     if width < 1:
-#         width = 1
-#
-#     # Style options
-#     if 'transparency' not in style:
-#         style.update({'transparency': 0.8})
-#     transparency = style['transparency']
-#
-#     # Draw stop loss rectangle
-#     profit_rects = []
-#     loss_rects = []
-#     if take_profit > stop_loss:
-#         loss_rects.append(Rectangle((stop_loss, baseline_date), width, pos_value - stop_loss))
-#         profit_rects.append(Rectangle((pos_value, baseline_date), width, take_profit - pos_value))
-#     else:
-#         loss_rects.append(Rectangle((pos_value, baseline_date), width, stop_loss - pos_value))
-#         profit_rects.append(Rectangle((take_profit, baseline_date), width, pos_value - take_profit))
-#
-#     # Add rectangles
-#     l_pc = PatchCollection(loss_rects)
-#     p_pc = PatchCollection(profit_rects)
-#     ax.add_collection(p_pc, facecolor='g', alpha=transparency)
-#     ax.add_collection(l_pc, facecolor='r', alpha=transparency)
+
+def plot_open_stop_take(ax, signals, style={}, xlim=None):
+    """Preliminary stop-loss take-profit rectangles from 'baseline-date' to 'start-date'.
+    The baseline date is a date that was used in the formation of the take-profit rectangle, depending
+    on the algorithm used. E.g. lowest peak at [-3], current date at [0]. If no baseline date,
+    baseline of [-1] will be assumed."""
+    pass
 
 
 def plot_open_close_pos(ax: matplotlib.axes.Axes, signal, style={}, xlim=None):
@@ -474,8 +504,8 @@ def plot_open_close_all_pos(ax: matplotlib.axes.Axes, signals, style={}, xlim=No
     # Style options
     default_style = {
         'transparency': 0.8,
-        'loss_colour': 'r',
-        'profit_colour': 'g',
+        'loss_colour': '#780000',
+        'profit_colour': '#147a00',
         'marker': 'x',
     }
 
@@ -505,9 +535,9 @@ def plot_open_close_all_pos(ax: matplotlib.axes.Axes, signals, style={}, xlim=No
             colour = style['loss_colour']
 
         # Draw circle on open and close positions
-        x = [open_value, close_value]
-        y = [start_date, end_date]
-        # ax.plot(x, y, color=colour, marker=marker)
+        y = [open_value, close_value]
+        x = [start_date, end_date]
+        ax.plot(x, y, color=colour, marker=marker)
 
     if xlim:
         ax.set_xlim(xlim[0], xlim[1])

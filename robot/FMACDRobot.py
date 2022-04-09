@@ -85,12 +85,12 @@ class FMACDRobot(robot):
             'step_size': 1,
         },
         'lots_per_k': {
-            'default': 0.01,
-            'range': [0.001, 0.1],
-            'step_size': 0.001,
+            'default': 10,
+            'range': [0.1, 10],
+            'step_size': 0.1,
         },
         'stop_loss_amp': {
-            'default': 1.1,
+            'default': 1.05,
             'range': [0.9, 2],
             'step_size': 0.001,
         },
@@ -175,6 +175,20 @@ class FMACDRobot(robot):
             'MACD': pd.DataFrame(),
             'MACD_SIGNAL': pd.DataFrame(),
         }
+        self.indicators_done = {
+            # Non-critical
+            'SMA5': False,
+            'SMA50': False,
+            'SMA200': False,
+            'SMA200_HIGH': False,
+            'EMA200': False,
+            # Critical
+            'MACD_HIST': False,
+            'MACD_DF': False,
+            # Signal generators
+            'MACD': False,
+            'MACD_SIGNAL': False,
+        }
         # self.indicators_start = {
         #     # Used to align indicator indices between and with data
         #     'SMA5': 0,
@@ -194,7 +208,8 @@ class FMACDRobot(robot):
         # == Signals ==
         self.signals = []  # { Standard_Dict, FMACD_Specific_Dict }
         self.open_signals = []  # Currently open signals
-        self.new_signals = [] # By definition, open
+        self.new_closed_signals = []  # Deleted on each 'next'. For easy runtime analysis
+        self.new_open_signals = []
         # self.failed_signals = []  # So that the robot doesn't waste time on failed signals;
         # failure saved for analysis. Add failed signals directly to signals...
         # Failed signals should still calculate stop-loss and take-profit for hindsight
@@ -387,13 +402,8 @@ class FMACDRobot(robot):
         # == =   b2: Check indicators =============
 
         #  Check indicators
-        if signal:  # Type- 0: None; 1: Long; 2: Short
-            checks = self.check_indicators(signal['type'])
-            check = True
-            for _check in checks:
-                if not _check:
-                    check = False
-                    break
+        if signal:  # Type- 0: No Signal; 1: Long; 2: Short, 3: NA
+            check = self.check_indicators(signal['type'])
 
             # == =   b3: Confirm Signal =============
 
@@ -588,11 +598,25 @@ class FMACDRobot(robot):
 
     def check_indicators(self, type):
         """Returns a list of integer-bools according to the signal-generating indicators.
-        0: False, 1: Long, 2: Short"""
-        return {
+        0: No Signal, 1: Long, 2: Short, 3: NA"""
+        checks = {
             'MACD_HIST': self.check_macd_hist(type),
             'SMA': self.check_sma(type),
         }
+        check = checks[list(checks.keys())[0]]
+        for _check in checks.values():
+            if not _check:
+                return 0
+            if _check == 3:
+                continue
+            if _check != check and check != 3:  # Ignore 3s: NA/Apathy Number
+                return 0
+            if check == 3:
+                check = _check
+        # Get next "non-3/apathy" value
+        if check == 3:
+            return 0
+        return check
 
     def check_macd(self):
         """Generates signal"""
@@ -609,44 +633,31 @@ class FMACDRobot(robot):
                     return 2
         return 0
 
-    def check_macd_hist(self, _type):
+    def check_macd_hist(self, _type) -> int:
         """Checks Signal"""
+        rev_idx = -1
         if self.test_mode:
             rev_idx = self.test_idx - len(self.df)
-            if self.indicators['MACD_HIST'].iloc[rev_idx] > 0:
-                if self.indicators['MACD_HIST'].iloc[rev_idx] > self.indicators['MACD_HIST'].iloc[rev_idx + 1]:
-                    return _type == 1
-            else:
-                if self.indicators['MACD_HIST'].iloc[rev_idx] < self.indicators['MACD_HIST'].iloc[rev_idx + 1]:
-                    return _type == 2
-
-        if self.indicators['MACD_HIST'].iloc[-1] > 0:
-            if self.indicators['MACD_HIST'].iloc[-1] > self.indicators['MACD_HIST'].iloc[-2]:
-                return _type == 1
+        if self.indicators['MACD_HIST'].iloc[rev_idx] > 0:
+            if self.indicators['MACD_HIST'].iloc[rev_idx] > self.indicators['MACD_HIST'].iloc[rev_idx - 1]:
+                return 1
         else:
-            if self.indicators['MACD_HIST'].iloc[-1] < self.indicators['MACD_HIST'].iloc[-2]:
-                return _type == 2
+            if self.indicators['MACD_HIST'].iloc[rev_idx] < self.indicators['MACD_HIST'].iloc[rev_idx - 1]:
+                return 2
         return 0
 
-    def check_sma(self, _type):
+    def check_sma(self, _type) -> int:
         """Checks Signal"""
+        rev_idx = -1
         if self.test_mode:
             rev_idx = self.test_idx - len(self.df)
-            if self.indicators['SMA200'].iloc[rev_idx] > self.last.Close:
-                return _type == 1
-            else:
-                return _type == 2
-
-        if len(self.indicators['SMA200']) > 0:
-            return 0
-        if self.indicators['SMA200'].iloc[-1] > self.last.Close:
+        # If NaN, false (>) check is False by default
+        if len(self.indicators['SMA200'][self.indicators['SMA200'] > 0]) < 1:
+            return 3
+        if self.indicators['SMA200'].iloc[rev_idx] > self.last.Close:
             return _type == 1
         else:
             return _type == 2
-        return 0
-
-    def check_sma_bundle(self):
-        pass
 
     # Signal (Signal scripts give buy/sell signals. Does not handle stop-loss or take-profit etc.)
 
@@ -662,9 +673,8 @@ class FMACDRobot(robot):
             signal['leverage'] = self.xvar['leverage']
             signal['margin'] = sgn * signal['vol'] / self.xvar['leverage'] * self.xvar['contract_size']
             signal['open_price'] = self.last.Close
-            # signal['virtual'] = True  # Determined after 'create_signal'
             # Generate stop loss and take profit
-            signal['stop_loss'] = self.get_stop_loss(type)
+            signal['stop_loss'], signal['baseline'] = self.get_stop_loss(type)
             signal['take_profit'] = self.get_take_profit(signal['stop_loss'])
             return signal
         return None
@@ -675,7 +685,6 @@ class FMACDRobot(robot):
             sgn = math.copysign(1, signal['vol'])
             self.add_margin(-sgn, signal['margin'])
             self.calc_equity()
-            signal['virtual'] = False
         signal['virtual'] = not check
 
         self.open_signals.append(signal)
@@ -725,7 +734,8 @@ class FMACDRobot(robot):
 
     def add_profit(self, profit):
         self.unrealised_profit[-1] -= profit
-        self.profit[-1] += profit
+        self.margin[-1] += profit
+        self.profit[-1] += profit  # todo profit not increasing!
         if profit > 0:
             self.gross_profit[-1] += profit
         else:
@@ -809,6 +819,7 @@ class FMACDRobot(robot):
             length = self.df
 
         turn = self.last.Close
+        date = self.last_date
         max_loops = 3
         while turn == self.last.Close:
             for i in range(1 + length2 - rev_idx, 1 + length2 + length - rev_idx):
@@ -817,9 +828,11 @@ class FMACDRobot(robot):
                 if type == 1:
                     if self.df.Close.iloc[-i] < turn:
                         turn = self.df.Close.iloc[-i]  # Get low
+                        date = self.df.index[-i]
                 elif type == 2:
                     if self.df.Close.iloc[-i] > turn:
                         turn = self.df.Close.iloc[-i]  # Get high
+                        date = self.df.index[-i]
             length2 += length
             max_loops -= 1
             if max_loops <= 0:
@@ -833,11 +846,11 @@ class FMACDRobot(robot):
         elif type == 2:
             turn += self.stop_loss_flat_amp / 10000
 
-        return turn
+        return turn, date
 
     def get_take_profit(self, stop_loss):
         diff = self.last.Close - stop_loss
-        return self.last.Close + diff
+        return self.last.Close + diff * self.ARGS_DICT['profit_loss_ratio']['default']
 
     # Optimisation
 
@@ -849,11 +862,6 @@ class FMACDRobot(robot):
             self.ivar[idx] += (self.ivar_range[idx][1] - self.ivar[idx]) * robot.IVAR_STEP * i
 
     # Utility
-
-    def close_trade(self):
-
-        # Calculate profit
-        pass
 
     def get_concurr_data(self):
         return self.df[self.df.index.isin(self.stat_datetime)]

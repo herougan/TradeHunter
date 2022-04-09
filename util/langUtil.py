@@ -337,7 +337,9 @@ def get_sim_speed(s: str):
 # Instrument Type
 
 def get_instrument_type(symbol: str):
-    # todo
+    # todo future
+    if symbol in ['CAD=X']:
+        return "Forex"
     return "Forex"
 
 

@@ -18,7 +18,7 @@ from matplotlib import pyplot as plt
 from matplotlib.pyplot import clf
 
 from robot.abstract.robot import robot
-from settings import EVALUATION_FOLDER, OPTIMISATION_FOLDER
+from settings import EVALUATION_FOLDER, OPTIMISATION_FOLDER, PLOTTING_SETTINGS
 from util.dataGraphingUtil import plot_robot_instructions, plot_signals, plot_open_signals, candlestick_plot, \
     get_interval, DATE_FORMAT_DICT, line_plot, plot_line
 from util.dataRetrievalUtil import load_dataset, load_df, get_computer_specs, number_of_datafiles, retrieve, try_stdev
@@ -774,18 +774,24 @@ class DataTester:
         self.robot.start(sym, interval_str, period, df[0: start])
         # Simulate and plot
         self.robot.sim_start()
+        starting_balance = self.xvar['capital']
+        scope = svar['scope']
+
+        # Drawing constants
+        margin = PLOTTING_SETTINGS['plot_margin'][1]
 
         for i in range(start, len(df)):
 
-            # Clear figure
+            # Clear figure # todo dont replot whole figure. although open_signals - signals ... need to find cheatcode!
+            # like baseline_date to start_date stop take, then start_date to end_date close deal!
             for ax_row in axes:
                 for ax in ax_row:
                     ax.clear()
 
-            # Fetch data
+            # Fetch data, === Prepare Data ===
             self.robot.sim_next(df[i:i + 1])
             # indicator = self.robot.get_indicator_df()
-            _df = df[:i+1]
+            _df = df[:i + 1]
             _signals, _open_signals = self.robot.get_signals()
             signals = copy.deepcopy(_signals)
             open_signals = copy.deepcopy(_open_signals)
@@ -803,52 +809,55 @@ class DataTester:
                 #     continue
                 signal['start'] = _df.index[_dates == signal['start']][0]
                 signal['end'] = _df.index[_dates == signal['end']][0]
+                if 'baseline' in signal:
+                    signal['baseline'] = _df.index[_dates == signal['baseline']][0]
                 # signal['updated'] = True
             for signal in open_signals:
                 # if 'updated' in signal:
                 #     continue
                 signal['start'] = _df.index[_dates == signal['start']][0]
                 signal['end'] = signal['start'] + 1
+                if 'baseline' in signal:
+                    signal['baseline'] = _df.index[_dates == signal['baseline']][0]
                 # signal['updated'] = True
 
             # Get xlim
-            if len(_df.index) > svar['scope']:
-                xlim = [_df.index[-svar['scope']-1] - 1, _df.index[-1] + 1]
+            if len(_df.index) > scope:
+                xlim = [_df.index[-scope - 1] - 1, _df.index[-1] + 1]
             else:
                 # xlim = [_df.index[0] - 1, _df.index[-1] + 1]
-                xlim = [0, svar['scope']]
+                xlim = [0, scope]
 
             # Adjust profit data in case of length mismatch
             if len(profit) > len(_df):
-                profit = profit[len(profit)-len(_df):]
+                profit = profit[len(profit) - len(_df):]
             elif len(profit) < len(_df):
                 o = [profit[0] for i in range(len(df) - len(profit))]
                 o.extend(profit)
                 profit = o
             if len(equity) > len(_df):
-                equity = equity[len(equity)-len(_df):]
+                equity = equity[len(equity) - len(_df):]
             elif len(equity) < len(_df):
                 o = [equity[0] for i in range(len(df) - len(equity))]
                 o.extend(equity)
                 equity = o
             if len(balance) > len(_df):
-                balance = balance[len(balance)-len(_df):]
+                balance = balance[len(balance) - len(_df):]
             elif len(balance) < len(_df):
                 o = [balance[0] for i in range(len(df) - len(balance))]
                 o.extend(balance)
                 balance = o
 
-
-            # Plot data
+            # === Plot data ===
             plot_robot_instructions(axes, instructions, xlim)
             if len(signals) > 0:
                 plot_signals(main_ax, signals, xlim)
             if len(signals) > 0:
                 plot_open_signals(main_ax, open_signals, xlim)
             candlestick_plot(main_ax, _df, xlim)
-            plot_line(last_ax, _df.index, equity, {'colour': 'g'}, xlim)
+            plot_line(last_ax, _df.index, equity, {'colour': '#b35300'}, xlim)
             plot_line(last_ax, _df.index, balance, {'colour': 'b'}, xlim)
-            last_ax.set_ylim(bottom=0)  # always flat 0
+            plot_line(last_ax, _df.index, profit, {'colour': 'g'}, xlim)
 
             # Switch back to dates
             x_tick_labels = []
@@ -860,8 +869,23 @@ class DataTester:
                     for label in ax.get_xticklabels():
                         label.set_ha("right")
                         label.set_rotation(45)
+
             # Wait before each step
             # time.sleep(sleep_time)
+
+            # Adjust y-lim, expand with margin
+            # ylim = main_ax.get_ylim()
+            # yheight = ylim[1] - ylim[0]
+            # main_ax.set_ylim(bottom=ylim[0] - yheight * margin,
+            #                  top=ylim[1] + yheight * margin,)
+            # for ax_row in axes:
+            #     for ax in ax_row:
+            #         ylim = ax.get_ylim()
+            #         yheight = ylim[1] - ylim[0]
+            #         ax.set_ylim(bottom=ylim[0] - yheight * margin,
+            #                     top=ylim[1] + yheight * margin, )
+            #         if ax == last_ax:
+            #             last_ax.set_ylim(bottom=0)
 
             # line1.set_xdata(x)
             canvas.draw()

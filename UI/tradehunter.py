@@ -9,6 +9,7 @@ from PyQt5.QtWidgets import (QApplication, QCheckBox, QComboBox, QDateTimeEdit,
                              QAbstractItemView)
 
 # Settings
+from matplotlib import gridspec
 from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg, NavigationToolbar2QT as NavigationToolbar
 import sys
 
@@ -1461,6 +1462,7 @@ class TradeHunterApp:
             self.sim_speed = None
 
             # Handles for particular components
+            self.plot = None  # Plot window that holds canvas
             self.canvas = None
             self.head = None
             self.body = None
@@ -1648,9 +1650,10 @@ class TradeHunterApp:
             xvar_layout.addLayout(xvar_left_layout, 1)
             xvar_layout.addLayout(xvar_right_layout, 1)
 
-            head.addLayout(df_layout)
-            head.addLayout(ivar_layout)
-            head.addLayout(xvar_layout)
+            # Add all col layouts
+            head.addLayout(df_layout, 1)
+            head.addLayout(ivar_layout, 1)
+            head.addLayout(xvar_layout, 2)
 
             # Graph, 3 rows 1 column
             self.canvas = TradeHunterApp.MplMultiCanvas(self, 5, 4, 100, 3, 1)
@@ -1662,11 +1665,11 @@ class TradeHunterApp:
                     if u != 0:
                         axes[i][u].get_yaxis().set_visible(False)
             body.addWidget(self.canvas, 5)
-
             button_layout = QHBoxLayout()
 
             back_button = QPushButton('Back')
             sim_button = QPushButton('Simulate')
+            stop_button = QPushButton('Stop')
 
             def sim_button_clicked():
                 # self.ivar = {}  # Saved on ivar selection
@@ -1679,7 +1682,7 @@ class TradeHunterApp:
                 self.xvar = translate_xvar_dict(self.xvar)
                 self.svar = {
                     'speed': try_float(sim_speed.currentText()),
-                    'scope': 40,  # svar:Scope
+                    'scope': 80,  # svar:Scope
                 }
                 if not df_select.currentText():
                     QMessageBox('You have not selected a data file!')
@@ -1698,11 +1701,12 @@ class TradeHunterApp:
 
             button_layout.addWidget(back_button)
             button_layout.addWidget(sim_button)
+            button_layout.addWidget(stop_button)
             tail.addLayout(button_layout)
 
-            layout.addLayout(head)
-            layout.addLayout(body)
-            layout.addLayout(tail)
+            layout.addLayout(head, 1)
+            layout.addLayout(body, 3)
+            layout.addLayout(tail, 1)
 
             self.setLayout(layout)
             self.show()
@@ -1710,6 +1714,10 @@ class TradeHunterApp:
         def test(self, xvar, ivar, svar, ta_name, df_name, canvas):
             data_tester = DataTester(xvar)
             success, error = data_tester.simulate_single(ta_name, ivar, svar, df_name, canvas)
+
+            self.plot = QWidget()
+            self.plot.setWindowTitle(F'{ta_name} in {df_name}')
+
             if not success:
                 self.alert_window = QWidget()
                 alert_layout = QVBoxLayout()
@@ -1817,6 +1825,7 @@ class TradeHunterApp:
         def __init__(self, parent=None, width=5, height=4, dpi=100, rows=1, cols=1):
             fig = Figure(figsize=(width, height), dpi=dpi)
             self.axes = []
+            gs = gridspec.GridSpec(1, 2, width_ratios=[2, 1])  # todo
             for i in range(rows):
                 _axes = []
                 for j in range(cols):

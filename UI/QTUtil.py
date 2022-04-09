@@ -133,7 +133,3 @@ def full_only(map):
         if to_row: _map.append(row)
 
     return _map
-
-
-def set_test_result(table: QTableWidget, result_df: pd.DataFrame, meta_df: pd.DataFrame):
-    pass  # todo
