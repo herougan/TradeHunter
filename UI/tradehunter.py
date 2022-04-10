@@ -1825,11 +1825,14 @@ class TradeHunterApp:
         def __init__(self, parent=None, width=5, height=4, dpi=100, rows=1, cols=1):
             fig = Figure(figsize=(width, height), dpi=dpi)
             self.axes = []
-            gs = gridspec.GridSpec(1, 2, width_ratios=[2, 1])  # todo
+            height_ratios = [rows/2.0+1]
+            for i in range(1, rows):
+                height_ratios.append(1)
+            gs = gridspec.GridSpec(rows, cols, height_ratios=height_ratios, figure=fig)
             for i in range(rows):
                 _axes = []
                 for j in range(cols):
-                    _axes.append(fig.add_subplot(rows, cols, i * cols + j + 1))
+                    _axes.append(fig.add_subplot(gs[i, j]))
                 self.axes.append(_axes)
             super(TradeHunterApp.MplMultiCanvas, self).__init__(fig)
 

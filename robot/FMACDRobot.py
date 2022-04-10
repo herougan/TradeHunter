@@ -624,14 +624,21 @@ class FMACDRobot(robot):
         if self.test_mode:
             rev_idx = self.test_idx - len(self.df)
 
-        if len(self.indicators['MACD']) > 2 and len(self.indicators['MACD_SIGNAL']) > 2:
-            if self.indicators['MACD'].iloc[rev_idx] > self.indicators['MACD_SIGNAL'].iloc[rev_idx]:
-                if self.indicators['MACD'].iloc[rev_idx + 1] < self.indicators['MACD_SIGNAL'].iloc[rev_idx + 1]:
-                    return 1
-            else:
-                if self.indicators['MACD'].iloc[rev_idx + 1] > self.indicators['MACD_SIGNAL'].iloc[rev_idx + 1]:
-                    return 2
-        return 0
+        parity = self.indicators['MACD'][-2:] > self.indicators['MACD_SIGNAL'][-2:]
+        if parity[-1] != parity[-2]:
+            if parity[-1]:
+                return 1
+            elif parity[-2]:
+                return 2
+        else:
+            return 0
+        # if self.indicators['MACD'].iloc[rev_idx] > self.indicators['MACD_SIGNAL'].iloc[rev_idx]:
+        #     if self.indicators['MACD'].iloc[rev_idx + 1] <= self.indicators['MACD_SIGNAL'].iloc[rev_idx + 1]:
+        #         return 1
+        # else:  # <=
+        #     if self.indicators['MACD'].iloc[rev_idx + 1] > self.indicators['MACD_SIGNAL'].iloc[rev_idx + 1]:
+        #         return 2
+        # return 0
 
     def check_macd_hist(self, _type) -> int:
         """Checks Signal"""
@@ -651,13 +658,14 @@ class FMACDRobot(robot):
         rev_idx = -1
         if self.test_mode:
             rev_idx = self.test_idx - len(self.df)
-        # If NaN, false (>) check is False by default
+        # If NaN, false (>) check is False by default, then return 3
         if len(self.indicators['SMA200'][self.indicators['SMA200'] > 0]) < 1:
             return 3
-        if self.indicators['SMA200'].iloc[rev_idx] > self.last.Close:
-            return _type == 1
-        else:
-            return _type == 2
+        if self.indicators['SMA200'].iloc[rev_idx] < self.last.Low:
+            return 1
+        elif self.indicators['SMA200'].iloc[rev_idx] > self.last.High:
+            return 2
+        return 0
 
     # Signal (Signal scripts give buy/sell signals. Does not handle stop-loss or take-profit etc.)
 

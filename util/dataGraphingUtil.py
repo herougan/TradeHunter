@@ -116,11 +116,6 @@ def add_candlestick_plot(ax, df: pd.DataFrame):
 
 
 def macd_histogram_plot(ax, df: pd.DataFrame, xlim=None):
-    (up, down) = (df[df >= 0], df[df < 0])
-    (up1, up2) = (up[up.ge(up.shift(periods=1))], up[up.lt(up.shift(periods=1))])
-
-    (down1, down2) = (down[down.lt(down.shift(periods=1))], down[down.ge(down.shift(periods=1))])
-    (col1, col2, col3, col4) = ('g', 'r', 'lightgreen', 'lightsalmon')
 
     # Check if there is data to be plotted
     has_data = len([d for d in df if not math.isnan(d)]) > 1
@@ -128,6 +123,14 @@ def macd_histogram_plot(ax, df: pd.DataFrame, xlim=None):
     if has_data:
         if not xlim:
             xlim = [df.index[0], df.index[-1]]
+
+        df = df[df.index > xlim[0]]
+
+        (up, down) = (df[df >= 0], df[df < 0])
+        (up1, up2) = (up[up.ge(up.shift(periods=1))], up[up.lt(up.shift(periods=1))])
+
+        (down1, down2) = (down[down.lt(down.shift(periods=1))], down[down.ge(down.shift(periods=1))])
+        (col1, col2, col3, col4) = ('g', 'r', 'lightgreen', 'lightsalmon')
 
         bar_w = PLOTTING_SETTINGS['candle_fixed_width'] / 10
         if is_datetime(df.index[0]):
@@ -143,20 +146,22 @@ def macd_histogram_plot(ax, df: pd.DataFrame, xlim=None):
         ax.set_xlim(left=xlim[0], right=xlim[1])
 
         # Set y_lim to be dependent to the abs value of the macd hist
-        high, low = 0, 0
-        if len(up.values):
-            high = max(up.values)
-        if len(down.values):
-            low = min(down.values)
-        if abs(low) > high:
-            high = abs(low)
-        ylim = ax.get_ylim()
-        n_ylim = [ylim[0], ylim[1]]
-        if ylim[0] > low:
-            n_ylim[0] = low
-        if ylim[1] < high:
-            n_ylim[1] = high
-        ax.set_ylim(bottom=n_ylim[0], top=n_ylim[1])
+        # high, low = 0, 0
+        # if len(up.values):
+        #     high = max(up.values)
+        # if len(down.values):
+        #     low = min(down.values)
+        # if abs(low) > high:
+        #     high = abs(low)
+        # else:
+        #     low = - high
+        # ylim = ax.get_ylim()
+        # n_ylim = [ylim[0], ylim[1]]
+        # if ylim[0] > low:
+        #     n_ylim[0] = low
+        # if ylim[1] < high:
+        #     n_ylim[1] = high
+        # ax.set_ylim(bottom=n_ylim[0], top=n_ylim[1])
 
 
 def line_plot(ax, df: pd.DataFrame, style={}, xlim=None):
@@ -367,6 +372,8 @@ def plot_stop_take(ax, signals, style={}, xlim=None):
     right_lim = 0
     for signal in signals:
         # if signal['stop_loss'] < signal['take_profit']:
+        if xlim and signal['baseline'] < xlim[0]:
+            continue
         if signal['vol'] >= 0:  # long
             if signal['virtual']:
                 vprofit_index.append(signal['baseline'])
@@ -421,6 +428,10 @@ def plot_stop_take(ax, signals, style={}, xlim=None):
             if not xlim and right_lim < signal['end']:
                 right_lim = signal['end']
 
+    if not xlim:
+        xlim = [left_lim - 1, right_lim + 1]
+    ax.set_xlim(xlim[0], xlim[1])
+
     # Style options
     _style = {
         'transparency': 0.8,
@@ -436,10 +447,6 @@ def plot_stop_take(ax, signals, style={}, xlim=None):
     # transparency = style['transparency']
     # profit_col = 'g'
     # loss_col = 'r'
-
-    if not xlim:
-        xlim = [left_lim - 1, right_lim + 1]
-    ax.set_xlim(xlim[0], xlim[1])
 
     # note profit_width and loss_width etc vwidth all same
     ax.bar(profit_index, profit_height, width=profit_width, color=style['profit_col'], alpha=style['transparency'], bottom=profit_base, align='edge')
@@ -522,6 +529,10 @@ def plot_open_close_all_pos(ax: matplotlib.axes.Axes, signals, style={}, xlim=No
         close_value = signal['close_price']
         end_date = signal['end']
         start_date = signal['start']
+
+        if xlim and start_date < xlim[0]:
+            continue
+
         # if signal['baseline']._typ == 'int64index':
         #     end_date = signal['end']
         #     start_date = signal['start']

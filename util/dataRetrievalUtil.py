@@ -139,7 +139,8 @@ def load_dataset_list():
     path = F'static/datasetdef/'
     # Get list of files that end with .csv
     df_list = [f for f in listdir(path) if isfile(join(path, f)) and f.endswith('.csv')]
-    return df_list.sort()
+    df_list.sort()
+    return df_list
 
 
 def save_dataset(ds_name, dsf):
