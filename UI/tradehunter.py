@@ -406,7 +406,7 @@ class TradeHunterApp:
 
                 def create_button_clicked():
                     self.create_window = self.CreateDatasetWindow()
-                    self.create_window.bind_rebuild(self.build_dataset_list)  # don't double build and MOVE TO NEW INDEX!
+                    self.create_window.bind_rebuild(self.build_dateset_specific)
                     self.create_window.show()
 
                 def save_button_clicked():
@@ -456,6 +456,17 @@ class TradeHunterApp:
                     i += 1
                 self.combo.setCurrentIndex(0)
 
+            def build_dateset_specific(self, ds_name: str):
+                dataset_list = load_dataset_list()
+                i = 0
+                self.combo.clear()
+                for dataset in dataset_list:
+                    # item = QListWidgetItem(F'{dataset}', self.select)
+                    self.combo.insertItem(i, F'{dataset}')
+                    if dataset == ds_name:
+                        self.combo.setCurrentIndex(i)
+                    i += 1
+
             def on_cell_change(self, event):
                 self.saved = False
 
@@ -491,14 +502,17 @@ class TradeHunterApp:
 
                     def create():
                         if name.document().toPlainText():
-                            write_new_empty_dataset(F'{name.document().toPlainText()}')
-                            back()
+                            _name = name.document().toPlainText()
+                            write_new_empty_dataset(F'{_name}')
+                            self.rebuild_f(_name)
+                            # self.back()  # do not trigger back()'s rebuild_f('')
+                            self.close()
                         else:
                             alert = QMessageBox('The name cannot be empty!')
                             alert.show()
 
                     def back():
-                        self.rebuild_f()
+                        self.rebuild_f('')
                         self.close()
 
                     cancel_button.clicked.connect(back)
@@ -675,7 +689,7 @@ class TradeHunterApp:
 
                 def results_analysis_window():
                     # link to result analysis page
-                    result_analysis_window = TradeHunterApp.ResultAnalysisPage()
+                    result_analysis_window = TradeHunterApp.ResultAnalysisPage('default', 'default')
                     return result_analysis_window
 
                 self.rr_window = results_analysis_window()
@@ -799,7 +813,7 @@ class TradeHunterApp:
             tail_layout = QHBoxLayout()
             back_button = QPushButton("Back")
             test_button = QPushButton("Test")
-            optimise_button = QPushButton("Optimise")
+            # optimise_button = QPushButton("Optimise")
             simulate_button = QPushButton("Simulate")
 
             robot_name = self.robot_name
@@ -840,7 +854,7 @@ class TradeHunterApp:
 
                 name_text.setPlainText(normify_name(name_text.document().toPlainText()))
 
-                if not name_text.document().toPlainText():
+                if not name_text.document().toPlainText() or len(name_text.document().toPlainText()) < 2:
                     self.alert_window = QWidget()
                     alert_layout = QVBoxLayout()
                     alert = QMessageBox(self.alert_window)
@@ -908,8 +922,8 @@ class TradeHunterApp:
                 # Test Result and Meta are saved inside .test()
 
                 # Move to Results
-                self.rap = TradeHunterApp.ResultAnalysisPage()
-                self.rap.force_load(test_name, robot_name)
+                self.rap = TradeHunterApp.ResultAnalysisPage(robot_name, test_name)
+                # self.rap.force_load(test_name, robot_name)
                 self.rap.show()
                 self.close()
 
@@ -926,11 +940,11 @@ class TradeHunterApp:
             # === Bottom === Tail buttons
             back_button.clicked.connect(self.back)
             test_button.clicked.connect(to_test)
-            optimise_button.clicked.connect(to_optimise)
+            # optimise_button.clicked.connect(to_optimise)
             simulate_button.clicked.connect(to_simulate)
 
             tail_layout.addWidget(test_button)
-            tail_layout.addWidget(optimise_button)
+            # tail_layout.addWidget(optimise_button)
             tail_layout.addWidget(simulate_button)
             tail_layout.addWidget(back_button)
 
@@ -1002,7 +1016,7 @@ class TradeHunterApp:
             xvar_pane.addLayout(xvar_right_body)
 
             # Bottom progress_bar
-            p_bar2 = QProgressBar()
+            p_bar2 = QProgressBar()  # todo
 
             # Add panes
             panes.addLayout(left_pane)
@@ -1050,6 +1064,19 @@ class TradeHunterApp:
             self.test_result = {}
             self.test_meta = {}
             self.summary_dict = {}
+
+            # Interact-able UI Elements:
+            self.robot_combo = None
+            self.test_combo = None
+            self.optim_combo = None
+            self.labels = []  # for deletion and re-addition
+            self.labels_2 = []
+            self.layouts = []
+            self.d_p = None
+            self.w_p = None
+
+            self.canvas = None
+            self.window()
             if robot_name.lower() == 'default' or test_name.lower() == 'default':
                 # Default Test Result, not Robot Ivar
                 self.summary_dict = {
@@ -1096,7 +1123,7 @@ class TradeHunterApp:
                     'trades_lost': 0,
                     #
                     'largest_profit_trade': 0,
-                    'average_profit_Trade': 0,
+                    'average_profit_trade': 0,
                     'largest_loss_trade': 0,
                     'average_loss_trade': 0,
                     #
@@ -1123,20 +1150,9 @@ class TradeHunterApp:
                     #
                     'dataset': 'None',
                 }
+                self.create_labels()
             else:
-                self.get_and_load_name(robot_name, test_name)
-
-            # Interact-able UI Elements:
-            self.robot_combo = None
-            self.test_combo = None
-            self.labels = []  # for deletion and re-addition
-            self.labels_2 = []
-            self.layouts = []
-            self.d_p = None
-            self.w_p = None
-
-            self.canvas = None
-            self.window()
+                self.force_load(robot_name, test_name)
 
         def window(self):
 
@@ -1157,10 +1173,13 @@ class TradeHunterApp:
             right_choice = QVBoxLayout()
             self.robot_combo = QComboBox()
             self.test_combo = QComboBox()
+            self.optim_combo = QComboBox()
             self.robot_combo.setFixedHeight(20)
             self.test_combo.setFixedHeight(20)
+            self.optim_combo.setFixedHeight(20)
             robot_label = QLabel('Select Robot')
             test_label = QLabel('Select Test')
+            optim_label = QLabel('Select Optimisation')  # todo
             left_choice.addWidget(robot_label)
             left_choice.addWidget(test_label)
             right_choice.addWidget(self.robot_combo)
@@ -1227,10 +1246,15 @@ class TradeHunterApp:
 
                     if len(keys) <= u:
                         break
-                    key = keys[u]
+                    key = list(keys)[u]
 
                     _label = QLabel(key)
-                    _label_2 = QLabel(str(self.summary_dict[key]))
+                    text = self.summary_dict[key]
+                    if try_float(text):
+                        float_text = try_float(text)
+                        _label_2 = QLabel("{:,}".format(round(float_text, 2)))
+                    else:
+                        _label_2 = QLabel(str(self.summary_dict[key]))
 
                     labels.append(_label)
                     labels_2.append(_label_2)
@@ -1271,14 +1295,20 @@ class TradeHunterApp:
             tests = get_tests_list(robot_name)
             self.test_combo.clear()
             if len(tests) < 1:
-                alert_w = QMessageBox(F'No tests under {robot_name} found')
-                alert_w.show()
+                self.alert_window = QWidget()
+                # alert_w = QMessageBox(F'No tests under {robot_name} found')
+                # alert_w.show()
+                alert_layout = QVBoxLayout()
+                alert = QMessageBox(self.alert_window)
+                alert.setText(F'No tests under {robot_name} found')
+                alert_layout.addWidget(alert)
+                alert.show()
             for test in tests:
                 self.test_combo.addItem(test)
 
         # Load results
 
-        def force_load(self, test_name, robot_name):
+        def force_load(self, robot_name, test_name):
             self.get_and_load_name(robot_name, test_name)
 
             # Combo Selection to reflect this:
@@ -1723,6 +1753,7 @@ class TradeHunterApp:
                 alert_layout = QVBoxLayout()
                 alert = QMessageBox(self.alert_window)
                 alert.setText(error)
+                alert_layout.addWidget(alert)
                 alert.show()
 
         def back(self):

@@ -85,9 +85,9 @@ class FMACDRobot(robot):
             'step_size': 1,
         },
         'lots_per_k': {
-            'default': 10,
-            'range': [0.1, 10],
-            'step_size': 0.1,
+            'default': 0.1,
+            'range': [0.01, 1],
+            'step_size': 0.01,
         },
         'stop_loss_amp': {
             'default': 1.05,
@@ -228,6 +228,7 @@ class FMACDRobot(robot):
         self.unrealised_profit = []  # Unrealised P/L
         self.gross_profit = []  # Cumulative Realised Gross Profit
         self.gross_loss = []  # Cumulative Realised Gross Loss
+        self.virtual_profit = []
 
         self.asset = []  # Open Long Position price
         self.liability = []  # Open Short Position Price
@@ -302,6 +303,7 @@ class FMACDRobot(robot):
         self.unrealised_profit.append(0)
         self.gross_profit.append(0)
         self.gross_loss.append(0)
+        self.virtual_profit.append(0)
 
         self.asset.append(0)
         self.liability.append(0)
@@ -430,6 +432,7 @@ class FMACDRobot(robot):
             'unrealised_profit': self.unrealised_profit,
             'gross_profit': self.gross_profit,
             'gross_loss': self.gross_loss,
+            'virtual_profit': self.virtual_profit,
             # £
             'asset': self.asset,
             'liability': self.liability,
@@ -620,11 +623,17 @@ class FMACDRobot(robot):
 
     def check_macd(self):
         """Generates signal"""
-        rev_idx = -2
+        rev_idx = -1
         if self.test_mode:
             rev_idx = self.test_idx - len(self.df)
+            if not self.test_idx:
+                return 0
 
-        parity = self.indicators['MACD'][-2:] > self.indicators['MACD_SIGNAL'][-2:]
+        # parity = self.indicators['MACD'][-rev_idx-1:-rev_idx+1] > self.indicators['MACD_SIGNAL'][-rev_idx-1:-rev_idx+1]
+        # parity = pd.DataFrame([self.indicators['MACD'][-rev_idx-1], self.indicators['MACD'][-rev_idx]]) > \
+        #          pd.DataFrame([self.indicators['MACD_SIGNAL'][-rev_idx-1], self.indicators['MACD_SIGNAL'][-rev_idx]])
+        parity = [self.indicators['MACD'][rev_idx] > self.indicators['MACD_SIGNAL'][rev_idx], \
+                 self.indicators['MACD'][rev_idx-1] > self.indicators['MACD_SIGNAL'][rev_idx-1]]
         if parity[-1] != parity[-2]:
             if parity[-1]:
                 return 1
@@ -722,6 +731,8 @@ class FMACDRobot(robot):
             self.add_profit(action)
             self.add_margin(sgn, signal['margin'])
             self.calc_equity()
+        else:
+            self.add_virtual_profit(action)
 
         # Add signal to signals, remove from open signals
         self.open_signals.remove(signal)
@@ -742,13 +753,16 @@ class FMACDRobot(robot):
 
     def add_profit(self, profit):
         self.unrealised_profit[-1] -= profit
+        self.balance[-1] += profit
         self.margin[-1] += profit
-        self.profit[-1] += profit  # todo profit not increasing!
+        self.profit[-1] += profit
         if profit > 0:
             self.gross_profit[-1] += profit
         else:
             self.gross_loss[-1] -= profit
-        pass
+
+    def add_virtual_profit(self, profit):
+        self.virtual_profit[-1] += profit
 
     def add_margin(self, sgn, margin):
         """Adding margins reduce free margin"""
@@ -788,6 +802,7 @@ class FMACDRobot(robot):
         self.unrealised_profit.append(self.unrealised_profit[-1])
         self.gross_profit.append(self.gross_profit[-1])
         self.gross_loss.append(self.gross_loss[-1])
+        self.virtual_profit.append(self.virtual_profit[-1])
 
         self.short_margin.append(self.short_margin[-1])
         self.long_margin.append(self.long_margin[-1])

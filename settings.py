@@ -75,3 +75,6 @@ PLOTTING_SETTINGS = {
     'plot_margin': [0.1, 0.1],
     'graph_margin': [0.2, 0.2, 0.25],  # x, y, z (if appl.); inner plot margin
 }
+TESTING_SETTINGS = {
+    'optimisation_runs': 3
+}

@@ -340,6 +340,7 @@ def plot_open_signals(ax, signals, xlim):
         # plot_stop_take_box(ax, signal, style)
         # plot_open_close_pos(ax, signal, style)  # no close pos
     plot_stop_take(ax, signals, style, xlim)
+    plot_open_close_all_pos(ax, signals, style, xlim)
 
 
 def plot_stop_take(ax, signals, style={}, xlim=None):
@@ -401,7 +402,6 @@ def plot_stop_take(ax, signals, style={}, xlim=None):
             if not xlim and right_lim < signal['end']:
                 right_lim = signal['end']
         elif signal['vol'] < 0:  # short
-        # elif signal['stop_loss'] >= signal['take_profit']:
             if signal['virtual']:
                 vprofit_index.append(signal['baseline'])
                 vprofit_height.append(signal['open_price'] - signal['take_profit'])
@@ -451,8 +451,8 @@ def plot_stop_take(ax, signals, style={}, xlim=None):
     # note profit_width and loss_width etc vwidth all same
     ax.bar(profit_index, profit_height, width=profit_width, color=style['profit_col'], alpha=style['transparency'], bottom=profit_base, align='edge')
     ax.bar(loss_index, loss_height,  width=loss_width, color=style['loss_col'], alpha=style['transparency'], bottom=loss_base, align='edge')
-    ax.bar(vprofit_index, vprofit_height,  width=vprofit_width, color=style['profit_col'], alpha=style['transparency'], bottom=vprofit_base, align='edge')
-    ax.bar(vloss_index, vloss_height,  width=vloss_width, color=style['loss_col'], alpha=style['transparency'], bottom=vloss_base, align='edge')
+    ax.bar(vprofit_index, vprofit_height,  width=vprofit_width, color=style['profit_virtual'], alpha=style['transparency'], bottom=vprofit_base, align='edge')
+    ax.bar(vloss_index, vloss_height,  width=vloss_width, color=style['loss_virtual'], alpha=style['transparency'], bottom=vloss_base, align='edge')
 
 
 def plot_open_stop_take(ax, signals, style={}, xlim=None):
@@ -460,6 +460,8 @@ def plot_open_stop_take(ax, signals, style={}, xlim=None):
     The baseline date is a date that was used in the formation of the take-profit rectangle, depending
     on the algorithm used. E.g. lowest peak at [-3], current date at [0]. If no baseline date,
     baseline of [-1] will be assumed."""
+
+    # unimplemented. only useful once selective-clear is done
     pass
 
 
@@ -511,15 +513,15 @@ def plot_open_close_all_pos(ax: matplotlib.axes.Axes, signals, style={}, xlim=No
     # Style options
     default_style = {
         'transparency': 0.8,
-        'loss_colour': '#780000',
-        'profit_colour': '#147a00',
+        'loss_colour': '#a80000',
+        'profit_colour': '#0ea800',
+        'loss_virtual': '#7a4747',
+        'profit_virtual': '#4a7a47',
         'marker': 'x',
     }
 
     default_style.update(style)
     style = default_style
-    transparency = style['transparency']
-    colour = style['loss_colour']
     marker = style['marker']
 
     for signal in signals:
@@ -540,10 +542,16 @@ def plot_open_close_all_pos(ax: matplotlib.axes.Axes, signals, style={}, xlim=No
         #     end_date = strtodatetime(signal['end'])
         #     start_date = strtodatetime(signal['start'])
         net = signal['net']
-        if net > 0:
-            colour = style['profit_colour']
+        if signal['virtual']:
+            if net and net > 0:
+                colour = style['profit_virtual']
+            else:
+                colour = style['loss_virtual']
         else:
-            colour = style['loss_colour']
+            if net and net > 0:
+                colour = style['profit_colour']
+            else:
+                colour = style['loss_colour']
 
         # Draw circle on open and close positions
         y = [open_value, close_value]
@@ -558,10 +566,11 @@ def plot_open_close_all_pos(ax: matplotlib.axes.Axes, signals, style={}, xlim=No
 
 def get_interval(df: pd.DataFrame) -> str:
     """Gets interval from dataframe. Must have adjacent data!"""
-    for i in range(1, len(df)):
-        if not math.isnan(df[-i]) and not math.isnan(df[-i-1]):
-            return strtodatetime(df.index[-i]) - strtodatetime(df.index[-i-1])
-    return timedelta(minutes=1)  # default
+    return strtodatetime(df.index[-1]) - strtodatetime(df.index[-2])
+    # for i in range(1, len(df)):
+    #     if not math.isnan(df.index[-i]) and not math.isnan(df.index[-i-1]):
+    #         return strtodatetime(df.index[-i]) - strtodatetime(df.index[-i-1])
+    # return timedelta(minutes=1)  # default
 
 
 def get_yahoo_interval_str(df: pd.DataFrame) -> str:

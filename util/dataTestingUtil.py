@@ -18,7 +18,7 @@ from matplotlib import pyplot as plt
 from matplotlib.pyplot import clf
 
 from robot.abstract.robot import robot
-from settings import EVALUATION_FOLDER, OPTIMISATION_FOLDER, PLOTTING_SETTINGS
+from settings import EVALUATION_FOLDER, OPTIMISATION_FOLDER, PLOTTING_SETTINGS, TESTING_SETTINGS
 from util.dataGraphingUtil import plot_robot_instructions, plot_signals, plot_open_signals, candlestick_plot, \
     get_interval, DATE_FORMAT_DICT, line_plot, plot_line
 from util.dataRetrievalUtil import load_dataset, load_df, get_computer_specs, number_of_datafiles, retrieve, try_stdev
@@ -78,6 +78,7 @@ def base_summary_dict():
         'total_profit': 0,
         'gross_profit': 0,
         'gross_loss': 0,
+        'virtual_profit': 0,
         #
         'profit_factor': 0,
         'recovery_factor': 0,
@@ -118,7 +119,7 @@ def base_summary_dict():
         # 'trades_lost_p': 0,
         #
         'largest_profit_trade': 0,
-        'average_profit_Trade': 0,
+        'average_profit_trade': 0,
         'largest_loss_trade': 0,
         'average_loss_trade': 0,
         #
@@ -200,6 +201,7 @@ def create_summary_df_from_list(stats_dict, signals_dict, df, additional={}):
             gross_profit += signal['net']
     summary_dict['gross_profit'] = gross_profit
     summary_dict['gross_loss'] = gross_loss
+    summary_dict['virtual_profit'] = stats_dict['virtual_profit'][-1]
 
     # deepest loss in drawdown - stats
     mean = 0
@@ -348,9 +350,9 @@ def create_summary_df_from_list(stats_dict, signals_dict, df, additional={}):
         if largest_loss < signal['net']:
             largest_loss = signal['net']
     summary_dict['largest_profit_trade'] = largest_profit
-    summary_dict['average_profit_Trade'] = average_profit / l3
+    summary_dict['average_profit_trade'] = try_divide(average_profit, l3)
     summary_dict['largest_loss_trade'] = largest_loss
-    summary_dict['average_loss_trade'] = average_loss / l3
+    summary_dict['average_loss_trade'] = try_divide(average_loss, l3)
 
     # summary_dict['longest_trade'] = 0
     # summary_dict['longest_profit_trade'] = 0
@@ -385,9 +387,9 @@ def create_summary_df_from_list(stats_dict, signals_dict, df, additional={}):
             longest_length = period
         if shortest_length > period:
             shortest_length = period
-        period_to_net += net / period
+        period_to_net += try_divide(net, period)
         if signal['net'] > 0:
-            period_to_gross += net / period
+            period_to_gross += try_divide(net, period)
         if signal['net'] > 0:
             if winning:
                 win_length += 1
@@ -458,7 +460,7 @@ def aggregate_summary_df_in_dataset(ds_name: str, summary_dict_list: List):
     # gross_profits = [d['gross_profit'] for d in summary_dict_list]
     # gross_loss = [d['gross_loss'] for d in summary_dict_list]
 
-    summary_dict = base_summary_dict().copy()
+    summary_dict = base_summary_dict().copy()  # todo should instead copy out summary_dict and zero all values
     for i in range(len(summary_dict_list)):
         for key in summary_dict_list[i]:
             summary_dict[key] += summary_dict_list[i][key]
@@ -554,8 +556,8 @@ def get_tests_list(robot_name: str):
     return _files
 
 
-def create_test_result(test_name: str, summary_dict_list, meta_df: pd.DataFrame):
-    folder = F'static/results/evaluation'
+def create_test_result(test_name: str, summary_dict_list, meta_df: pd.DataFrame, robot_name: str):
+    folder = F'static/results/evaluation/{robot_name}'
     result_path = F'{folder}/{test_name}.csv'
     meta_path = F'{folder}/{test_name}__meta.csv'
 
@@ -588,11 +590,6 @@ def write_test_result(test_name, summary_dicts: List, robot_name: str):
     sdfs = pd.DataFrame(sdfs)
     sdfs.to_csv(path)
 
-    # summary_df = pd.DataFrame(sdfs[0])
-    # for i in range(sdfs):
-    #     if i != 0:
-    #         summary_df = summary_df.append(pd.DataFrame(sdfs[i]))
-
     print(F'Writing test result at {path}')
     return sdfs
 
@@ -608,6 +605,14 @@ def write_test_meta(test_name, meta_dict, robot_name: str):
     meta.to_csv(meta_path)
     print(F'Writing test result at {meta_path}')
     return meta
+
+
+def write_optimisation_result():
+    pass
+
+
+def write_optimisation_meta():
+    pass
 
 
 def load_test_result(test_name: str, robot_name: str):
@@ -630,6 +635,13 @@ def load_test_meta(meta_name: str, robot_name: str):
     return tmdf
 
 
+def load_optimisation_result():
+    pass
+
+def load_optimisation_meta():
+    pass
+
+
 # Stock type
 
 
@@ -637,18 +649,22 @@ class DataTester:
 
     def __init__(self, xvar):
 
-        self.robot = None
         self.xvar = xvar
         self.progress_bar = None
         self.start_time = None
         self.end_time = None
+
+        # Robot
+        self.robot = None
+        self.robot_ivar = None
+        self.robot_fixed_ivar = None
 
     def bind_progress_bar(self, p_bar: QProgressBar, p_window: QWidget):
         self.p_bar = p_bar
         self.p_window = p_window
 
     # == Test ==
-    def test(self, ta_name: str, ivar: List[float], ds_names: List[str], test_name: str):
+    def test(self, ta_name: str, ivar: List[float], ds_names: List[str], test_name: str, store=True):
 
         self.start_time = datetime.now()
 
@@ -734,12 +750,16 @@ class DataTester:
                 F'arg{i}': ivar[i]
             })
 
+        # Create test meta and result
         test_meta = create_test_meta(test_name, _ivar, self.xvar, meta)  # Returns dict
         test_result = full_summary_dict_list
 
-        # Write Meta and Result
-        write_test_meta(test_name, meta, meta['name'])
-        write_test_result(test_name, test_result, meta['name'])
+        if len(test_name) < 1 or not store:
+            pass
+        else:
+            # Write Meta and Result if storing
+            write_test_meta(test_name, meta, meta['name'])
+            write_test_result(test_name, test_result, meta['name'])
 
         if self.p_bar:
             self.p_bar.setValue(self.p_bar.maximum())
@@ -895,8 +915,11 @@ class DataTester:
         return True, 'No Error'
 
     # == Optimise ==
-    def optimise(self):
-        pass
+    def optimise(self, ta_name: str, init_ivar: List[float], ds_names: List[str], optimisation_name: str):
+        runs = TESTING_SETTINGS['optimisation_runs']
+        ivar = init_ivar
+        for run in runs:
+            test_result, test_meta = self.test(ta_name, ivar, ds_names, '', False)
 
 
 #  General

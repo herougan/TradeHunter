@@ -4,29 +4,31 @@ Separate logic into the different util files
 DataRetrievalUtil downloads data from many files into static. What it downloads is based on a text file.
 DataTestingUtil tests based on data retrieved. Text File is used as reference (or just use every file in folder)
 
+Objective:
 
-1) Store signals as DataFrame - Type, Vol, SMA-Fail, MACD-Fail, Start, End
-                                Short, 10 (lots), False, False (True, True for both), Start, End
-2) DRU downloads data into static from options txt file
+1) Fix testing
 
-3) Copy-and-pasted files contingency: When updating datasets/re-downloading data, if file does not exit,
-try download again (once), continue.
+2) Finish Optimisation
 
-4) All filenames to have '__' between variables
+3) Adjust FMACDRobot
 
-
+4) Progress windows in front, QTUpdate(), share axes
 
 Main Features:
 
-1) Result Analysis page, default page
-1a) Progress bar not be in another window
-
-3) Optimise robots against dataset(s) producing recommended initial variables (iVars)
+1) Optimise robots against dataset(s) producing recommended initial variables (iVars)
 - single type testing vs multi type
 
-4) Test + Plot robot against 1 data instrument, producing 'white-box' plots
+2) During sim plotting, only plot the latest data, do not clear and replot the xlim'd graph. Actually current way may be better,
+as old data is cleared
 
-5) Analysis for dataset
+3) One-time plot, simulate a test and do a one-time plot of all the data.
+
+4) Main methods for non-GUI treatments. e.g. for interactability etc.
+
+# Algorithms
+
+New.
 
 # Final
 
