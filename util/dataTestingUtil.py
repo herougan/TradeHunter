@@ -1,6 +1,7 @@
 import copy
 import datetime
 import os
+import random
 import time
 from datetime import datetime, timedelta
 import math
@@ -18,7 +19,7 @@ from matplotlib import pyplot as plt
 from matplotlib.pyplot import clf
 
 from robot.abstract.robot import robot
-from settings import EVALUATION_FOLDER, OPTIMISATION_FOLDER, PLOTTING_SETTINGS, TESTING_SETTINGS
+from settings import EVALUATION_FOLDER, OPTIMISATION_FOLDER, PLOTTING_SETTINGS, TESTING_SETTINGS, OPTIMISATION_SETTINGS
 from util.dataGraphingUtil import plot_robot_instructions, plot_signals, plot_open_signals, candlestick_plot, \
     get_interval, DATE_FORMAT_DICT, line_plot, plot_line
 from util.dataRetrievalUtil import load_dataset, load_df, get_computer_specs, number_of_datafiles, retrieve, try_stdev
@@ -161,7 +162,7 @@ def create_summary_df_from_list(stats_dict, signals_dict, df, additional={}):
     equity_d = stats_dict['equity']
     signals = signals_dict['signals']
 
-    summary_dict = base_summary_dict()
+    summary_dict = base_summary_dict().copy()
     summary_dict.update(additional)
 
     complete_signals, incomplete_signals, profit_signals, loss_signals = [], [], [], []
@@ -189,18 +190,11 @@ def create_summary_df_from_list(stats_dict, signals_dict, df, additional={}):
 
     summary_dict['period'] = stats_dict['datetime'][-1] - stats_dict['datetime'][0]
     summary_dict['n_bars'] = len(df.index)
-    summary_dict['ticks'] = -1  # not applicable here
+    summary_dict['ticks'] = len(df.index)  # not applicable here
     #
     summary_dict['total_profit'] = profit_d[-1]
-    gross_profit = 0
-    gross_loss = 0
-    for signal in signals:
-        if signal['net'] > 0:
-            gross_profit += signal['net']
-        elif signal['net'] < 0:
-            gross_profit += signal['net']
-    summary_dict['gross_profit'] = gross_profit
-    summary_dict['gross_loss'] = gross_loss
+    summary_dict['gross_profit'] = stats_dict['gross_profit'][-1]
+    summary_dict['gross_loss'] = stats_dict['gross_loss'][-1]
     summary_dict['virtual_profit'] = stats_dict['virtual_profit'][-1]
 
     # deepest loss in drawdown - stats
@@ -460,7 +454,7 @@ def aggregate_summary_df_in_dataset(ds_name: str, summary_dict_list: List):
     # gross_profits = [d['gross_profit'] for d in summary_dict_list]
     # gross_loss = [d['gross_loss'] for d in summary_dict_list]
 
-    summary_dict = base_summary_dict().copy()  # todo should instead copy out summary_dict and zero all values
+    summary_dict = base_summary_dict().copy()
     for i in range(len(summary_dict_list)):
         for key in summary_dict_list[i]:
             summary_dict[key] += summary_dict_list[i][key]
@@ -468,7 +462,10 @@ def aggregate_summary_df_in_dataset(ds_name: str, summary_dict_list: List):
         if len(summary_dict_list) > 0:
             summary_dict[key] /= len(summary_dict_list)
         else:
-            summary_dict[key] = 0
+            if key == 'period':
+                summary_dict[key] = timedelta(0)
+            else:
+                summary_dict[key] = 0
 
     final_summary_dict = {
         'n_instruments': len(summary_dict_list),
@@ -490,21 +487,27 @@ def aggregate_summary_df_in_datasets(summary_dict_list: List):
         return {}
 
     final_summary_dict = summary_dict_list[0].copy()
-    total_instruments = 0
+    # total_instruments = final_summary_dict['n_instruments']
+    total_instruments = sum([s['n_instruments'] for s in summary_dict_list])
     for i in range(len(summary_dict_list)):
         if i == 0:
             continue
         for key in summary_dict_list[i]:
-            final_summary_dict[key] += summary_dict_list[i][key] * summary_dict_list[i]['n_instruments']
-        total_instruments += summary_dict_list[i]['n_instruments']
+            if not key.lower() == 'dataset':
+                final_summary_dict[key] += summary_dict_list[i][key] * summary_dict_list[i]['n_instruments'] \
+                                           / total_instruments
+        # total_instruments += summary_dict_list[i]['n_instruments']
+    del final_summary_dict['dataset']
 
-    for key in final_summary_dict:
-        if not key.lower() == 'dataset':
-            final_summary_dict[key] = try_divide(final_summary_dict[key], total_instruments)
+    # for key in final_summary_dict:
+    #     if not key.lower() == 'dataset':
+    #         final_summary_dict[key] = try_divide(final_summary_dict[key], total_instruments)
 
     final_summary_dict.update({
         'n_datasets': len(summary_dict_list),
-        'dataset': 'Total'
+        'name': 'Total',
+        #
+        'datasets': [s['dataset'] + ", " for s in summary_dict_list],
     })
 
     return final_summary_dict
@@ -603,7 +606,7 @@ def write_test_meta(test_name, meta_dict, robot_name: str):
 
     meta = pd.DataFrame([meta_dict])
     meta.to_csv(meta_path)
-    print(F'Writing test result at {meta_path}')
+    print(F'Writing test meta at {meta_path}')
     return meta
 
 
@@ -637,6 +640,7 @@ def load_test_meta(meta_name: str, robot_name: str):
 
 def load_optimisation_result():
     pass
+
 
 def load_optimisation_meta():
     pass
@@ -758,7 +762,7 @@ class DataTester:
             pass
         else:
             # Write Meta and Result if storing
-            write_test_meta(test_name, meta, meta['name'])
+            write_test_meta(test_name, test_meta, meta['name'])
             write_test_result(test_name, test_result, meta['name'])
 
         if self.p_bar:
@@ -816,7 +820,7 @@ class DataTester:
             signals = copy.deepcopy(_signals)
             open_signals = copy.deepcopy(_open_signals)
             instructions = self.robot.get_instructions()
-            profit, equity, balance = self.robot.get_profit()
+            profit, equity, balance, margin = self.robot.get_profit()
 
             # Convert x to indices, remove weekends
             _dates = _df.index
@@ -847,37 +851,52 @@ class DataTester:
             else:
                 # xlim = [_df.index[0] - 1, _df.index[-1] + 1]
                 xlim = [0, scope]
-
             # Adjust profit data in case of length mismatch
-            if len(profit) > len(_df):
-                profit = profit[len(profit) - len(_df):]
-            elif len(profit) < len(_df):
-                o = [profit[0] for i in range(len(df) - len(profit))]
-                o.extend(profit)
-                profit = o
-            if len(equity) > len(_df):
-                equity = equity[len(equity) - len(_df):]
-            elif len(equity) < len(_df):
-                o = [equity[0] for i in range(len(df) - len(equity))]
-                o.extend(equity)
-                equity = o
-            if len(balance) > len(_df):
-                balance = balance[len(balance) - len(_df):]
-            elif len(balance) < len(_df):
-                o = [balance[0] for i in range(len(df) - len(balance))]
-                o.extend(balance)
-                balance = o
+            # adjusted = []
+            # for data in [profit, equity, balance, margin]:
+            #     if len(data) > len(_df):
+            #         data = data[len(data) - len(_df):]
+            #         adjusted.append(data)
+            #     else:
+            #         o = [data[0] for i in range(len(_df) - len(data))]
+            #         o.extend(data)
+            #         data = o
+            #         adjusted.append(data)
+            # if len(profit) > len(_df):
+            #     profit = profit[len(profit) - len(_df):]
+            # elif len(profit) < len(_df):
+            #     o = [profit[0] for i in range(len(df) - len(profit))]
+            #     o.extend(profit)
+            #     profit = o
+            # if len(equity) > len(_df):
+            #     equity = equity[len(equity) - len(_df):]
+            # elif len(equity) < len(_df):
+            #     o = [equity[0] for i in range(len(df) - len(equity))]
+            #     o.extend(equity)
+            #     equity = o
+            # if len(balance) > len(_df):
+            #     balance = balance[len(balance) - len(_df):]
+            # elif len(balance) < len(_df):
+            #     o = [balance[0] for i in range(len(df) - len(balance))]
+            #     o.extend(balance)
+            #     balance = o
 
             # === Plot data ===
+
             plot_robot_instructions(axes, instructions, xlim)
             if len(signals) > 0:
                 plot_signals(main_ax, signals, xlim)
             if len(signals) > 0:
                 plot_open_signals(main_ax, open_signals, xlim)
             candlestick_plot(main_ax, _df, xlim)
+            plot_line(last_ax, _df.index, profit, {'colour': 'g'}, xlim)
             plot_line(last_ax, _df.index, equity, {'colour': '#b35300'}, xlim)
             plot_line(last_ax, _df.index, balance, {'colour': 'b'}, xlim)
-            plot_line(last_ax, _df.index, profit, {'colour': 'g'}, xlim)
+            plot_line(last_ax, _df.index, margin, {'colour': '#000000'}, xlim)
+            # plot_line(last_ax, _df.index, adjusted[0], {'colour': 'g'}, xlim)
+            # plot_line(last_ax, _df.index, adjusted[1], {'colour': '#b35300'}, xlim)
+            # plot_line(last_ax, _df.index, adjusted[2], {'colour': 'b'}, xlim)
+            # plot_line(last_ax, _df.index, adjusted[3], {'colour': '#000000'}, xlim)
 
             # Switch back to dates
             x_tick_labels = []
@@ -918,8 +937,199 @@ class DataTester:
     def optimise(self, ta_name: str, init_ivar: List[float], ds_names: List[str], optimisation_name: str):
         runs = TESTING_SETTINGS['optimisation_runs']
         ivar = init_ivar
-        for run in runs:
-            test_result, test_meta = self.test(ta_name, ivar, ds_names, '', False)
+        args_dict = self.robot.ARGS_DICT
+
+        # Base options
+        max_runs = OPTIMISATION_SETTINGS['max_runs']
+        step_size = OPTIMISATION_SETTINGS['arg_step_size']  # alpha
+
+
+        def adjust_ivar(spread_results):
+            pass
+
+        def suggest_ivar(spread_results):
+
+            main_ivar = spread_results['origin']
+            new_ivar = main_ivar.copy()
+
+            for key in spread_results.keys():
+                if key == 'origin':
+                    continue
+
+                spread_results.update({
+                    key: {
+                        'fitness_diff': main_ivar['profit'] - spread_results[key]['profit'],
+                        'val_diff': main_ivar['ivar'] - spread_results[key]['ivar'],
+                    }
+                })
+                # did it decrease?
+
+            normalisation_constant = 0
+            for key in spread_results.keys():
+                normalisation_constant += math.pow(spread_results[key]['fitness_diff'], 2)
+            normalisation_constant /= len(spread_results.keys())
+
+            for key in spread_results.keys():
+                pass
+                min_step = args_dict[key]['step_size']
+                #
+                if min_step:
+                    move = step_size * min_step * math.pow(spread_results[key]['fitness_diff'], 2) / normalisation_constant
+                else:
+                    if step_size > 1 / 10:
+                        step_size = 0.1
+                    move = step_size / 10 * (args_dict[key]['range'][1] - args_dict[key]['step_size'][0])
+
+
+            answer_dict_list = []
+
+            for group in spread_results:
+                _ivar = group['ivar']
+                _key = group['key']
+                _growth = group['total_growth']
+
+                # if to increase # default
+                increase = True
+
+                # if to decrease
+                increase = False
+
+                answer_dict_list.append({
+                    'key': _key,
+                    'increase': increase,  # False if decrease
+                })
+
+            # for each key, find the edited version,
+
+            for answer in answer_dict_list:
+                pass
+                # if increase, try increase
+
+                # if decrease, try decrease
+
+            # if the value went down, prepare to move in the opposite direction!
+
+            # return new ivar
+            return new_ivar
+
+        def random_ivar(prev_ivar_list):
+            """Create a random initial starting ivar"""
+            _ivar = {}
+            for key in args_dict.keys():
+                arg_range = args_dict[key]['range']
+                step = args_dict[key]['step_size']
+                r = random.Random.random()
+                # find closest step
+                if step == 0:
+                    value = r * (arg_range[1] - arg_range[0]) + arg_range[0]
+                else:
+                    target = r * (arg_range[1] - arg_range[0]) + arg_range[0]
+                    steps = (arg_range[1] - arg_range[0]) / step
+                    # Binary search
+                    c_step = steps // 2
+                    top_step, btm_step = 0, steps
+                    while True:
+                        value = step * c_step + arg_range[0]
+                        if abs(value - target) <= step:
+                            break
+                        elif value > target:
+                            top_step = c_step
+                            c_step = (c_step + btm_step) // 2
+                        elif value < target:
+                            btm_step = c_step
+                            c_step += (c_step + top_step) // 2
+                _ivar.update({
+                    key: value
+                })
+            ivar = _ivar.copy()
+            return ivar
+
+        def ivar_spread(ivar):
+            # Ivar itself
+            ivar_key_tuples = {
+                'origin': ivar,
+            }
+            # Test hypersphere around ivar
+            for key in args_dict.keys():
+                r = random.Random.random()
+                _ivar = ivar.copy()
+                range = args_dict[key]['range']
+                curr = ivar[key]
+
+                # Roll to try inc. or dec.
+                if r > 0.5:  # Increase
+                    if range[1] - curr == 0:  # Cannot increase further
+                        _val = range[1]
+                        _ivar[key] = _val
+                    elif range[1] - curr <= args_dict[key]['step']:  # Touch end point
+                        _val = range[1]
+                        _ivar[key] = _val
+                    else:  # not in any edge case
+                        _val = curr + (range[1] - range[0]) * step_size
+                        _ivar[key] = _val
+                    ivar_key_tuples.update({
+                        key: {
+                            'ivar': _ivar,
+                        }
+                    })
+                else:  # Decrease
+                    if curr - range[0] == 0:
+                        _val = range[1]
+                        _ivar[key] = _val
+                    elif curr - range[0] <= args_dict[key]['step']:
+                        _val = range[1]
+                        _ivar[key] = _val
+                    else:  #
+                        _val = curr - (range[1] - range[0]) * step_size
+                        _ivar[key] = _val
+                    ivar_key_tuples.update({
+                        key: {
+                            'ivar': _ivar,
+                        }
+                    })
+            return ivar_key_tuples
+
+        def ivar_descend(ivars, results):
+            pass
+
+        ivar_result_tuples = []  # [[ivar, result],...]
+        for i in range(runs):
+
+            ivar = random_ivar()
+            while True:  # either >100 in-runs or results hit a plateau
+
+                # Get spread to analyse
+                ivar_tuples_to_test = ivar_spread(ivar)
+                results_dict = {}
+                results = []
+                # Get spread results
+                for key in ivar_tuples_to_test.keys():
+
+                    ivar_dict = ivar_tuples_to_test[key]
+                    test_result, test_meta = self.test(ta_name, ivar_dict['ivar'], ds_names, '', False)
+                    results.append(test_result)
+
+                    if key == 'origin':
+                        continue
+
+                    ivar_dict.update({
+                        'profit': test_result['balance'][-1] / test_result['balance'][0],
+                    })
+                    ivar_result_tuples.append(ivar_dict)
+
+                # Determine next move based on deltas
+                ivar = suggest_ivar(ivar_result_tuples)
+
+                # If reflected (All ivars reflected)
+                break
+                # If barely any change
+                break
+                # If too many rounds
+                if i > max_runs:
+                    break
+                ivar = adjust_ivar(results)
+
+            ivar_result_tuple = sorted(ivar_result_tuple, key=lambda x: x[1])
 
 
 #  General

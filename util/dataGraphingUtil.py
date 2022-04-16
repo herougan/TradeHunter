@@ -221,10 +221,10 @@ def plot_line(ax, x, y, style={}, xlim=[]):
     ax.plot(x, y, color=style['colour'], alpha=style['transparency'])
     ax.set_xlim(left=xlim[0], right=xlim[1])
 
-    ylim = ax.get_ylim()
-    yheight = ylim[1] - ylim[0]
-    ax.set_ylim(bottom=0,
-                top=ylim[1] + yheight * PLOTTING_SETTINGS['plot_margin'][1], )
+    # ylim = ax.get_ylim()
+    # yheight = ylim[1] - ylim[0]
+    # ax.set_ylim(bottom=0,
+    #             top=ylim[1] + yheight * PLOTTING_SETTINGS['plot_margin'][1], )
 
 
 # Indicators

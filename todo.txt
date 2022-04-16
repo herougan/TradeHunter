@@ -4,6 +4,24 @@ Separate logic into the different util files
 DataRetrievalUtil downloads data from many files into static. What it downloads is based on a text file.
 DataTestingUtil tests based on data retrieved. Text File is used as reference (or just use every file in folder)
 
+Bug fixes:
+
+1) Dataset data auto fill in does not fill in past the first. Should.
+
+2) Rename ivar, delete ivar
+
+3) Rename dataset, delete dataset
+
+4) Delete all data button
+
+5) Bring progress windows to the front
+5b) Testing and optimisation: Progress bar embedded
+5c) Graph embedded during optimisation
+5d) result analysis shows all datasets tested
+
+6) Load optimisation page later
+
+
 Objective:
 
 1) Fix testing
@@ -44,7 +62,13 @@ to see which type of trends/shapes/market conditions it is better at trading in.
 
 
 
+UI:
 
+1) Switching between datasets resets the current datatable scroll value
+
+2) Dataset suggested fill issues
+
+Others:
 
 
 10) Lag Signals

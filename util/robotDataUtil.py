@@ -17,6 +17,33 @@ def get_arg_range(args, args_range, idx):
         return []
 
 
+def get_arg_dict_step_size(robot):
+    args_dict = robot.ARGS_DICT
+    defaults = []
+    for key in args_dict.keys():
+        defaults.append(args_dict[key]['step_size'])
+
+    return defaults
+
+
+def get_arg_dict_range(robot):
+    args_dict = robot.ARGS_DICT
+    defaults = []
+    for key in args_dict.keys():
+        defaults.append(args_dict[key]['range'])
+
+    return defaults
+
+
+def get_arg_dict_defaults(robot):
+    args_dict = robot.ARGS_DICT
+    defaults = []
+    for key in args_dict.keys():
+        defaults.append(args_dict[key]['default'])
+
+    return defaults
+
+
 def generate_base_signal_dict():
     signal = {
         'type': None,  # 0: None/Error, 1: Long, 2: Short
@@ -36,3 +63,9 @@ def generate_base_signal_dict():
         # MACD_Hist_weight: 0.5
     }
     return signal
+
+
+def get_ivar_val_by_percentage(args_dict, percentage, key):
+    """Returns closest 'step' to percentage in args range. E.g. X% refers to the
+    nearest step between range[0] and range[1] where step / (range[1] - range[0]) approx.= X%"""
+    pass

@@ -6,10 +6,11 @@ import pandas as pd
 class robot:
     IVAR_STEP = 0.05
 
-    N_ARGS = 2
-    ARGS_STR = ['stop_loss', 'take_profit']
+    # N_ARGS = 2
+    # ARGS_STR = ['stop_loss', 'take_profit']
     ARGS_DEFAULT = [1, 1.5]
-    ARGS_RANGE = [[0.01, 10], [0.01, 10]]
+    # ARGS_RANGE = [[0.01, 10], [0.01, 10]]
+    ARGS_DICT = {}
 
     def __init__(self, ivar=ARGS_DEFAULT, xvar={}):
         pass

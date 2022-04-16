@@ -258,7 +258,7 @@ def add_as_dataset_change(ds_name: str):
     path = F'/static/common/datasetchanges.txt'
     dsc = pd.read_csv(F'{os.getcwd()}{path}', index_col=0)
     print("---------------")
-    if ds_name in dsc['name']:
+    if ds_name in list(dsc['name']):
         print(F'Overwriting dataset {ds_name} - Abort, already most updated')
     else:
         _new = pd.DataFrame([[ds_name]], columns=['name'], index=[len(dsc.index)])

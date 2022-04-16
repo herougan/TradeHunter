@@ -20,21 +20,21 @@ def strtotimedelta(s: str):
         (d, a) = drsplit(_s)
         if d is None:
             pass
-        elif a == "M" or "minute".casefold() in a.casefold():
+        elif a.lower() == "m" or "minute".casefold() in a.casefold():
             t += timedelta(minutes=d)
-        elif a == "H" or "hour".casefold() in a.casefold():
+        elif a.lower() == "h" or "hour".casefold() in a.casefold():
             t += timedelta(hours=d)
-        elif a == "d" or "day".casefold() in a.casefold():
+        elif a.lower() == "d" or "day".casefold() in a.casefold():
             t += timedelta(days=d)
-        elif a == "wk" or "week".casefold() in a.casefold():
+        elif a.lower() == "wk" or "week".casefold() in a.casefold():
             t += timedelta(weeks=d)
-        elif a == "mo" or "month".casefold() in a.casefold():
+        elif a.lower() == "mo" or "month".casefold() in a.casefold():
             t += timedelta(weeks=d * 4)
-        elif a == "y" or "year".casefold() in a.casefold():
+        elif a.lower() == "y" or "year".casefold() in a.casefold():
             t += timedelta(weeks=d * 48)
-        elif a == "s" or "second".casefold() in a.casefold():
+        elif a.lower() == "s" or "second".casefold() in a.casefold():
             t += timedelta(seconds=d)
-        elif s == "max":
+        elif s.lower() == "max":
             return s
     return t
 
@@ -181,14 +181,14 @@ def yahoolimitperiod_leftover(period: timedelta, interval: str):
         '2m': '7d',
         '5m': '7d',
         '15m': '60d',
-        '30m': '60d',
-        '60m': '60d',
-        '90m': '60d',
+        '30m': '100d',
+        '60m': '365d',
         '1h': '365d',
+        '90m': '365d',
         '1d': '1000d',
     }
 
-    eff_interval = '1M'
+    eff_interval = '1m'
     diff = strtotimedelta(eff_interval) - strtotimedelta(interval)
     for key in min_dict.keys():
         _diff = strtotimedelta(key) - strtotimedelta(interval)

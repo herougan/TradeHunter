@@ -41,7 +41,7 @@ SUGGESTIONS = {
     'periods': ['1d', '5d', '1wk', '1mo', '3mo', '6mo', '1y', '2y', '5y', 'max', ],
     'lag': ['0 ms', '10 ms', '100 ms', '1 s', '10 s', ],
     'leverage': ['10:1', '1:1', '1:10', '1:100', '1:200', '1:500', '1:1000', ],
-    'instrument_type': ['Forex', '0.01 Forex', 'Crypto', 'Stock', 'Index', 'Futures', 'Hedge'],
+    'instrument_type': ['Crypto', 'Stock', 'Index', 'Futures', 'Hedge', 'Forex'],
     'sim_speed': ['0.5x', '1x', '2x', '5x', '10x', '25x', '100x', '500x', '1000x'],
     'capital': [1000, 10000, 100000, 1000000,],
     'flat_commission': [0, 0.01, 0.1, 1,],
@@ -77,4 +77,9 @@ PLOTTING_SETTINGS = {
 }
 TESTING_SETTINGS = {
     'optimisation_runs': 3
+}
+OPTIMISATION_SETTINGS = {
+    'max_runs': 100,
+    'arg_step_size': 1,  # Adjusts step size during optimisation.
+    # 0.05 = 5% of minimum step value (if appl.) or 5%/10 of full range - max 10%.
 }

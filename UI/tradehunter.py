@@ -1,3 +1,4 @@
+import PyQt5
 import pandas as pd
 from PyQt5 import QtCore
 from PyQt5.QtCore import QDateTime, Qt, QTimer
@@ -118,18 +119,18 @@ class TradeHunterApp:
 
             splot_button = QPushButton('Simple Plotter')
             ssim_button = QPushButton('Single Sim')
-            stest_button = QPushButton('Single Test')
-            rc_button = QPushButton('Robot Comparison')
-            dc_button = QPushButton('Data Comparison')
+            # stest_button = QPushButton('Single Test')
+            # rc_button = QPushButton('Robot Comparison')
+            # dc_button = QPushButton('Data Comparison')
             back_button = QPushButton('Back')
 
             body = QVBoxLayout()
 
             body.addWidget(splot_button)
             body.addWidget(ssim_button)
-            body.addWidget(stest_button)
-            body.addWidget(rc_button)
-            body.addWidget(dc_button)
+            # body.addWidget(stest_button)
+            # body.addWidget(rc_button)
+            # body.addWidget(dc_button)
             body.addWidget(back_button)
 
             tail = QVBoxLayout()
@@ -158,9 +159,9 @@ class TradeHunterApp:
             # This window does not close upon plotting.
             splot_button.clicked.connect(splot_clicked)
             ssim_button.clicked.connect(ssim_clicked)
-            stest_button.clicked.connect(stest_clicked)
-            rc_button.clicked.connect(rc_button_clicked)
-            dc_button.clicked.connect(dc_button_clicked)
+            # stest_button.clicked.connect(stest_clicked)
+            # rc_button.clicked.connect(rc_button_clicked)
+            # dc_button.clicked.connect(dc_button_clicked)
             back_button.clicked.connect(self.back)
 
             button_layout.addWidget(back_button)
@@ -243,12 +244,13 @@ class TradeHunterApp:
                     self.download_progress.setValue(self.download_progress.value() + 1)
                     self.p_window.setWindowTitle(F"Downloading {row['name']}")
                     retrieve_ds(row['name'], True)
+                    PyQt5.QtWidgets.QApplication.processEvents()
 
                 self.p_window.setWindowTitle(F"Download complete. You may close the window.")
 
                 clear_dataset_changes()
 
-                # In case of change, update datesets display
+                # In case of change, update dataset(s) display
                 left.build_dataset_instruments(left.combo.currentText())
 
             def import_clicked():
@@ -567,15 +569,13 @@ class TradeHunterApp:
             layout = QVBoxLayout()
 
             test_robot_button = QPushButton('Testing Chamber')
-            optimise_robot_button = QPushButton('Optimise')
             robot_results_button = QPushButton('Results Analysis')
-            optimise_dataset_button = QPushButton('Analyse Data')
             back_button = QPushButton('Back')
 
             layout.addWidget(test_robot_button)
-            layout.addWidget(optimise_robot_button)
+            # layout.addWidget(optimise_robot_button)
             layout.addWidget(robot_results_button)
-            layout.addWidget(optimise_dataset_button)
+            # layout.addWidget(optimise_dataset_button)
             layout.addWidget(back_button)
 
             def on_test_robot_button_pressed():
@@ -637,53 +637,53 @@ class TradeHunterApp:
 
             test_robot_button.clicked.connect(on_test_robot_button_pressed)
 
-            def on_optimise_robot_button_pressed():
-
-                def optimise_robot_window():
-
-                    or_window = QWidget()
-                    select_layout = QHBoxLayout()
-                    robot_label = QLabel('Robot')
-                    robot_select = QListWidget()
-                    select_layout.addWidget(robot_label)
-                    select_layout.addWidget(robot_select)
-
-                    for ta in load_trade_advisor_list():
-                        item = QListWidgetItem(ta, robot_select)
-                    robot_select.setFixedHeight(20)
-
-                    layout = QVBoxLayout()
-
-                    button_layout = QHBoxLayout()
-                    confirm_button = QPushButton('Confirm')
-                    cancel_button = QPushButton('Cancel')
-
-                    def on_confirm():
-                        self.close()
-                        if not robot_select.currentItem():
-                            QMessageBox('You have not selected a robot')
-                        else:
-                            print("Select:", robot_select.currentItem().text())
-                        self.test_chamber_window = TradeHunterApp.TestingChamberPage()
-
-                    def on_cancel():
-                        or_window.close()
-
-                    confirm_button.clicked.connect(on_confirm)
-                    cancel_button.clicked.connect(on_cancel)
-                    button_layout.addWidget(cancel_button)
-                    button_layout.addWidget(confirm_button)
-
-                    layout.addLayout(select_layout)
-                    layout.addLayout(button_layout)
-
-                    or_window.setLayout(layout)
-                    return or_window
-
-                self.or_window = optimise_robot_window()
-                self.or_window.show()
-
-            optimise_robot_button.clicked.connect(on_optimise_robot_button_pressed)
+            # def on_optimise_robot_button_pressed():
+            #
+            #     def optimise_robot_window():
+            #
+            #         or_window = QWidget()
+            #         select_layout = QHBoxLayout()
+            #         robot_label = QLabel('Robot')
+            #         robot_select = QListWidget()
+            #         select_layout.addWidget(robot_label)
+            #         select_layout.addWidget(robot_select)
+            #
+            #         for ta in load_trade_advisor_list():
+            #             item = QListWidgetItem(ta, robot_select)
+            #         robot_select.setFixedHeight(20)
+            #
+            #         layout = QVBoxLayout()
+            #
+            #         button_layout = QHBoxLayout()
+            #         confirm_button = QPushButton('Confirm')
+            #         cancel_button = QPushButton('Cancel')
+            #
+            #         def on_confirm():
+            #             self.close()
+            #             if not robot_select.currentItem():
+            #                 QMessageBox('You have not selected a robot')
+            #             else:
+            #                 print("Select:", robot_select.currentItem().text())
+            #             self.test_chamber_window = TradeHunterApp.TestingChamberPage()
+            #
+            #         def on_cancel():
+            #             or_window.close()
+            #
+            #         confirm_button.clicked.connect(on_confirm)
+            #         cancel_button.clicked.connect(on_cancel)
+            #         button_layout.addWidget(cancel_button)
+            #         button_layout.addWidget(confirm_button)
+            #
+            #         layout.addLayout(select_layout)
+            #         layout.addLayout(button_layout)
+            #
+            #         or_window.setLayout(layout)
+            #         return or_window
+            #
+            #     self.or_window = optimise_robot_window()
+            #     self.or_window.show()
+            #
+            # optimise_robot_button.clicked.connect(on_optimise_robot_button_pressed)
 
             def on_robot_results_button_pressed():
 
@@ -697,50 +697,50 @@ class TradeHunterApp:
 
             robot_results_button.clicked.connect(on_robot_results_button_pressed)
 
-            def on_optimise_dataset_button_pressed():
-
-                def optimise_dataset_window():
-                    od_window = QWidget()
-
-                    select_layout = QHBoxLayout()
-                    robot_label = QLabel('Robot')
-                    robot_select = QListWidget()
-                    select_layout.addWidget(robot_label)
-                    select_layout.addWidget(robot_select)
-
-                    robot_select.setFixedHeight(20)
-
-                    layout = QVBoxLayout()
-
-                    button_layout = QHBoxLayout()
-                    confirm_button = QPushButton('Confirm')
-                    cancel_button = QPushButton('Cancel')
-
-                    def on_confirm():
-                        self.close()
-                        if not robot_select.currentItem():
-                            QMessageBox('You have not selected a robot')
-                        else:
-                            self.test_chamber_window = TradeHunterApp.TestingChamberPage()
-
-                    def on_cancel():
-                        od_window.close()
-
-                    confirm_button.clicked.connect(on_confirm)
-                    cancel_button.clicked.connect(on_cancel)
-                    button_layout.addWidget(cancel_button)
-                    button_layout.addWidget(confirm_button)
-
-                    layout.addLayout(select_layout)
-                    layout.addLayout(button_layout)
-
-                    od_window.setLayout(layout)
-                    return od_window
-
-                self.tr_window = optimise_dataset_window()
-                self.tr_window.show()
-
-            optimise_dataset_button.clicked.connect(on_optimise_dataset_button_pressed)
+            # def on_optimise_dataset_button_pressed():
+            # 
+            #     def optimise_dataset_window():
+            #         od_window = QWidget()
+            # 
+            #         select_layout = QHBoxLayout()
+            #         robot_label = QLabel('Robot')
+            #         robot_select = QListWidget()
+            #         select_layout.addWidget(robot_label)
+            #         select_layout.addWidget(robot_select)
+            # 
+            #         robot_select.setFixedHeight(20)
+            # 
+            #         layout = QVBoxLayout()
+            # 
+            #         button_layout = QHBoxLayout()
+            #         confirm_button = QPushButton('Confirm')
+            #         cancel_button = QPushButton('Cancel')
+            # 
+            #         def on_confirm():
+            #             self.close()
+            #             if not robot_select.currentItem():
+            #                 QMessageBox('You have not selected a robot')
+            #             else:
+            #                 self.test_chamber_window = TradeHunterApp.TestingChamberPage()
+            # 
+            #         def on_cancel():
+            #             od_window.close()
+            # 
+            #         confirm_button.clicked.connect(on_confirm)
+            #         cancel_button.clicked.connect(on_cancel)
+            #         button_layout.addWidget(cancel_button)
+            #         button_layout.addWidget(confirm_button)
+            # 
+            #         layout.addLayout(select_layout)
+            #         layout.addLayout(button_layout)
+            # 
+            #         od_window.setLayout(layout)
+            #         return od_window
+            # 
+            #     self.tr_window = optimise_dataset_window()
+            #     self.tr_window.show()
+            # 
+            # optimise_dataset_button.clicked.connect(on_optimise_dataset_button_pressed)
 
             def on_back_button_pressed():
                 back()
@@ -763,12 +763,26 @@ class TradeHunterApp:
             self.setWindowTitle(robot_name)
             self.window()
 
+            # progress
+            self.p_window = None
+            self.p_bar = None
+            self.p_bar_embed = None
+
+            # graph
+            self.canvas = None
+
             self.ta_window = None
 
         def window(self):
 
-            left_pane = QVBoxLayout()
+            whole = QVBoxLayout()
+
+            head = QHBoxLayout()
+            body = QHBoxLayout()
+            tail = QHBoxLayout()
+
             panes = QHBoxLayout()
+            left_pane = QVBoxLayout()
 
             # === Left Pane ===
             dataset_layout = QHBoxLayout()
@@ -813,7 +827,7 @@ class TradeHunterApp:
             tail_layout = QHBoxLayout()
             back_button = QPushButton("Back")
             test_button = QPushButton("Test")
-            # optimise_button = QPushButton("Optimise")
+            optimise_button = QPushButton("Optimise")
             simulate_button = QPushButton("Simulate")
 
             robot_name = self.robot_name
@@ -851,6 +865,9 @@ class TradeHunterApp:
 
                     self.alert_window.setLayout(alert_layout)
                     return self.alert_window
+
+                if type_combo.currentText() == "Multi":
+                    print("Multi type selected. Data in dataset must have same period.")
 
                 name_text.setPlainText(normify_name(name_text.document().toPlainText()))
 
@@ -928,7 +945,14 @@ class TradeHunterApp:
                 self.close()
 
             def to_optimise():
-                pass
+                test_name = "xx"
+
+                self.canvas = TradeHunterApp.MplCanvas()
+
+                # todo optimise
+                self.oap = TradeHunterApp.OptimisationAnalysisPage(robot_name, test_name)
+                self.oap.show()
+                self.close()
 
             def to_simulate():
 
@@ -940,11 +964,11 @@ class TradeHunterApp:
             # === Bottom === Tail buttons
             back_button.clicked.connect(self.back)
             test_button.clicked.connect(to_test)
-            # optimise_button.clicked.connect(to_optimise)
+            optimise_button.clicked.connect(to_optimise)
             simulate_button.clicked.connect(to_simulate)
 
             tail_layout.addWidget(test_button)
-            # tail_layout.addWidget(optimise_button)
+            tail_layout.addWidget(optimise_button)
             tail_layout.addWidget(simulate_button)
             tail_layout.addWidget(back_button)
 
@@ -969,7 +993,7 @@ class TradeHunterApp:
             commission_combo = QComboBox()
             commission_combo.setFixedHeight(20)
 
-            test_types = ['Single', 'Multi']
+            test_types = ['Multi', 'Single']
             lag_types = load_lag_suggestions()
             leverage_types = load_leverage_suggestions()
             instrument_types = load_instrument_type_suggestions()
@@ -1016,13 +1040,18 @@ class TradeHunterApp:
             xvar_pane.addLayout(xvar_right_body)
 
             # Bottom progress_bar
-            p_bar2 = QProgressBar()  # todo
+            self.p_bar_embed = QProgressBar()  # todo
 
             # Add panes
             panes.addLayout(left_pane)
             panes.addLayout(xvar_pane)
+            body.addLayout(panes)
 
-            self.setLayout(panes)
+            whole.addLayout(head)
+            whole.addLayout(body)
+            whole.addLayout(tail)
+
+            self.setLayout(whole)
             self.show()
 
         def back(self):
@@ -1054,6 +1083,11 @@ class TradeHunterApp:
             vis_button = QPushButton('Visualise')  # Load graphs
 
         # delete ivars etc
+
+    class DataAnalysis(QWidget):
+        """Lets you study details of (single) data and lets you carve them based on their properties e.g.
+        ranging versus trending."""
+        pass
 
     class ResultAnalysisPage(QWidget):
 
@@ -1190,7 +1224,7 @@ class TradeHunterApp:
 
             quit_button = QPushButton('Exit')
             quit_button.clicked.connect(self.back)
-            choice_pane.addWidget(quit_button)
+            tail_layout.addWidget(quit_button)
 
             self.robot_combo_update()
             # load_tests([])  # Wait for selection
@@ -1254,7 +1288,9 @@ class TradeHunterApp:
                         float_text = try_float(text)
                         _label_2 = QLabel("{:,}".format(round(float_text, 2)))
                     else:
-                        _label_2 = QLabel(str(self.summary_dict[key]))
+                        _label_2 = QLabel(str(text))
+                        if key == "datasets":
+                            _label_2.setWordWrap(True)
 
                     labels.append(_label)
                     labels_2.append(_label_2)
@@ -1358,18 +1394,9 @@ class TradeHunterApp:
 
             self.load(self.test_result, self.test_meta, self.test_name)
 
-    class OptimisationPage(QWidget):
-
-        def __init__(self):
-            self.window()
-
-        def window(self):
+    class OptimisationAnalysisPage(QWidget):
+        def __init__(self, robot_name='default', test_name='default', prev_window="TradeAdvisorPage"):
             pass
-
-    class AnalysisWindow(QWidget):
-
-        def __init__(self):
-            super().__init__()
 
     class VisualWindow(QWidget):
         def __init__(self, prev_window="TradeAdvisorPage"):
@@ -1547,7 +1574,9 @@ class TradeHunterApp:
             df_right_layout.addWidget(ivar_select, 0.25)
             df_right_layout.addWidget(sim_speed, 0.25)
 
-            for df_path in load_df_list():
+            df_paths = load_df_list()
+            df_paths.sort()
+            for df_path in df_paths:
                 df_select.addItem(df_path)
             for robot in load_trade_advisor_list():
                 robot_select.addItem(robot)

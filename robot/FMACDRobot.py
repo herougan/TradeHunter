@@ -29,12 +29,12 @@ class FMACDRobot(robot):
     """A simple robot to test the TradingHunter suite."""
 
     IVAR_STEP = 0.05
-    N_ARGS = 2
-    ARGS_STR = ['stop_loss', 'take_profit', 'fast_period', 'slow_period', 'signal_period', 'sma_period']
-    ARGS_DEFAULT = [1, 1.5, 12, 26, 9, 200]
-    ARGS_RANGE = [[0.01, 10], [0.01, 10],
-                  [10, 15], [22, 30],
-                  [8, 10], [150, 250], ]
+    # N_ARGS = 2
+    # ARGS_STR = ['stop_loss', 'take_profit', 'fast_period', 'slow_period', 'signal_period', 'sma_period']
+    # ARGS_DEFAULT = [1, 1.5, 12, 26, 9, 200]
+    # ARGS_RANGE = [[0.01, 10], [0.01, 10],
+    #               [10, 15], [22, 30],
+    #               [8, 10], [150, 250], ]
     ARGS_DICT = {
         # Main, optimisable
         'profit_loss_ratio': {
@@ -85,9 +85,9 @@ class FMACDRobot(robot):
             'step_size': 1,
         },
         'lots_per_k': {
-            'default': 0.1,
-            'range': [0.01, 1],
-            'step_size': 0.01,
+            'default': 0.001,
+            'range': [0.0005, 0.1],
+            'step_size': 0.0001,
         },
         'stop_loss_amp': {
             'default': 1.05,
@@ -113,7 +113,7 @@ class FMACDRobot(robot):
     VERSION = '0.1'
     NAME = 'FMACDRobot'
 
-    def __init__(self, ivar=ARGS_DEFAULT, xvar={}):
+    def __init__(self, ivar=ARGS_DICT, xvar={}):
         """XVar variables should be numbers or strings.
         e.g. leverage must be a number (100), not '1:100'.
         instrument_type should be ...(pip value)
@@ -124,14 +124,17 @@ class FMACDRobot(robot):
         if len(ivar) == 2:
             self.ivar = ivar
         else:
-            self.ivar = FMACDRobot.ARGS_DEFAULT
-        self.ivar_range = FMACDRobot.ARGS_RANGE
+            self.ivar = FMACDRobot.ARGS_DICT
+        # self.ivar_range = FMACDRobot.ARGS_RANGE
+        self.ivar_range = {}
 
         # == Data Meta ==
         self.symbol = ""
         self.period = timedelta()
         self.interval = timedelta()
         self.instrument_type = get_instrument_type(self.symbol)
+        self.lot_size = 100000
+
         # == XVar ==
         self.xvar = xvar
         self.lag = xvar['lag']  # unused
@@ -141,6 +144,8 @@ class FMACDRobot(robot):
         # self.currency = xvar['currency']
         self.commission = xvar['commission']
         self.contract_size = xvar['contract_size']
+        if 'lot_size' in xvar:
+            self.lot_size = xvar['lot_size']
 
         # == Main Args ==
         self.profit_loss_ratio = self.ARGS_DICT['profit_loss_ratio']['default']
@@ -264,7 +269,7 @@ class FMACDRobot(robot):
         }
         self.df_test = pd.DataFrame()
 
-    def reset(self, ivar=ARGS_DEFAULT, xvar={}):
+    def reset(self, ivar=ARGS_DICT, xvar={}):
         if not xvar:
             xvar = self.xvar
         self.__init__(ivar, xvar)
@@ -289,6 +294,12 @@ class FMACDRobot(robot):
         self.period = strtotimedelta(period)
         self.interval = interval
         self.instrument_type = get_instrument_type(symbol)
+        if self.xvar['instrument_type'] != "Forex":
+            self.lot_size = 100
+        else:
+            self.lot_size = 100000
+        if self.symbol == "JPY=X":
+            self.lot_size = 1000
 
         # == Prepare ==
         self.df = pre_data
@@ -405,7 +416,7 @@ class FMACDRobot(robot):
 
         #  Check indicators
         if signal:  # Type- 0: No Signal; 1: Long; 2: Short, 3: NA
-            check = self.check_indicators(signal['type'])
+            check = self.check_indicators()
 
             # == =   b3: Confirm Signal =============
 
@@ -426,6 +437,10 @@ class FMACDRobot(robot):
             # 'time_taken': 0,
             'name': self.NAME,
             'version': self.VERSION,
+            # Data
+            'symbol': self.symbol,
+            'period': self.period,
+            'interval': self.interval,
         }
         stats_dict = {
             'profit': self.profit,
@@ -494,7 +509,7 @@ class FMACDRobot(robot):
         return self.df.index
 
     def get_profit(self):
-        return self.profit, self.equity, self.balance
+        return self.profit, self.equity, self.balance, self.margin
 
     def get_signals(self):
         return self.signals
@@ -599,12 +614,12 @@ class FMACDRobot(robot):
 
     # Check
 
-    def check_indicators(self, type):
+    def check_indicators(self):
         """Returns a list of integer-bools according to the signal-generating indicators.
         0: No Signal, 1: Long, 2: Short, 3: NA"""
         checks = {
-            'MACD_HIST': self.check_macd_hist(type),
-            'SMA': self.check_sma(type),
+            'MACD_HIST': self.check_macd_hist(),
+            'SMA': self.check_sma(),
         }
         check = checks[list(checks.keys())[0]]
         for _check in checks.values():
@@ -649,7 +664,7 @@ class FMACDRobot(robot):
         #         return 2
         # return 0
 
-    def check_macd_hist(self, _type) -> int:
+    def check_macd_hist(self) -> int:
         """Checks Signal"""
         rev_idx = -1
         if self.test_mode:
@@ -662,14 +677,15 @@ class FMACDRobot(robot):
                 return 2
         return 0
 
-    def check_sma(self, _type) -> int:
+    def check_sma(self) -> int:
         """Checks Signal"""
         rev_idx = -1
         if self.test_mode:
             rev_idx = self.test_idx - len(self.df)
         # If NaN, false (>) check is False by default, then return 3
         if len(self.indicators['SMA200'][self.indicators['SMA200'] > 0]) < 1:
-            return 3
+            return 0
+            # return 3
         if self.indicators['SMA200'].iloc[rev_idx] < self.last.Low:
             return 1
         elif self.indicators['SMA200'].iloc[rev_idx] > self.last.High:
@@ -688,7 +704,8 @@ class FMACDRobot(robot):
             signal['vol'] = self.assign_lots(type)
             sgn = math.copysign(1, signal['vol'])
             signal['leverage'] = self.xvar['leverage']
-            signal['margin'] = sgn * signal['vol'] / self.xvar['leverage'] * self.xvar['contract_size']
+            # Action *= Leverage; Margin /= Leverage
+            signal['margin'] = sgn * signal['vol'] / self.xvar['leverage'] * self.lot_size
             signal['open_price'] = self.last.Close
             # Generate stop loss and take profit
             signal['stop_loss'], signal['baseline'] = self.get_stop_loss(type)
@@ -698,9 +715,9 @@ class FMACDRobot(robot):
 
     def create_signal(self, signal, check):
         """Create signal based on signal dict 'mold' input and add into open signals"""
-        if check:
-            sgn = math.copysign(1, signal['vol'])
-            self.add_margin(-sgn, signal['margin'])
+        if check:  # 1 or 2. (3 would return 0 in check_indicators)
+            # sgn = math.copysign(1, signal['vol'])
+            self.add_margin(signal['vol'], signal['margin'])
             self.calc_equity()
         signal['virtual'] = not check
 
@@ -708,7 +725,7 @@ class FMACDRobot(robot):
 
     def partial_close_signal(self, signal, check):
         # Split signal into 2 signals
-        # todo
+        # future
         # Add signals back
         signal1, signal2 = 0, 0
         self.open_signals.remove(signal)
@@ -720,26 +737,25 @@ class FMACDRobot(robot):
     def close_signal(self, signal):
 
         # Realise Profit/Loss
-        action = (self.last.Close - signal['open_price']) * signal['vol'] * self.leverage
+        action = (self.last.Close - signal['open_price'])
+        profit = action * signal['vol'] * self.leverage * self.lot_size
+        # self.xvar['contract_size']
         signal['end'] = self.last_date
         signal['close_price'] = self.last.Close
         sgn = math.copysign(1, signal['vol'])
-        signal['net'] = action
+        signal['net'] = profit
 
         if not signal['virtual']:
             # Release margin, release unrealised P/L
-            self.add_profit(action)
+            self.add_profit(profit)
             self.add_margin(sgn, signal['margin'])
             self.calc_equity()
         else:
-            self.add_virtual_profit(action)
+            self.add_virtual_profit(profit)
 
         # Add signal to signals, remove from open signals
         self.open_signals.remove(signal)
         self.signals.append(signal)
-
-    def confirm_signal(self, check, signal):
-        pass
 
     def macd_signal(self):
 
@@ -747,12 +763,8 @@ class FMACDRobot(robot):
 
     # Statistic update
 
-    def get_current_equity(self):
-        """Connect to platform to query current positions."""
-        pass
-
     def add_profit(self, profit):
-        self.unrealised_profit[-1] -= profit
+        # self.unrealised_profit[-1] -= profit
         self.balance[-1] += profit
         self.margin[-1] += profit
         self.profit[-1] += profit
@@ -764,12 +776,12 @@ class FMACDRobot(robot):
     def add_virtual_profit(self, profit):
         self.virtual_profit[-1] += profit
 
-    def add_margin(self, sgn, margin):
-        """Adding margins reduce free margin"""
-        if sgn > 0:
-            self.long_margin[-1] -= margin
+    def add_margin(self, vol, margin):
+        """Adding margins reduce free margin. sgn is the sign of signal volume"""
+        if vol > 0:
+            self.long_margin[-1] += margin
         else:
-            self.short_margin[-1] -= margin
+            self.short_margin[-1] += margin
         self.margin[-1] = max([self.short_margin[-1], self.long_margin[-1]])
 
     def calc_equity(self):
@@ -799,24 +811,27 @@ class FMACDRobot(robot):
         self.free_balance.append(self.balance[-1])
 
         self.profit.append(self.profit[-1])
-        self.unrealised_profit.append(self.unrealised_profit[-1])
+        self.unrealised_profit.append(0)
         self.gross_profit.append(self.gross_profit[-1])
         self.gross_loss.append(self.gross_loss[-1])
         self.virtual_profit.append(self.virtual_profit[-1])
 
-        self.short_margin.append(self.short_margin[-1])
-        self.long_margin.append(self.long_margin[-1])
+        self.short_margin.append(0)
+        self.long_margin.append(0)
         self.asset.append(self.asset[-1])
         self.liability.append(self.liability[-1])
         for signal in self.open_signals:
+            if signal['virtual']:
+                continue
             if signal['type'] == 'short':
                 # Calculate margin
-                self.short_margin.append(signal['margin'])
+                self.short_margin[-1] += signal['margin']
             else:  # == 'long'
-                self.long_margin.append(signal['margin'])
+                self.long_margin[-1] += signal['margin']
             # Calculate unrealised P/L
-            self.unrealised_profit[-1] += math.copysign(
-                (candlestick.Close - signal['open_price']) * signal['vol'], signal['vol'])
+            self.unrealised_profit[-1] += (candlestick.Close - signal['open_price']) * signal['vol'] * self.lot_size
+            # math.copysign(
+            # (candlestick.Close - signal['open_price']) * signal['vol'] * self.lot_size, signal['vol'])
 
         self.margin.append(max([self.short_margin[-1], self.long_margin[-1]]))
         self.free_balance[-1] -= self.margin[-1]
@@ -827,7 +842,7 @@ class FMACDRobot(robot):
         if self.margin[-1] == 0:
             self.margin_level.append(0)
         else:
-            self.margin_level.append(self.equity[-1] / self.margin[-1] * 100)
+            self.margin_level.append(self.equity[-1] / self.margin[-1] * 100)  # %
         self.stat_datetime.append(parser.parse(self.last_date))
 
     # Stop loss and Take profit
@@ -878,7 +893,7 @@ class FMACDRobot(robot):
     # Optimisation
 
     def step_ivar(self, idx, up=True):
-        if len(self.ivar_range) >= idx:
+        if len(self.ivar_range) >= idx:   # todo doesnt work
             i = -1
             if up:
                 i = 1
