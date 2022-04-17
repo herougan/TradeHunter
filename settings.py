@@ -80,6 +80,9 @@ TESTING_SETTINGS = {
 }
 OPTIMISATION_SETTINGS = {
     'max_runs': 100,
-    'arg_step_size': 1,  # Adjusts step size during optimisation.
+    'arg_step_size': 5,  # Adjusts step size during optimisation.
     # 0.05 = 5% of minimum step value (if appl.) or 5%/10 of full range - max 10%.
+    # 5 = 500% of minimum step value. e.g. total percentage magnitude of 'change' vector
+    # Many vector components would be <= min step value.
+    'approach_step_size': 3,
 }

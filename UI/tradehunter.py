@@ -836,10 +836,74 @@ class TradeHunterApp:
                 p_window = QProgressBar()
                 return p_window
 
+            def check_input():
+                if not ivar_combo.currentText() or not dataset_combo.currentText():
+                    self.alert_window = QWidget()
+                    alert_layout = QVBoxLayout()
+                    alert = QMessageBox(self.alert_window)
+                    alert.setText('IVar or Dataset not selected!')
+                    alert.show()
+
+                    alert_layout.addWidget(alert)
+
+                    self.alert_window.setLayout(alert_layout)
+                    return False
+
+                if not lag_combo.currentText() or not commission_combo.currentText() or \
+                        not leverage_combo.currentText() or not instrument_combo.currentText() or \
+                        not type_combo.currentText():
+                    self.alert_window = QWidget()
+                    alert_layout = QVBoxLayout()
+                    alert = QMessageBox(self.alert_window)
+                    alert.setText('XVar not completed!')
+                    alert.show()
+
+                    alert_layout.addWidget(alert)
+
+                    self.alert_window.setLayout(alert_layout)
+                    return False
+
+                if type_combo.currentText() == "Multi":
+                    print("Multi type selected. Data in dataset must have same period.")
+
+                name_text.setPlainText(normify_name(name_text.document().toPlainText()))
+
+                if not name_text.document().toPlainText() or len(name_text.document().toPlainText()) < 2:
+                    self.alert_window = QWidget()
+                    alert_layout = QVBoxLayout()
+                    alert = QMessageBox(self.alert_window)
+                    alert.setText('The test needs a name!')
+                    alert.show()
+
+                    alert_layout.addWidget(alert)
+
+                    self.alert_window.setLayout(alert_layout)
+                    return False
+
+                # if not commission_combo.document().toPlainText():
+                #     capital_text.document().setPlaintText('0')
+                if not capital_text.document().toPlainText():
+                    capital_text.document().setPlaintText('0')
+
+                capital = try_int(capital_text.document().toPlainText())
+                if capital <= 0:
+                    self.alert_window = QWidget()
+                    alert_layout = QVBoxLayout()
+                    alert = QMessageBox(self.alert_window)
+                    alert.setText('Please enter a valid number, e.g. 10,000 (USD)')
+                    alert.show()
+
+                    alert_layout.addWidget(alert)
+
+                    self.alert_window.setLayout(alert_layout)
+                    return False
+
+                return True
+
             def to_test():
 
                 # Check if ivar/dataset selected
-                print("Test check", ivar_combo.currentText(), dataset_combo.currentText())
+                # print("Beginning test with the following parameters: ", ivar_combo.currentText(), dataset_combo.currentText())
                 if not ivar_combo.currentText() or not dataset_combo.currentText():
                     self.alert_window = QWidget()
                     alert_layout = QVBoxLayout()
@@ -932,7 +996,7 @@ class TradeHunterApp:
 
                 # Setup robot
                 data_tester = DataTester(xvar)
-                data_tester.bind_progress_bar(p_bar, p_window)
+                data_tester.bind_progress_bar(p_bar, p_window) # todo different
 
                 ds_names = get_dataset_table(dataset_table)
                 test_result, test_meta = data_tester.test(robot_name, ivar, ds_names, test_name)
@@ -945,12 +1009,45 @@ class TradeHunterApp:
                 self.close()
 
             def to_optimise():
-                test_name = "xx"
 
+                if not check_input():
+                    return
+
+                optim_name = name_text.document().toPlainText()
+
+                # Get XVar
+                xvar = {'lag': lag_combo.currentText(),
+                        'capital': try_int(capital_text.document().toPlainText()),
+                        'leverage': leverage_combo.currentText(),
+                        'instrument_type': instrument_combo.currentText(),
+                        # test specific
+                        'test_type': type_combo.currentText()}
+                xvar = translate_xvar_dict(xvar)
+
+                ivar_name = ivar_combo.currentText()
+
+                # p_window = QWidget()
+                # p_layout = QVBoxLayout()
+                #
+                p_bar = progress_bar_window()
                 self.canvas = TradeHunterApp.MplCanvas()
+                tail_layout.addWidget(p_bar)
+                tail_layout.addWidget(self.canvas)
+                # p_window.setLayout(p_layout)
+                # p_layout.addWidget(p_bar)
+                #
+                # p_window.show()
 
+                ivar = load_ivar_as_list(robot_name, ivar_name)
+
+                # Setup robot
+                data_tester = DataTester(xvar)
+                data_tester.bind_progress_bar(p_bar, p_bar)  # todo different
+
+                ds_names = get_dataset_table(dataset_table)
+                data_tester.optimise(robot_name, ivar, ds_names, optim_name, True, self.canvas)
                 # todo optimise
-                self.oap = TradeHunterApp.OptimisationAnalysisPage(robot_name, test_name)
+                self.oap = TradeHunterApp.OptimisationAnalysisPage(robot_name, optim_name)
                 self.oap.show()
                 self.close()
 

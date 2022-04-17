@@ -300,6 +300,12 @@ def try_max(list):
     return max(list)
 
 
+def try_min(list):
+    if len(list) < 1:
+        return 0
+    return min(list)
+
+
 def try_mean(list):
     if len(list) < 1:
         return 0

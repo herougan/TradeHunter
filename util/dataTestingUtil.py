@@ -25,7 +25,7 @@ from util.dataGraphingUtil import plot_robot_instructions, plot_signals, plot_op
 from util.dataRetrievalUtil import load_dataset, load_df, get_computer_specs, number_of_datafiles, retrieve, try_stdev
 from util.langUtil import craft_instrument_filename, strtodatetime, try_key, remove_special_char, strtotimedelta, \
     try_divide, try_max, try_mean, get_test_name, get_file_name, get_instrument_from_filename, is_datetime, \
-    timedeltatoyahootimestr
+    timedeltatoyahootimestr, try_min
 
 import numpy as np
 from sklearn.linear_model import LinearRegression
@@ -513,7 +513,7 @@ def aggregate_summary_df_in_datasets(summary_dict_list: List):
     return final_summary_dict
 
 
-def create_test_meta(test_name, ivar, xvar, other):
+def create_test_meta(test_name, ivar, xvar, other, get_specs=True):
     """Test meta file contains test name, ivar (dict version) used, start and end date etc
     most importantly, xvar (dict version) attributes"""
     meta = {
@@ -527,7 +527,8 @@ def create_test_meta(test_name, ivar, xvar, other):
     # XVar Dict
     meta.update(xvar)
     # Computer specs
-    meta.update(get_computer_specs())
+    if get_specs:
+        meta.update(get_computer_specs())
 
     return meta
 
@@ -668,7 +669,7 @@ class DataTester:
         self.p_window = p_window
 
     # == Test ==
-    def test(self, ta_name: str, ivar: List[float], ds_names: List[str], test_name: str, store=True):
+    def test(self, ta_name: str, ivar: List[float], ds_names: List[str], test_name: str, store=True, meta_store=True):
 
         self.start_time = datetime.now()
 
@@ -745,7 +746,8 @@ class DataTester:
             'end': self.end_time,
             'time_taken': self.start_time - self.end_time,
         }
-        meta.update(self.robot.get_robot_meta())
+        if meta_store:
+            meta.update(self.robot.get_robot_meta())
         _ivar = {
             'name': ivar[0]
         }
@@ -755,7 +757,7 @@ class DataTester:
             })
 
         # Create test meta and result
-        test_meta = create_test_meta(test_name, _ivar, self.xvar, meta)  # Returns dict
+        test_meta = create_test_meta(test_name, _ivar, self.xvar, meta, meta_store)  # Returns dict
         test_result = full_summary_dict_list
 
         if len(test_name) < 1 or not store:
@@ -934,15 +936,16 @@ class DataTester:
         return True, 'No Error'
 
     # == Optimise ==
-    def optimise(self, ta_name: str, init_ivar: List[float], ds_names: List[str], optimisation_name: str):
+    def optimise(self, ta_name: str, init_ivar: List[float], ds_names: List[str], optimisation_name: str, store=True, canvas=None):
         runs = TESTING_SETTINGS['optimisation_runs']
         ivar = init_ivar
+        fitness = 0
         args_dict = self.robot.ARGS_DICT
 
         # Base options
         max_runs = OPTIMISATION_SETTINGS['max_runs']
         step_size = OPTIMISATION_SETTINGS['arg_step_size']  # alpha
-
+        approach_size = OPTIMISATION_SETTINGS['approach_step_size']
 
         def adjust_ivar(spread_results):
             pass
@@ -956,11 +959,9 @@ class DataTester:
                 if key == 'origin':
                     continue
 
-                spread_results.update({
-                    key: {
-                        'fitness_diff': main_ivar['profit'] - spread_results[key]['profit'],
-                        'val_diff': main_ivar['ivar'] - spread_results[key]['ivar'],
-                    }
+                spread_results[key].update({
+                    'fitness_diff': main_ivar['profit'] - spread_results[key]['profit'],
+                    'val_diff': main_ivar['ivar'] - spread_results[key]['ivar'],
                 })
                 # did it decrease?
 
@@ -970,47 +971,26 @@ class DataTester:
             normalisation_constant /= len(spread_results.keys())
 
             for key in spread_results.keys():
-                pass
-                min_step = args_dict[key]['step_size']
+
+                min_step = args_dict[key]['step_size']  # % of step_size
                 #
                 if min_step:
-                    move = step_size * min_step * math.pow(spread_results[key]['fitness_diff'], 2) / normalisation_constant
+                    move = step_size * min_step * math.pow(spread_results[key]['fitness_diff'], 2) \
+                           / normalisation_constant  # correct direction from fitness_diff
                 else:
                     if step_size > 1 / 10:
                         step_size = 0.1
                     move = step_size / 10 * (args_dict[key]['range'][1] - args_dict[key]['step_size'][0])
 
-
-            answer_dict_list = []
-
-            for group in spread_results:
-                _ivar = group['ivar']
-                _key = group['key']
-                _growth = group['total_growth']
-
-                # if to increase # default
-                increase = True
-
-                # if to decrease
-                increase = False
-
-                answer_dict_list.append({
-                    'key': _key,
-                    'increase': increase,  # False if decrease
-                })
-
-            # for each key, find the edited version,
-
-            for answer in answer_dict_list:
-                pass
-                # if increase, try increase
-
-                # if decrease, try decrease
-
-            # if the value went down, prepare to move in the opposite direction!
+                if abs(move) < min_step:
+                    move /= abs(move) * min_step
+                new_ivar[key] += move
 
             # return new ivar
             return new_ivar
+
+        def best_ivar_from_spread(spread_results):
+            pass
 
         def random_ivar(prev_ivar_list):
             """Create a random initial starting ivar"""
@@ -1092,45 +1072,204 @@ class DataTester:
         def ivar_descend(ivars, results):
             pass
 
-        ivar_result_tuples = []  # [[ivar, result],...]
+        def get_fitness_score(result):
+            return result['balance'][-1] / result['balance'][0]
+
+        def get_test_result(_ivar):
+            _result, _meta = self.test(ta_name, _ivar, ds_names, '', False, False)
+            return _result
+
+        def get_ivar_distance(ivar, ivar2):
+            """Distance between ivar and ivar 2."""
+            dist = 0
+            for key in ivar:
+                dist += math.pow((ivar2[key] - ivar[key]) / args_dict[key]['step_size'], 2)  # geometric distance
+            return math.pow(dist, 0.5)
+
+        def get_distance_ivar(ivar, ivar2):
+            """Gets direction ivar dict from ivar to ivar 2"""
+            dist = {}
+            for key in ivar:
+                dist.update({
+                    key: ivar2[key] - ivar[key]
+                })
+            return dist
+
+        # == Geometric util ==
+
+        def check_if_near(ivar, ivar_list):
+            """Check if ivar is contained within the step-size (alpha) hyperspheres of past ivars."""
+            for _ivar in ivar_list:
+                dist = get_ivar_distance(ivar, _ivar)
+                if dist < step_size:
+                    return True
+            return False
+
+        def check_if_going_to(ivar, new_ivar, ivar_list):
+            """Check if ivar is approaching a hypersphere"""
+            dist = get_distance_ivar(ivar, new_ivar)  # calculate trajectory
+            # if check_if_near(new_ivar, ivar_list):
+            #     return True, 1
+            m1 = 0
+            m2 = step_size * approach_size  # vector scalar lies between m1 and m2
+            for key in ivar:
+                # For each key/coordinate
+                val_close = m1 * dist[key] + ivar[key]
+                val_far = m2 * dist[key] + ivar[key]
+                found = True
+                # Check if any ivar value lies in the trajectory * some scalar in (m1, m2)
+                for _ivar in ivar_list:
+                    if val_close < _ivar[key] < val_far:  # Scalar in (m1, m2) must work for all coordinates
+                        # adjust min m1 and max m2
+                        _dist = _ivar[key] - ivar[key]
+                        s = 1  # If _ivar[key] is on the right, deduct step_size to get closer side of range
+                        if _ivar[key] < ivar[key]:
+                            s = -1  # Else, increase step_size to get closer side, vice versa
+                        # Determine scalar range for all components
+                        _m1 = (_dist - s * args_dict['step_size']) / dist[key]
+                        _m2 = (_dist + s * args_dict['step_size']) / dist[key]
+                        # Continuously squeeze range (m1, m2)
+                        if _m1 > m1:
+                            m1 = _m1
+                        if _m2 < m2:
+                            m2 = _m2
+                    else:  # All keys need to be within range!
+                        found = False
+                if not found or m1 == m2:
+                    return False, 0
+            m = m1
+            return True, m
+
+        # Vector field setup
+        optim_field = []  # [{
+        # val_1,...val_i...,val_n
+        # arg_1,...arg_i...,arg_n
+        # },...{}]
+        fitness_collection = []
+        ivar_collection = []
+        final_ivar_results = []  # {ivar, fitness}
+
         for i in range(runs):
 
-            ivar = random_ivar()
-            while True:  # either >100 in-runs or results hit a plateau
+            # Random starting point
+            if i == 0:
+                pass  # ivar = init_ivar
+            else:
+                ivar = random_ivar()
+            test_result = get_test_result(ivar)
+            fitness = get_fitness_score(test_result)
+            # Full store all ivars and their results
+            fitness_collection.append(fitness)
+            ivar_collection.append(ivar)
 
+            while True:  # either > 100 in-runs or results hit a plateau
+
+                ivar_result_tuples = {}  # {key: {ivar, profit, fitness_diff, val_diff}}
                 # Get spread to analyse
-                ivar_tuples_to_test = ivar_spread(ivar)
-                results_dict = {}
-                results = []
+                ivar_tuples_to_test = ivar_spread(ivar)  # Initial ivar outside loop or new_ivar from previous loop
                 # Get spread results
                 for key in ivar_tuples_to_test.keys():
-
-                    ivar_dict = ivar_tuples_to_test[key]
-                    test_result, test_meta = self.test(ta_name, ivar_dict['ivar'], ds_names, '', False)
-                    results.append(test_result)
 
                     if key == 'origin':
                         continue
 
+                    ivar_dict = ivar_tuples_to_test[key]
+                    test_result = get_test_result(ivar_dict['ivar'])
+                    _fitness = get_fitness_score(test_result)
+
                     ivar_dict.update({
-                        'profit': test_result['balance'][-1] / test_result['balance'][0],
+                        'fitness': _fitness,
                     })
-                    ivar_result_tuples.append(ivar_dict)
+                    ivar_result_tuples[key] = ivar_dict
+                    # Store
+                    fitness_collection.append(_fitness)
+                    ivar_collection.append(ivar_dict['ivar'])
 
                 # Determine next move based on deltas
-                ivar = suggest_ivar(ivar_result_tuples)
+                new_ivar = suggest_ivar(ivar_result_tuples)
+                new_test_result = get_test_result(new_ivar)
+                new_fitness = get_fitness_score(new_test_result)
+                # Store new ivar
+                fitness_collection.append(new_fitness)
+                ivar_collection.append(new_ivar)
 
-                # If reflected (All ivars reflected)
-                break
+                # Compare new ivar to old ivar
+                diff = new_fitness - fitness
+
+                # Check divergence for cycles
+                pass
+                # If reflected (MOST 90% ivars reflected)
+                reflect_n = 0
+                for key in new_ivar:
+                    sgn = math.copysign(1, ivar[key])
+                    new_sgn = math.copysign(1, new_ivar[key])
+                    if sgn != new_sgn:
+                        reflect_n += 1
+                if reflect_n > 0.9 * len(ivar.keys()):  # ===== OUT =====
+                    final_ivar_results.append({
+                        'ivar': new_ivar,
+                        'fitness': new_fitness,
+                        'type': 'reflect',
+                    })
                 # If barely any change
-                break
+                if diff < 0:
+                    pass
                 # If too many rounds
-                if i > max_runs:
+                if i > max_runs:  # ===== OUT =====
+                    final_ivar_results.append({
+                        'ivar': new_ivar,
+                        'fitness': new_fitness,
+                        'type': 'wander',
+                    })
                     break
-                ivar = adjust_ivar(results)
+                # ivar = adjust_ivar(results)
+                ivar = new_ivar
+                fitness = new_fitness
+                # exploration
+                # future
+                for optim_vector in optim_field:
+                    pass
+                # exploitation
+                # future
+                candidates = []
+                # choose among candidates
+                for candidate in candidates:
+                    pass
 
-            ivar_result_tuple = sorted(ivar_result_tuple, key=lambda x: x[1])
+                # ===== PLOT =====
+                # plot new best result from spread
 
+                # Update plot every pass
+
+            # ivar_result_tuple = sorted(ivar_result_tuple, key=lambda x: x[1])
+
+        # Hill elimination OR  # future
+        # fitness_collection
+        # ivar_collection
+
+        # Descent Trajectory finals # Easier!
+        trimmed_ivar_results = []
+        final_fitness_scores = [d['fitness'] for d in final_ivar_results]
+        general_fitness_scores = fitness_collection
+        top_fitness_score, btm_fitness_score, avg_fitness_score = \
+            try_max(final_fitness_scores), try_min(final_fitness_scores), try_mean(final_fitness_scores)
+        std = try_stdev(final_fitness_scores)
+        # Trim bad results
+
+        # Trim unusual results (Too high etc.)
+
+        # Add non-final trajectories that scored highly
+        # Distinct elements only
+
+        # todo Craft optimisation file
+
+        # Save optimisation file
+        if store:
+            pass
+
+        for ivar_result in final_ivar_results:
+            trimmed_ivar_results.append(ivar_result)
+        return trimmed_ivar_results
 
 #  General
 

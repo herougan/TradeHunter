@@ -275,6 +275,15 @@ def load_signals(ax, sdf):
 
 def plot_optimisations(ax, ivar_list, profit_list, primary_axis=[0, 1], **kwd):
     pass
+    # Delete old line plot (by handle)
+
+    # Sort data by high, low and average
+
+    # If < 50 data slots, only top = high, btm = low
+
+    # Plot average line
+
+    # Plot profit to index
 
 
 def mac_diagram(ax, macd_df):
