@@ -1005,7 +1005,9 @@ class DataTester:
 
         self.robot = eval(F'{ta_name}.{ta_name}({init_ivar}, {self.xvar})')
         runs = TESTING_SETTINGS['optimisation_runs']
-        ivar = init_ivar
+        ivar_dict = {
+            'ivar': init_ivar
+        }
         fitness = 0
         args_dict = self.robot.ARGS_DICT
 
@@ -1032,7 +1034,7 @@ class DataTester:
                     continue
 
                 spread_results[key].update({
-                    'fitness_diff': main_ivar['profit'] - spread_results[key]['profit'],
+                    'fitness_diff': main_ivar['fitness'] - spread_results[key]['fitness'],
                     'val_diff': main_ivar['ivar'] - spread_results[key]['ivar'],
                 })
                 # did it decrease?
@@ -1056,7 +1058,7 @@ class DataTester:
 
                 if abs(move) < min_step:
                     move /= abs(move) * min_step
-                new_ivar[key] += move
+                new_ivar[key]['default'] += move
 
             # return new ivar
             return new_ivar
@@ -1091,16 +1093,22 @@ class DataTester:
                             btm_step = c_step
                             c_step += (c_step + top_step) // 2
                 _ivar.update({
-                    key: value
+                    key: {
+                        'default': value,
+                    },
                 })
-            ivar = _ivar.copy()
+            ivar = {
+                'ivar': _ivar
+            }
             del ivar['name']
             return ivar
 
         def ivar_spread(ivar):
             # Ivar itself
             ivar_key_tuples = {
-                'origin': ivar,
+                'origin': {
+                    'ivar': ivar,
+                },
             }
             # Test hypersphere around ivar
             for key in args_dict.keys():
@@ -1152,7 +1160,6 @@ class DataTester:
         def get_fitness_score(result):
             # return result['balance'] / result['capital']
             return result['growth_factor']
-
 
         def get_test_result(_ivar):
             _result, _meta = self.test(ta_name, _ivar, ds_names, '', False, False)
@@ -1234,18 +1241,18 @@ class DataTester:
             if i == 0:
                 pass  # ivar = init_ivar
             else:
-                ivar = random_ivar()
-            test_result = get_test_result(ivar)
+                ivar_dict = random_ivar()
+            test_result = get_test_result(ivar_dict['ivar'])
             fitness = get_fitness_score(test_result)
             # Full store all ivars and their results
             fitness_collection.append(fitness)
-            ivar_collection.append(ivar)
+            ivar_collection.append(ivar_dict)
 
             while True:  # either > 100 in-runs or results hit a plateau
 
                 ivar_result_tuples = {}  # {key: {ivar, profit, fitness_diff, val_diff}}
                 # Get spread to analyse
-                ivar_tuples_to_test = ivar_spread(ivar)  # Initial ivar outside loop or new_ivar from previous loop
+                ivar_tuples_to_test = ivar_spread(ivar_dict['ivar'])  # Initial ivar outside loop or new_ivar from previous loop
                 # Get spread results
                 for key in ivar_tuples_to_test.keys():
 
@@ -1254,8 +1261,8 @@ class DataTester:
                             'fitness': fitness,
                         })
 
-                    ivar_dict = ivar_tuples_to_test[key]
-                    test_result = get_test_result(ivar_dict['ivar'])
+                    ivar_dict = ivar_tuples_to_test[key]['ivar']
+                    test_result = get_test_result(ivar_dict)
                     _fitness = get_fitness_score(test_result)
 
                     ivar_dict.update({
@@ -1264,7 +1271,7 @@ class DataTester:
                     ivar_result_tuples[key] = ivar_dict
                     # Store
                     fitness_collection.append(_fitness)
-                    ivar_collection.append(ivar_dict['ivar'])
+                    ivar_collection.append(ivar_dict)
 
                 # Determine next move based on deltas
                 new_ivar = suggest_ivar(ivar_result_tuples)

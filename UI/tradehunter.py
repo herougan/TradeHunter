@@ -604,7 +604,9 @@ class TradeHunterApp:
                     select_layout.addWidget(robot_label)
                     select_layout.addWidget(robot_combo)
 
-                    for ta in load_trade_advisor_list():
+                    ta_list = load_trade_advisor_list()
+                    ta_list.sort()
+                    for ta in ta_list:
                         # item = QListWidgetItem(ta, robot_select)
                         robot_combo.insertItem(0, ta)
                     robot_combo.setCurrentIndex(0)
