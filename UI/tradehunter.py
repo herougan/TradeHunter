@@ -118,6 +118,7 @@ class TradeHunterApp:
             layout = QVBoxLayout()
 
             splot_button = QPushButton('Simple Plotter')
+            ssym_button = QPushButton('1-Symbol Test Plot')
             ssim_button = QPushButton('Single Sim')
             # stest_button = QPushButton('Single Test')
             # rc_button = QPushButton('Robot Comparison')
@@ -128,6 +129,7 @@ class TradeHunterApp:
 
             body.addWidget(splot_button)
             body.addWidget(ssim_button)
+            body.addWidget(ssym_button)
             # body.addWidget(stest_button)
             # body.addWidget(rc_button)
             # body.addWidget(dc_button)
@@ -143,6 +145,16 @@ class TradeHunterApp:
             def ssim_clicked():
                 self.ssim_window = TradeHunterApp.SimPlotter()
                 self.ssim_window.show()
+
+            def ssym_clicked():
+                """Single Symbol test: Tests robot against
+                a single datafile and plots the results."""
+                pass
+                # Candlestick -> Line plot
+
+                # Equity Plot
+
+                # Trade deals (No profit-loss boxes)
 
             def stest_clicked():
                 self.ssim_window = TradeHunterApp.SimPlotter()
@@ -992,11 +1004,11 @@ class TradeHunterApp:
                 # p_bar.setMaximum(max)
                 # p_bar.setMinimum(0)
 
-                ivar = load_ivar_as_list(robot_name, ivar_name)
+                ivar = load_ivar_as_dict(robot_name, ivar_name)
 
                 # Setup robot
                 data_tester = DataTester(xvar)
-                data_tester.bind_progress_bar(p_bar, p_window) # todo different
+                data_tester.bind_progress_bar(p_bar)
 
                 ds_names = get_dataset_table(dataset_table)
                 test_result, test_meta = data_tester.test(robot_name, ivar, ds_names, test_name)
@@ -1030,7 +1042,9 @@ class TradeHunterApp:
                 # p_layout = QVBoxLayout()
                 #
                 p_bar = progress_bar_window()
-                self.canvas = TradeHunterApp.MplCanvas()
+                self.canvas = TradeHunterApp.MplMultiCanvas(self, 5, 4, 100, 1, 1)
+                # self.canvas = TradeHunterApp.MplCanvas()
+                # Add canvas and progress bar
                 tail_layout.addWidget(p_bar)
                 tail_layout.addWidget(self.canvas)
                 # p_window.setLayout(p_layout)
@@ -1038,17 +1052,17 @@ class TradeHunterApp:
                 #
                 # p_window.show()
 
-                ivar = load_ivar_as_list(robot_name, ivar_name)
+                ivar = load_ivar_as_dict(robot_name, ivar_name)
 
                 # Setup robot
                 data_tester = DataTester(xvar)
-                data_tester.bind_progress_bar(p_bar, p_bar)  # todo different
+                data_tester.bind_progress_bar(p_bar)
 
                 ds_names = get_dataset_table(dataset_table)
                 data_tester.optimise(robot_name, ivar, ds_names, optim_name, True, self.canvas)
-                # todo optimise
+
                 self.oap = TradeHunterApp.OptimisationAnalysisPage(robot_name, optim_name)
-                self.oap.show()
+                self.oap.show()  # next todo
                 self.close()
 
             def to_simulate():
@@ -1056,7 +1070,6 @@ class TradeHunterApp:
                 svar = {
                     'speed_up': []
                 }
-                pass
 
             # === Bottom === Tail buttons
             back_button.clicked.connect(self.back)
@@ -1137,7 +1150,7 @@ class TradeHunterApp:
             xvar_pane.addLayout(xvar_right_body)
 
             # Bottom progress_bar
-            self.p_bar_embed = QProgressBar()  # todo
+            self.p_bar_embed = QProgressBar()
 
             # Add panes
             panes.addLayout(left_pane)
@@ -1493,6 +1506,15 @@ class TradeHunterApp:
 
     class OptimisationAnalysisPage(QWidget):
         def __init__(self, robot_name='default', test_name='default', prev_window="TradeAdvisorPage"):
+            pass
+
+        def window(self):
+            pass
+
+        def create_label(self):
+            pass
+
+        def delete_label(self):
             pass
 
     class VisualWindow(QWidget):

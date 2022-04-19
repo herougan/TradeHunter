@@ -27,6 +27,7 @@ from util.langUtil import strtotimedelta, timedeltatosigstr, normify_name, yahoo
 
 # Robots
 from robot import FMACDRobot
+from robot import FullFMACDRobot
 
 
 #   DataFrame
@@ -446,7 +447,9 @@ def load_ivar_as_dict(ta_name: str, ivar_name: str):
     ivar_dict = {}
     for col in idf.columns:
         ivar_dict.update({
-            col: idf[col][0]
+            col: {
+                'default': idf[col][0],
+            }
         })
     return ivar_dict
 

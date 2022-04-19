@@ -25,7 +25,7 @@ from util.langUtil import strtotimedelta, get_instrument_type, strtodatetime
 from util.robotDataUtil import generate_base_signal_dict
 
 
-class FMACDRobot(robot):
+class FullFMACDRobot(robot):
     """A simple robot to test the TradingHunter suite."""
 
     IVAR_STEP = 0.05
@@ -907,6 +907,3 @@ class FMACDRobot(robot):
 
     def set_multiple_ivars(self, ivars):
         self.ivars = ivars
-
-    def set_lot_size(self, lot_size):
-        self.lot_size = lot_size

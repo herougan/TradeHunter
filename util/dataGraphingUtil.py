@@ -273,16 +273,24 @@ def load_signals(ax, sdf):
     pass
 
 
-def plot_optimisations(ax, ivar_list, profit_list, primary_axis=[0, 1], **kwd):
-    pass
-    # Delete old line plot (by handle)
+def plot_optimisations(ax, ivar_results, style={}, **kwd):
 
     # Sort data by high, low and average
-
+    x = []
+    y = []
+    for i in range(len(ivar_results)): # {ivar, fitness, type}
+        ivar_result = ivar_results[i]
+        x.append(i)
+        y.append(ivar_result[i])
     # If < 50 data slots, only top = high, btm = low
-
+    # y_std = try_stdev(y)
+    # y_avg = try_mean(y)
+    # for i in range(len(y)):
+    #     if y[i] > y_avg+y_std or y[i] < y_avg-y_std:
+    #         y.pop(i)
+    #         x.pop(i)
     # Plot average line
-
+    ax.plot(x, y, marker='x', color='b')
     # Plot profit to index
 
 

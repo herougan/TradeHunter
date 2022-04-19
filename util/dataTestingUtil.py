@@ -21,7 +21,7 @@ from matplotlib.pyplot import clf
 from robot.abstract.robot import robot
 from settings import EVALUATION_FOLDER, OPTIMISATION_FOLDER, PLOTTING_SETTINGS, TESTING_SETTINGS, OPTIMISATION_SETTINGS
 from util.dataGraphingUtil import plot_robot_instructions, plot_signals, plot_open_signals, candlestick_plot, \
-    get_interval, DATE_FORMAT_DICT, line_plot, plot_line
+    get_interval, DATE_FORMAT_DICT, line_plot, plot_line, plot_optimisations
 from util.dataRetrievalUtil import load_dataset, load_df, get_computer_specs, number_of_datafiles, retrieve, try_stdev
 from util.langUtil import craft_instrument_filename, strtodatetime, try_key, remove_special_char, strtotimedelta, \
     try_divide, try_max, try_mean, get_test_name, get_file_name, get_instrument_from_filename, is_datetime, \
@@ -32,6 +32,7 @@ from sklearn.linear_model import LinearRegression
 
 #  Robot
 from robot import FMACDRobot
+from robot import FullFMACDRobot
 
 
 def step_test_robot(r: robot, step: int):
@@ -83,6 +84,7 @@ def base_summary_dict():
         #
         'profit_factor': 0,
         'recovery_factor': 0,
+        'growth_factor': 0,
         'AHPR': 0,
         'GHPR': 0,
         #
@@ -207,6 +209,7 @@ def create_summary_df_from_list(stats_dict, signals_dict, df, additional={}):
     summary_dict['GHPR'] = math.pow(gmean, try_divide(1, l))
 
     summary_dict['profit_factor'] = try_divide(summary_dict['total_profit'], summary_dict['gross_profit'])
+    summary_dict['growth_factor'] = try_divide(summary_dict['total_profit'], stats_dict['capital'])
     # summary_dict['recovery_factor'] = summary_dict['total_profit'] / summary_dict['max_drawdown']  # Implemented below
 
     summary_dict['total_trades'] = l
@@ -457,7 +460,10 @@ def aggregate_summary_df_in_dataset(ds_name: str, summary_dict_list: List):
     summary_dict = base_summary_dict().copy()
     for i in range(len(summary_dict_list)):
         for key in summary_dict_list[i]:
-            summary_dict[key] += summary_dict_list[i][key]
+            if not key in summary_dict:
+                summary_dict[key] = summary_dict_list[i][key]
+            else:
+                summary_dict[key] += summary_dict_list[i][key]
     for key in summary_dict:
         if len(summary_dict_list) > 0:
             summary_dict[key] /= len(summary_dict_list)
@@ -533,6 +539,50 @@ def create_test_meta(test_name, ivar, xvar, other, get_specs=True):
     return meta
 
 
+def create_test_result(test_name: str, summary_dict_list, robot_name: str):
+    # folder = F'{EVALUATION_FOLDER}/{robot_name}'
+    # result_path = F'{folder}/{test_name}.csv'
+    # meta_path = F'{folder}/{test_name}__meta.csv'
+
+    summary_data = {}
+    final_summary_dict = summary_dict_list[-1]  # Setup base keys
+    for key in final_summary_dict:
+        summary_data.update({
+            key: [final_summary_dict[key]]
+        })
+    for i in range(summary_dict_list - 1):  # Add to dicta's lists
+        for key in final_summary_dict:
+            summary_data[key].append(try_key(summary_dict_list, key))
+
+    summary_df = pd.DataFrame(summary_data, index=0)
+    # summary_df.to_csv(result_path)
+    # meta_df.to_csv(meta_path)
+    return summary_df
+
+
+def create_optim_meta(optim_name, ivar, xvar, other, get_specs=True):
+    meta = {
+        # Robot meta output
+        'optim_name': optim_name,
+        'optim_meta': other,
+        'robot_meta': 0,
+    }
+    # IVar Dict
+    meta.update(ivar)
+    # XVar Dict
+    meta.update(xvar)
+    # Computer specs
+    if get_specs:
+        meta.update(get_computer_specs())
+
+    return meta
+
+
+def create_optim_result(optim_name, result_dict, robot_name: str):
+    result_df = pd.DataFrame([result_dict], index=0)
+    return result_df
+
+
 # Forex type
 
 def get_optimised_robot_list():
@@ -560,28 +610,7 @@ def get_tests_list(robot_name: str):
     return _files
 
 
-def create_test_result(test_name: str, summary_dict_list, meta_df: pd.DataFrame, robot_name: str):
-    folder = F'static/results/evaluation/{robot_name}'
-    result_path = F'{folder}/{test_name}.csv'
-    meta_path = F'{folder}/{test_name}__meta.csv'
-
-    summary_data = {}
-    final_summary_dict = summary_dict_list[-1]  # Setup base keys
-    for key in final_summary_dict:
-        summary_data.update({
-            key: [final_summary_dict[key]]
-        })
-    for i in range(summary_dict_list - 1):  # Add to dicta's lists
-        for key in final_summary_dict:
-            summary_data[key].append(try_key(summary_dict_list, key))
-
-    summary_df = pd.DataFrame(summary_data, index=0)
-
-    summary_df.to_csv(result_path)
-    meta_df.to_csv(meta_path)
-
-
-def write_test_result(test_name, summary_dicts: List, robot_name: str):
+def write_test_result(test_name: str, summary_dicts: List, robot_name: str):
     folder = F'{EVALUATION_FOLDER}/{robot_name}'
     path = F'{folder}/{test_name}.csv'
 
@@ -591,14 +620,14 @@ def write_test_result(test_name, summary_dicts: List, robot_name: str):
     sdfs = []
     for summary_dict in summary_dicts:
         sdfs.append(summary_dict)
-    sdfs = pd.DataFrame(sdfs)
+    sdfs = pd.DataFrame(sdfs, index='name')  # todo not sure if this works
     sdfs.to_csv(path)
 
     print(F'Writing test result at {path}')
     return sdfs
 
 
-def write_test_meta(test_name, meta_dict, robot_name: str):
+def write_test_meta(test_name: str, meta_dict, robot_name: str):
     folder = F'{EVALUATION_FOLDER}/{robot_name}'
     meta_path = F'{folder}/{test_name}__meta.csv'
 
@@ -611,40 +640,67 @@ def write_test_meta(test_name, meta_dict, robot_name: str):
     return meta
 
 
-def write_optimisation_result():
-    pass
+def write_optim_result(optim_name: str, result_df, robot_name: str):
+    folder = F'{OPTIMISATION_FOLDER}/{robot_name}'
+    result_path = F'{folder}/{optim_name}.csv'
+
+    print(F'Writing optimisation result at {result_path}')
+    result_df.to_csv(result_path)
+    return result_df
 
 
-def write_optimisation_meta():
-    pass
+def write_optim_meta(optim_name: str, meta_dict, robot_name: str):
+    folder = F'{EVALUATION_FOLDER}/{robot_name}'
+    meta_path = F'{folder}/{optim_name}__meta.csv'
+
+    if not os.path.exists(folder):
+        os.makedirs(folder)
+
+    meta = pd.DataFrame([meta_dict])
+    meta.to_csv(meta_path)
+    print(F'Writing test meta at {meta_path}')
+    return meta
 
 
 def load_test_result(test_name: str, robot_name: str):
-    folder = F'{EVALUATION_FOLDER}'
+    folder = F'{OPTIMISATION_FOLDER}/{robot_name}'
     if not test_name.endswith('.csv'):
         test_name += '.csv'
-    result_path = F'{folder}/{robot_name}/{test_name}'
+    result_path = F'{folder}/{test_name}'
 
     trdf = pd.read_csv(result_path, index_col=0)
     return trdf
 
 
 def load_test_meta(meta_name: str, robot_name: str):
-    folder = F'{EVALUATION_FOLDER}'
+    folder = F'{EVALUATION_FOLDER}/{robot_name}'
     if not meta_name.endswith('.csv'):
         meta_name += '.csv'
-    meta_path = F'{folder}/{robot_name}/{meta_name}'
+    meta_path = F'{folder}/{meta_name}'
 
     tmdf = pd.read_csv(meta_path, index_col=0)
     return tmdf
 
 
-def load_optimisation_result():
-    pass
+def load_optimisation_result(optim_name: str, robot_name: str):
+    folder = F'{OPTIMISATION_FOLDER}/{robot_name}'
+    if not optim_name.endswith('.csv'):
+        optim_name += '.csv'
+    result_path = F'{folder}/{optim_name}'
+
+    trdf = pd.read_csv(result_path, index_col=0)
+    return trdf
 
 
-def load_optimisation_meta():
-    pass
+def load_optimisation_meta(meta_name: str, robot_name: str):
+    folder = F'{OPTIMISATION_FOLDER}/{robot_name}'
+    if not meta_name.endswith('.csv'):
+        meta_name += '.csv'
+    meta_path = F'{folder}/{meta_name}'
+
+    omdf = pd.read_csv(meta_path, index_col=0)
+    return omdf
+
 
 
 # Stock type
@@ -655,18 +711,24 @@ class DataTester:
     def __init__(self, xvar):
 
         self.xvar = xvar
-        self.progress_bar = None
         self.start_time = None
         self.end_time = None
+
+        # Progress
+        self.p_bar_2 = None
+        self.p_bar = None
 
         # Robot
         self.robot = None
         self.robot_ivar = None
         self.robot_fixed_ivar = None
 
-    def bind_progress_bar(self, p_bar: QProgressBar, p_window: QWidget):
+    def bind_progress_bar(self, p_bar: QProgressBar):
         self.p_bar = p_bar
-        self.p_window = p_window
+        # self.p_window = p_window
+
+    def bind_progress_bar_2(self, p_bar_2: QProgressBar):
+        self.p_bar_2 = p_bar_2
 
     # == Test ==
     def test(self, ta_name: str, ivar: List[float], ds_names: List[str], test_name: str, store=True, meta_store=True):
@@ -681,7 +743,7 @@ class DataTester:
         if self.p_bar:
             self.p_bar.setMaximum(number_of_datafiles(ds_names) + 1)
             self.p_bar.setValue(0)
-            self.p_window.show()
+            # self.p_window.show()
 
         # Testing util functions
         def test_dataset(ds_name):
@@ -702,7 +764,7 @@ class DataTester:
                     continue
 
                 # Testing dataframe here
-                self.p_window.setWindowTitle(F'Testing against {d_name}')
+                # self.p_window.setWindowTitle(F'Testing against {d_name}')
                 stats_dict, signals_dict, robot_dict = test_data(df, row['symbol'], row['interval'], row['period'])
                 summary_dict_list.append(create_summary_df_from_list(stats_dict, signals_dict, df))
 
@@ -712,6 +774,8 @@ class DataTester:
 
             # Set robot to testing mode
             print(F"Robot {self.robot} starting test {sym}-{interval}-{period}...")
+            if "JYP-X" in sym:
+                self.robot.set_lot_size(1000)
             self.robot.start(sym, interval, period, df, True)
             # Robot
             # df = retrieve("symbol", datetime.now(), datetime.now()
@@ -735,8 +799,8 @@ class DataTester:
         full_summary_dict_list.append(aggregate_summary_df_in_datasets(full_summary_dict_list))
         # ======= Testing ended! =========
 
-        if self.p_bar:
-            self.p_window.setWindowTitle('Writing results...')
+        # if self.p_bar:
+        #     self.p_window.setWindowTitle('Writing results...')
 
         self.end_time = datetime.now()
 
@@ -748,12 +812,10 @@ class DataTester:
         }
         if meta_store:
             meta.update(self.robot.get_robot_meta())
-        _ivar = {
-            'name': ivar[0]
-        }
-        for i in range(1, len(ivar)):
+        _ivar = {}
+        for key in ivar.keys():
             _ivar.update({
-                F'arg{i}': ivar[i]
+                key: ivar[key]['default']
             })
 
         # Create test meta and result
@@ -769,7 +831,7 @@ class DataTester:
 
         if self.p_bar:
             self.p_bar.setValue(self.p_bar.maximum())
-            self.p_window.setWindowTitle('Done! Close this window.')
+            # self.p_window.setWindowTitle('Done! Close this window.')
 
         return test_result, test_meta
 
@@ -936,7 +998,12 @@ class DataTester:
         return True, 'No Error'
 
     # == Optimise ==
-    def optimise(self, ta_name: str, init_ivar: List[float], ds_names: List[str], optimisation_name: str, store=True, canvas=None):
+    def optimise(self, ta_name: str, init_ivar: List[float], ds_names: List[str], optim_name: str, store=True,
+                 meta_store=True, canvas=None):
+        ta_name = remove_special_char(ta_name)
+        print('Starting optimisation: ' + F'{ta_name}.{ta_name}({init_ivar}) with i:{init_ivar}, x:{self.xvar}')
+
+        self.robot = eval(F'{ta_name}.{ta_name}({init_ivar}, {self.xvar})')
         runs = TESTING_SETTINGS['optimisation_runs']
         ivar = init_ivar
         fitness = 0
@@ -946,6 +1013,11 @@ class DataTester:
         max_runs = OPTIMISATION_SETTINGS['max_runs']
         step_size = OPTIMISATION_SETTINGS['arg_step_size']  # alpha
         approach_size = OPTIMISATION_SETTINGS['approach_step_size']
+
+        # Get ax
+        if canvas:
+            axes = canvas.axes
+            ax = axes[-1][-1]
 
         def adjust_ivar(spread_results):
             pass
@@ -998,7 +1070,7 @@ class DataTester:
             for key in args_dict.keys():
                 arg_range = args_dict[key]['range']
                 step = args_dict[key]['step_size']
-                r = random.Random.random()
+                r = random.random()
                 # find closest step
                 if step == 0:
                     value = r * (arg_range[1] - arg_range[0]) + arg_range[0]
@@ -1022,6 +1094,7 @@ class DataTester:
                     key: value
                 })
             ivar = _ivar.copy()
+            del ivar['name']
             return ivar
 
         def ivar_spread(ivar):
@@ -1031,22 +1104,26 @@ class DataTester:
             }
             # Test hypersphere around ivar
             for key in args_dict.keys():
-                r = random.Random.random()
+                r = random.random()
                 _ivar = ivar.copy()
                 range = args_dict[key]['range']
-                curr = ivar[key]
+                curr = ivar[key]['default']
+
+                t = -1
+                if r > 0.5:
+                    t = 1  # Random +ve/-ve switch
 
                 # Roll to try inc. or dec.
                 if r > 0.5:  # Increase
                     if range[1] - curr == 0:  # Cannot increase further
                         _val = range[1]
-                        _ivar[key] = _val
-                    elif range[1] - curr <= args_dict[key]['step']:  # Touch end point
+                        _ivar[key]['default'] = _val
+                    elif range[1] - curr <= args_dict[key]['step_size']:  # Touch end point
                         _val = range[1]
-                        _ivar[key] = _val
+                        _ivar[key]['default'] = _val
                     else:  # not in any edge case
                         _val = curr + (range[1] - range[0]) * step_size
-                        _ivar[key] = _val
+                        _ivar[key]['default'] = _val
                     ivar_key_tuples.update({
                         key: {
                             'ivar': _ivar,
@@ -1055,13 +1132,13 @@ class DataTester:
                 else:  # Decrease
                     if curr - range[0] == 0:
                         _val = range[1]
-                        _ivar[key] = _val
-                    elif curr - range[0] <= args_dict[key]['step']:
+                        _ivar[key]['default'] = _val
+                    elif curr - range[0] <= args_dict[key]['step_size']:
                         _val = range[1]
-                        _ivar[key] = _val
+                        _ivar[key]['default'] = _val
                     else:  #
                         _val = curr - (range[1] - range[0]) * step_size
-                        _ivar[key] = _val
+                        _ivar[key]['default'] = _val
                     ivar_key_tuples.update({
                         key: {
                             'ivar': _ivar,
@@ -1073,11 +1150,13 @@ class DataTester:
             pass
 
         def get_fitness_score(result):
-            return result['balance'][-1] / result['balance'][0]
+            # return result['balance'] / result['capital']
+            return result['growth_factor']
+
 
         def get_test_result(_ivar):
             _result, _meta = self.test(ta_name, _ivar, ds_names, '', False, False)
-            return _result
+            return _result[-1]  # final only
 
         def get_ivar_distance(ivar, ivar2):
             """Distance between ivar and ivar 2."""
@@ -1171,7 +1250,9 @@ class DataTester:
                 for key in ivar_tuples_to_test.keys():
 
                     if key == 'origin':
-                        continue
+                        ivar_tuples_to_test[key].update({
+                            'fitness': fitness,
+                        })
 
                     ivar_dict = ivar_tuples_to_test[key]
                     test_result = get_test_result(ivar_dict['ivar'])
@@ -1198,7 +1279,7 @@ class DataTester:
 
                 # Check divergence for cycles
                 pass
-                # If reflected (MOST 90% ivars reflected)
+                # If reflected (Most 90% ivars reflected)
                 reflect_n = 0
                 for key in new_ivar:
                     sgn = math.copysign(1, ivar[key])
@@ -1237,9 +1318,17 @@ class DataTester:
                     pass
 
                 # ===== PLOT =====
-                # plot new best result from spread
+                # Plot new best result from spread
+                if canvas:
+                    plot_optimisations(ax, ivar_result_tuples)
+                    # for ivar_result in ivar_result_tuples:
+                    #     plot_optimisations()
+                    # Update plot every pass
+                    canvas.draw()
+                    PyQt5.QtWidgets.QApplication.processEvents()
 
-                # Update plot every pass
+                # Modify p_window
+                # p_window len(runs) todo
 
             # ivar_result_tuple = sorted(ivar_result_tuple, key=lambda x: x[1])
 
@@ -1261,7 +1350,47 @@ class DataTester:
         # Add non-final trajectories that scored highly
         # Distinct elements only
 
-        # todo Craft optimisation file
+        # Create result dict
+        result_dict = {
+            'high': top_fitness_score,  # from picked ivars
+            'low': btm_fitness_score,
+            'average': avg_fitness_score,
+            'std_deviation': std,
+            # ----
+            'average_overall': try_mean(fitness_collection),
+            'low_overall': try_min(fitness_collection),
+            'total_tests': len(fitness_collection),
+            'total_runs': runs,
+            'data': ', '.join(ds_names)[:-2],
+            # ----
+        }
+        # for each key in ivar, display average (picked) value:
+        for ivar in ivar_collection:
+            pass
+        for key in ivar.keys():
+            if key.lower() == 'name':
+                result_dict.update({
+                    'top_ivar_name': ivar['name']['default'],
+                })
+            else:
+                # get average value
+                result_dict.update('top_' + key, ivar[key]['default'])
+
+        # Create Meta and Result
+        meta = {
+            'start': self.start_time,
+            'end': self.end_time,
+            'time_taken': self.start_time - self.end_time,
+        }
+        if meta_store:
+            meta.update(self.robot.get_robot_meta())
+        _ivar = {}
+        optim_meta = create_optim_meta(optim_name, ivar, self.xvar, meta, meta_store)
+        optim_result = create_optim_result(optim_name, result_dict, meta['name'])
+
+        # Write Meta and Result
+        write_optim_meta(optim_name, optim_meta, meta['name'])
+        write_optim_result(optim_name, optim_result, meta['name'])
 
         # Save optimisation file
         if store:
@@ -1270,6 +1399,7 @@ class DataTester:
         for ivar_result in final_ivar_results:
             trimmed_ivar_results.append(ivar_result)
         return trimmed_ivar_results
+
 
 #  General
 
