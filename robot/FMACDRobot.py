@@ -28,7 +28,6 @@ from util.robotDataUtil import generate_base_signal_dict
 class FMACDRobot(robot):
     """A simple robot to test the TradingHunter suite."""
 
-    IVAR_STEP = 0.05
     # N_ARGS = 2
     # ARGS_STR = ['stop_loss', 'take_profit', 'fast_period', 'slow_period', 'signal_period', 'sma_period']
     # ARGS_DEFAULT = [1, 1.5, 12, 26, 9, 200]
@@ -39,31 +38,31 @@ class FMACDRobot(robot):
         # Main, optimisable
         'profit_loss_ratio': {
             'default': 1.5,
-            'range': [0.75, 4],
+            'range': [0.75, 3],
             'step_size': 0.1,  # Default step size
         },
+        'sma_period': {
+            'default': 200,
+            'range': [100, 300],
+            'step_size': 10,
+        },
+    }
+    OTHER_ARGS_DICT = {
         'fast_period': {
             'default': 12,
-            'range': [0, 1],
+            'range': [10, 15],
             'step_size': 0.1,
         },
         'slow_period': {
             'default': 26,
-            'range': [0, 1],
+            'range': [25, 30],
             'step_size': 0.1,
         },
         'signal_period': {
             'default': 9,
-            'range': [0, 1],
-            'step_size': 0.1,
+            'range': [8, 10],
+            'step_size': 1,
         },
-        'sma_period': {
-            'default': 200,
-            'range': [0, 1],
-            'step_size': 0.1,
-        },
-    }
-    OTHER_ARGS_DICT = {
         'left_peak': {
             'default': 2,
             'range': [1, 4],
@@ -149,10 +148,11 @@ class FMACDRobot(robot):
 
         # == Main Args ==
         self.profit_loss_ratio = self.ivar['profit_loss_ratio']['default']
-        self.fast_period = self.ivar['fast_period']['default']
-        self.slow_period = self.ivar['slow_period']['default']
-        self.signal_period = self.ivar['signal_period']['default']
         self.sma_period = self.ivar ['sma_period']['default']
+        # (Demoted)
+        self.fast_period = self.OTHER_ARGS_DICT['fast_period']['default']
+        self.slow_period = self.OTHER_ARGS_DICT['slow_period']['default']
+        self.signal_period = self.OTHER_ARGS_DICT['signal_period']['default']
         # == Other Args ==
         self.look_back = self.OTHER_ARGS_DICT['look_back']['default']
         self.left_peak = self.OTHER_ARGS_DICT['left_peak']['default']
@@ -889,7 +889,7 @@ class FMACDRobot(robot):
 
     def get_take_profit(self, stop_loss):
         diff = self.last.Close - stop_loss
-        return self.last.Close + diff * self.ARGS_DICT['profit_loss_ratio']['default']
+        return self.last.Close + diff * self.profit_loss_ratio
 
     # Optimisation
 

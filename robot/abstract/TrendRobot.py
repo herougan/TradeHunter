@@ -25,9 +25,10 @@ from util.langUtil import strtotimedelta, get_instrument_type, strtodatetime
 from util.robotDataUtil import generate_base_signal_dict
 
 
-class FullFMACDRobot(robot):
-    """A simple robot to test the TradingHunter suite."""
+class TrendRobot(robot):
+    """This robot uses... algorithm"""  # todo apply base methods to robot
 
+    IVAR_STEP = 0.05
     # N_ARGS = 2
     # ARGS_STR = ['stop_loss', 'take_profit', 'fast_period', 'slow_period', 'signal_period', 'sma_period']
     # ARGS_DEFAULT = [1, 1.5, 12, 26, 9, 200]
@@ -35,7 +36,7 @@ class FullFMACDRobot(robot):
     #               [10, 15], [22, 30],
     #               [8, 10], [150, 250], ]
     ARGS_DICT = {
-        # Main, optimisable args
+        # Main, optimisable
         'profit_loss_ratio': {
             'default': 1.5,
             'range': [0.75, 4],
@@ -43,24 +44,26 @@ class FullFMACDRobot(robot):
         },
         'fast_period': {
             'default': 12,
-            'range': [10, 15],
+            'range': [0, 1],
             'step_size': 0.1,
         },
         'slow_period': {
             'default': 26,
-            'range': [25, 30],
+            'range': [0, 1],
             'step_size': 0.1,
         },
         'signal_period': {
             'default': 9,
-            'range': [8, 10],
+            'range': [0, 1],
             'step_size': 0.1,
         },
         'sma_period': {
             'default': 200,
-            'range': [100, 300],
+            'range': [0, 1],
             'step_size': 0.1,
         },
+    }
+    OTHER_ARGS_DICT = {
         'left_peak': {
             'default': 2,
             'range': [1, 4],
@@ -78,7 +81,7 @@ class FullFMACDRobot(robot):
         },
         'peak_order': {
             'default': 1,
-            'range': [1, 4],
+            'range': [1, 5],
             'step_size': 1,
         },
         'lots_per_k': {
@@ -97,7 +100,6 @@ class FullFMACDRobot(robot):
             'step_size': 1,
         },
     }
-    
     # Retrieve Prep
     PREPARE_PERIOD = 200
 
@@ -107,7 +109,7 @@ class FullFMACDRobot(robot):
 
     # Plotting variables
     PLOT_NO = [0, 0, 1]  # (Trailing)
-    #
+
     VERSION = '0.1'
     NAME = 'FMACDRobot'
 
@@ -122,7 +124,7 @@ class FullFMACDRobot(robot):
         if len(ivar.keys()) >= len(self.ARGS_DICT.keys()):
             self.ivar = ivar
         else:
-            self.ivar = FullFMACDRobot.ARGS_DICT
+            self.ivar = FMACDRobot.ARGS_DICT
         # self.ivar_range = FMACDRobot.ARGS_RANGE
         self.ivar_range = {}
 
@@ -152,12 +154,12 @@ class FullFMACDRobot(robot):
         self.signal_period = self.ivar['signal_period']['default']
         self.sma_period = self.ivar ['sma_period']['default']
         # == Other Args ==
-        self.look_back = self.ivar['look_back']['default']
-        self.left_peak = self.ivar['left_peak']['default']
-        self.right_peak = self.ivar['right_peak']['default']
-        self.lot_per_k = self.ivar['lots_per_k']['default']
-        self.stop_loss_amp = self.ivar['stop_loss_amp']['default']
-        self.stop_loss_flat_amp = self.ivar['stop_loss_flat_amp']['default']
+        self.look_back = self.OTHER_ARGS_DICT['look_back']['default']
+        self.left_peak = self.OTHER_ARGS_DICT['left_peak']['default']
+        self.right_peak = self.OTHER_ARGS_DICT['right_peak']['default']
+        self.lot_per_k = self.OTHER_ARGS_DICT['lots_per_k']['default']
+        self.stop_loss_amp = self.OTHER_ARGS_DICT['stop_loss_amp']['default']
+        self.stop_loss_flat_amp = self.OTHER_ARGS_DICT['stop_loss_flat_amp']['default']
 
         # == Preparation ==
         self.prepare_period = self.PREPARE_PERIOD  # Because of SMA200
@@ -354,10 +356,10 @@ class FullFMACDRobot(robot):
         self.signal_period = self.ARGS_DICT['signal_period']['default']
         self.sma_period = self.ARGS_DICT['sma_period']['default']
 
-        self.look_back = self.ARGS_DICT['look_back']['default']
-        self.left_peak = self.ARGS_DICT['left_peak']['default']
-        self.right_peak = self.ARGS_DICT['right_peak']['default']
-        self.lot_per_k = self.ARGS_DICT['lots_per_trade']['default']
+        self.look_back = self.OTHER_ARGS_DICT['look_back']['default']
+        self.left_peak = self.OTHER_ARGS_DICT['left_peak']['default']
+        self.right_peak = self.OTHER_ARGS_DICT['right_peak']['default']
+        self.lot_per_k = self.OTHER_ARGS_DICT['lots_per_trade']['default']
 
     def next(self, candlesticks: pd.DataFrame):
         """When the next candlestick comes. Just in case candlesticks were
@@ -887,7 +889,7 @@ class FullFMACDRobot(robot):
 
     def get_take_profit(self, stop_loss):
         diff = self.last.Close - stop_loss
-        return self.last.Close + diff * self.profit_loss_ratio
+        return self.last.Close + diff * self.ARGS_DICT['profit_loss_ratio']['default']
 
     # Optimisation
 

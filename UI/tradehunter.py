@@ -1508,7 +1508,7 @@ class TradeHunterApp:
 
     class OptimisationAnalysisPage(QWidget):
         def __init__(self, robot_name='default', test_name='default', prev_window="TradeAdvisorPage"):
-            pass
+            super().__init__()
 
         def window(self):
             pass

@@ -298,6 +298,7 @@ def set_dataset_changes(dsc: pd.DataFrame):
 def load_speed_suggestions():
     return settings.SUGGESTIONS['simulation']['speed']
 
+
 def load_contract_size_suggestions():
     return settings.SUGGESTIONS['contract_size']
 
@@ -439,7 +440,7 @@ def ivar_to_list(idf: pd.DataFrame):
 
 def load_ivar(ta_name: str, ivar_name: str):
     idf = load_ivar_df(ta_name)
-    return idf[idf['name'] == ivar_name]
+    return idf[idf.index == ivar_name]
 
 
 def load_ivar_as_dict(ta_name: str, ivar_name: str):
@@ -451,10 +452,16 @@ def load_ivar_as_dict(ta_name: str, ivar_name: str):
                 'default': idf[col][0],
             }
         })
+    ivar_dict.update({
+        'name': {
+            'default': idf.index[-1]
+        }
+    })
     return ivar_dict
 
 
-def load_ivar_df(ta_name: str) -> pd.DataFrame:
+def load_ivar_df(ta_name: str, meta=False) -> pd.DataFrame:
+    """Load iVar entry point"""
     folder = F'robot/ivar'
     ivar_file = F'{ta_name}_ivar'
     path = F'{folder}/{ivar_file}.csv'
@@ -462,7 +469,14 @@ def load_ivar_df(ta_name: str) -> pd.DataFrame:
     if not file_exists(path):
         generate_ivar(ta_name)
 
-    idf = pd.read_csv(path, index_col=0)
+    idf = pd.read_csv(path, index_col='name')
+    # Strip meta attributes
+    if not meta:
+        if 'type' in idf.columns:
+            idf.drop('type', inplace=True, axis=1)
+        if 'fitness' in idf.columns:
+            idf.drop('fitness', inplace=True, axis=1)
+
     return idf
 
 
@@ -477,15 +491,16 @@ def load_ivar_as_list(ta_name: str, ivar_name: str):
 
 def load_ivar_list(ta_name: str):
     """Returns IVar names only"""
-    folder = F'robot/ivar'
-    ivar_file = F'{ta_name}_ivar'
-    path = F'{folder}/{ivar_file}.csv'
-
-    if not file_exists(path):
-        generate_ivar(ta_name)
-
-    idf = pd.read_csv(path, index_col=0)
-    return idf.loc[:, 'name']
+    idf = load_ivar_df(ta_name)
+    # folder = F'robot/ivar'
+    # ivar_file = F'{ta_name}_ivar'
+    # path = F'{folder}/{ivar_file}.csv'
+    #
+    # if not file_exists(path):
+    #     generate_ivar(ta_name)
+    #
+    # idf = pd.read_csv(path, index_col=0)
+    return list(idf.index)
 
 
 def load_ivar_file_list():
@@ -503,17 +518,20 @@ def generate_ivar(ta_name: str):
     # args = eval(F'{ta_name}.{ta_name}.ARGS_DEFAULT')
     args_dict = eval(F'{ta_name}.{ta_name}.ARGS_DICT')
     data = {
+        # meta
         'name': ['*Default'],
+        'fitness': [-1],
+        'type': ['default'],
     }
     # for i in range(len(args_str)):
     #     data.update({args_str[i]: args[i]})
     for key in args_dict.keys():
         data.update({
-            key: args_dict[key]['default']
+            key: [args_dict[key]['default']]
         })
 
-    df = pd.DataFrame(data)
-    df.to_csv(path)
+    df = pd.DataFrame.from_dict(data)
+    df.to_csv(path, index=False)
 
 
 def ivar_to_arr(idf: pd.DataFrame):
@@ -536,10 +554,74 @@ def insert_ivar(ta_name: str, ivar):
     data = {}
     for i in range(len(head)):
         data.update({
-            head[i]: ivar[i]
+            head[i]: [ivar[i]]
         })
-    n_idf = pd.DataFrame(data)
+    # n_idf = pd.DataFrame.from_dict(data)
+    n_idf = pd.DataFrame.from_dict(data)
     idf = idf.append(n_idf)
+    idf.to_csv(path, index=False)  # todo copy from below
+
+
+def insert_ivars(ta_name: str, ivar_list):
+    path = get_ivar_path(ta_name)
+
+    # Load stored ivars
+    idf = load_ivar_df(ta_name)
+    cols = list(idf.columns)
+    if 'name' not in cols:  # Name is used as index
+        cols.append('name')
+
+    # Sanity check
+    if len(ivar_list[-1]['ivar'].keys()) != len(cols) - 1:
+        # len of ivar keys != len of ivar meta - name (fitness and type excluded automatically)
+        print(F'Insert ivars not compatible. Forcing insert: {ivar_list}')
+    one_true = False
+    for col in cols:
+        for key in ivar_list[-1]['ivar'].keys():
+            if col == key:
+                one_true = True
+                break
+        if one_true:
+            break
+    if not one_true:
+        print(F'Not a single ivar column is similar. Cancelling process.')
+        return
+
+    # Add ivars
+    for ivar_dict in ivar_list:
+        data = {}
+        # Flatten ivar dict structure
+        ivar = ivar_dict['ivar']
+        for key in ivar:
+            if key not in cols:
+                continue  # Ignore if not inside.
+            if key == 'name':  # Add name as index
+                continue
+            data.update({
+                key: [ivar[key]['default']],
+            })
+
+        # Create indexer
+        name = ["none"]
+        if 'name' in ivar_dict['ivar']:
+            name = [ivar['name']['default']]
+
+        # Fill in meta attributes
+        data.update({
+            'type': ['unknown'],
+            'fitness': [0],
+        })
+        if 'fitness' in ivar_dict:
+            data.update({
+                'fitness': [ivar_dict['fitness']],
+            })
+        if 'type' in ivar_dict:
+            data.update({
+                'type': [ivar_dict['type']],
+            })
+        n_idf = pd.DataFrame(data, index=name)
+        idf = idf.append(n_idf)
+    idf.index.name = 'name'
     idf.to_csv(path)
 
 

@@ -22,7 +22,8 @@ from robot.abstract.robot import robot
 from settings import EVALUATION_FOLDER, OPTIMISATION_FOLDER, PLOTTING_SETTINGS, TESTING_SETTINGS, OPTIMISATION_SETTINGS
 from util.dataGraphingUtil import plot_robot_instructions, plot_signals, plot_open_signals, candlestick_plot, \
     get_interval, DATE_FORMAT_DICT, line_plot, plot_line, plot_optimisations
-from util.dataRetrievalUtil import load_dataset, load_df, get_computer_specs, number_of_datafiles, retrieve, try_stdev
+from util.dataRetrievalUtil import load_dataset, load_df, get_computer_specs, number_of_datafiles, retrieve, try_stdev, \
+    insert_ivar, insert_ivars
 from util.langUtil import craft_instrument_filename, strtodatetime, try_key, remove_special_char, strtotimedelta, \
     try_divide, try_max, try_mean, get_test_name, get_file_name, get_instrument_from_filename, is_datetime, \
     timedeltatoyahootimestr, try_min
@@ -321,6 +322,7 @@ def create_summary_df_from_list(stats_dict, signals_dict, df, additional={}):
         expected_payoff += signal['net']
     summary_dict['expected_payoff'] = try_divide(summary_dict['total_profit'], l)
     summary_dict['sharpe_ratio'] = 0  # No risk-free proxy
+    # todo https: // www.investopedia.com / terms / s / sharperatio.asp  US treasury rate
     summary_dict['standard_deviation'] = 0
     summary_dict['LR_correlation'] = 0  # no line correlation yet
     summary_dict['LR_standard_error'] = 0
@@ -579,7 +581,7 @@ def create_optim_meta(optim_name, ivar, xvar, other, get_specs=True):
 
 
 def create_optim_result(optim_name, result_dict, robot_name: str):
-    result_df = pd.DataFrame([result_dict], index=0)
+    result_df = pd.DataFrame([result_dict])
     return result_df
 
 
@@ -644,6 +646,9 @@ def write_optim_result(optim_name: str, result_df, robot_name: str):
     folder = F'{OPTIMISATION_FOLDER}/{robot_name}'
     result_path = F'{folder}/{optim_name}.csv'
 
+    if not os.path.exists(folder):
+        os.makedirs(folder)
+
     print(F'Writing optimisation result at {result_path}')
     result_df.to_csv(result_path)
     return result_df
@@ -702,7 +707,6 @@ def load_optimisation_meta(meta_name: str, robot_name: str):
     return omdf
 
 
-
 # Stock type
 
 
@@ -731,12 +735,14 @@ class DataTester:
         self.p_bar_2 = p_bar_2
 
     # == Test ==
-    def test(self, ta_name: str, ivar: List[float], ds_names: List[str], test_name: str, store=True, meta_store=True):
+    def test(self, ta_name: str, ivar: dict, ds_names: List[str], test_name: str, store=True, meta_store=True):
+        """Runs a test against a particular set of datasets. (Sets of sets of data) Depending on the robot, test() is
+        optimised with techniques such as running indicators only once."""
 
         self.start_time = datetime.now()
 
         ta_name = remove_special_char(ta_name)
-        # need to un-df ivar!
+
         print('Going to test: ' + F'{ta_name}.{ta_name}({ivar}) with i:{ivar}, x:{self.xvar}')
         self.robot = eval(F'{ta_name}.{ta_name}({ivar}, {self.xvar})')
 
@@ -814,6 +820,8 @@ class DataTester:
             meta.update(self.robot.get_robot_meta())
         _ivar = {}
         for key in ivar.keys():
+            if key == 'name':
+                continue
             _ivar.update({
                 key: ivar[key]['default']
             })
@@ -1006,10 +1014,21 @@ class DataTester:
         self.robot = eval(F'{ta_name}.{ta_name}({init_ivar}, {self.xvar})')
         runs = TESTING_SETTINGS['optimisation_runs']
         ivar_dict = {
-            'ivar': init_ivar
+            'ivar': init_ivar,
+            'name': init_ivar['name'],
         }
-        fitness = 0
-        args_dict = self.robot.ARGS_DICT
+        for meta in ['name', 'type', 'fitness']:  # Move meta attributes to a higher level
+            if meta in init_ivar:
+                ivar_dict.update({
+                    meta: ivar_dict[meta]
+                })
+                del ivar_dict[meta]
+
+        # Number of ivar to capture
+        top_n = 3  # Maximum fitness
+
+        args_dict = self.robot.ARGS_DICT  # Basis for optimisation,
+        # not the current keys in ivar though they should be the same
 
         # Base options
         max_runs = OPTIMISATION_SETTINGS['max_runs']
@@ -1021,21 +1040,41 @@ class DataTester:
             axes = canvas.axes
             ax = axes[-1][-1]
 
+        # Setup progress bar
+        if self.p_bar:
+            self.p_bar.setMaximum(1)
+            self.p_bar.setValue(0)
+
         def adjust_ivar(spread_results):
             pass
 
         def suggest_ivar(spread_results):
+            """Shape of spread results:
+            {key1: {
+                'ivar': {
+                    key1: ...,
+                    key2: ...,
+                    ...
+                    keyN: ...,
+                }
+                'fitness': float
+            }, key2..., origin...,}"""
 
-            main_ivar = spread_results['origin']
-            new_ivar = main_ivar.copy()
+            main_ivar_dict = spread_results['origin']
+            new_ivar = main_ivar_dict['ivar'].copy()
+            step_size = OPTIMISATION_SETTINGS['arg_step_size']  # step_size not saved in function
 
             for key in spread_results.keys():
                 if key == 'origin':
+                    spread_results[key].update({
+                        'fitness_diff': 0,
+                        'val_diff': 0,
+                    })
                     continue
 
                 spread_results[key].update({
-                    'fitness_diff': main_ivar['fitness'] - spread_results[key]['fitness'],
-                    'val_diff': main_ivar['ivar'] - spread_results[key]['ivar'],
+                    'fitness_diff': main_ivar_dict['fitness'] - spread_results[key]['fitness'],
+                    'val_diff': main_ivar_dict['ivar'][key]['default'] - spread_results[key]['ivar'][key]['default'],
                 })
                 # did it decrease?
 
@@ -1045,28 +1084,33 @@ class DataTester:
             normalisation_constant /= len(spread_results.keys())
 
             for key in spread_results.keys():
+                if key == 'origin':
+                    continue
 
                 min_step = args_dict[key]['step_size']  # % of step_size
                 #
                 if min_step:
-                    move = step_size * min_step * math.pow(spread_results[key]['fitness_diff'], 2) \
-                           / normalisation_constant  # correct direction from fitness_diff
+                    move = step_size * min_step\
+                           * try_divide(math.pow(spread_results[key]['fitness_diff'], 2),
+                                        normalisation_constant)  # correct direction from fitness_diff
                 else:
                     if step_size > 1 / 10:
                         step_size = 0.1
                     move = step_size / 10 * (args_dict[key]['range'][1] - args_dict[key]['step_size'][0])
 
                 if abs(move) < min_step:
-                    move /= abs(move) * min_step
+                    move = try_divide(move, abs(move) * min_step)
                 new_ivar[key]['default'] += move
 
             # return new ivar
-            return new_ivar
+            return {
+                'ivar': new_ivar
+            }
 
         def best_ivar_from_spread(spread_results):
             pass
 
-        def random_ivar(prev_ivar_list):
+        def random_ivar():
             """Create a random initial starting ivar"""
             _ivar = {}
             for key in args_dict.keys():
@@ -1081,17 +1125,16 @@ class DataTester:
                     steps = (arg_range[1] - arg_range[0]) / step
                     # Binary search
                     c_step = steps // 2
-                    top_step, btm_step = 0, steps
+                    top_step, btm_step = steps, 0
                     while True:
+                        c_step = (top_step + btm_step) // 2
                         value = step * c_step + arg_range[0]
                         if abs(value - target) <= step:
                             break
                         elif value > target:
                             top_step = c_step
-                            c_step = (c_step + btm_step) // 2
                         elif value < target:
                             btm_step = c_step
-                            c_step += (c_step + top_step) // 2
                 _ivar.update({
                     key: {
                         'default': value,
@@ -1100,9 +1143,8 @@ class DataTester:
             ivar = {
                 'ivar': _ivar
             }
-            del ivar['name']
             return ivar
-
+# todo check name for random_ivar, ivar_spread and suggest_ivar
         def ivar_spread(ivar):
             # Ivar itself
             ivar_key_tuples = {
@@ -1114,6 +1156,7 @@ class DataTester:
             for key in args_dict.keys():
                 r = random.random()
                 _ivar = ivar.copy()
+                _ivar['name'] = key
                 range = args_dict[key]['range']
                 curr = ivar[key]['default']
 
@@ -1248,7 +1291,10 @@ class DataTester:
             fitness_collection.append(fitness)
             ivar_collection.append(ivar_dict)
 
-            while True:  # either > 100 in-runs or results hit a plateau
+            # run counter
+            u = 0
+
+            while True:  # Run until terminate conditions
 
                 ivar_result_tuples = {}  # {key: {ivar, profit, fitness_diff, val_diff}}
                 # Get spread to analyse
@@ -1261,8 +1307,9 @@ class DataTester:
                             'fitness': fitness,
                         })
 
-                    ivar_dict = ivar_tuples_to_test[key]['ivar']
-                    test_result = get_test_result(ivar_dict)
+                    ivar = ivar_tuples_to_test[key]['ivar']
+                    ivar_dict = ivar_tuples_to_test[key]
+                    test_result = get_test_result(ivar)
                     _fitness = get_fitness_score(test_result)
 
                     ivar_dict.update({
@@ -1274,44 +1321,49 @@ class DataTester:
                     ivar_collection.append(ivar_dict)
 
                 # Determine next move based on deltas
-                new_ivar = suggest_ivar(ivar_result_tuples)
-                new_test_result = get_test_result(new_ivar)
+                new_ivar_dict = suggest_ivar(ivar_result_tuples)
+                new_test_result = get_test_result(new_ivar_dict['ivar'])
                 new_fitness = get_fitness_score(new_test_result)
                 # Store new ivar
                 fitness_collection.append(new_fitness)
-                ivar_collection.append(new_ivar)
+                ivar_collection.append(new_ivar_dict)
 
                 # Compare new ivar to old ivar
                 diff = new_fitness - fitness
 
+                # === Check terminate conditions ===
                 # Check divergence for cycles
                 pass
                 # If reflected (Most 90% ivars reflected)
                 reflect_n = 0
-                for key in new_ivar:
-                    sgn = math.copysign(1, ivar[key])
-                    new_sgn = math.copysign(1, new_ivar[key])
+                for key in new_ivar_dict['ivar']:
+                    if key == 'name' or key == "fitness" or key == "type":
+                        continue
+                    sgn = math.copysign(1, ivar[key]['default'])
+                    new_sgn = math.copysign(1, new_ivar_dict['ivar'][key]['default'])
                     if sgn != new_sgn:
                         reflect_n += 1
                 if reflect_n > 0.9 * len(ivar.keys()):  # ===== OUT =====
                     final_ivar_results.append({
-                        'ivar': new_ivar,
+                        'ivar': new_ivar_dict['ivar'],
                         'fitness': new_fitness,
                         'type': 'reflect',
                     })
+                    break
                 # If barely any change
                 if diff < 0:
                     pass
                 # If too many rounds
-                if i > max_runs:  # ===== OUT =====
+                if u > max_runs:  # ===== OUT =====
                     final_ivar_results.append({
-                        'ivar': new_ivar,
+                        'ivar': new_ivar_dict['ivar'],
                         'fitness': new_fitness,
                         'type': 'wander',
                     })
                     break
+                u += 1
                 # ivar = adjust_ivar(results)
-                ivar = new_ivar
+                ivar_dict = new_ivar_dict
                 fitness = new_fitness
                 # exploration
                 # future
@@ -1324,7 +1376,7 @@ class DataTester:
                 for candidate in candidates:
                     pass
 
-                # ===== PLOT =====
+                # ===== Plot =====
                 # Plot new best result from spread
                 if canvas:
                     plot_optimisations(ax, ivar_result_tuples)
@@ -1337,12 +1389,6 @@ class DataTester:
                 # Modify p_window
                 # p_window len(runs) todo
 
-            # ivar_result_tuple = sorted(ivar_result_tuple, key=lambda x: x[1])
-
-        # Hill elimination OR  # future
-        # fitness_collection
-        # ivar_collection
-
         # Descent Trajectory finals # Easier!
         trimmed_ivar_results = []
         final_fitness_scores = [d['fitness'] for d in final_ivar_results]
@@ -1350,7 +1396,11 @@ class DataTester:
         top_fitness_score, btm_fitness_score, avg_fitness_score = \
             try_max(final_fitness_scores), try_min(final_fitness_scores), try_mean(final_fitness_scores)
         std = try_stdev(final_fitness_scores)
-        # Trim bad results
+
+        # Trim bad results/Collect top results
+        final_ivar_results = sorted(final_ivar_results, key=lambda x: x['fitness'], reverse=True)
+        for i in range(top_n):  # top n, index 0 is highest
+            trimmed_ivar_results.append(final_ivar_results[i])
 
         # Trim unusual results (Too high etc.)
 
@@ -1371,17 +1421,23 @@ class DataTester:
             'data': ', '.join(ds_names)[:-2],
             # ----
         }
-        # for each key in ivar, display average (picked) value:
-        for ivar in ivar_collection:
-            pass
-        for key in ivar.keys():
-            if key.lower() == 'name':
-                result_dict.update({
-                    'top_ivar_name': ivar['name']['default'],
-                })
-            else:
-                # get average value
-                result_dict.update('top_' + key, ivar[key]['default'])
+        # For each key in ivar, display top (picked) value:
+        top_ivar = final_ivar_results[0]['ivar']
+        for key in top_ivar.keys():
+            # if key.lower() == 'name':
+            #     result_dict.update({
+            #         'top_ivar_name': top_ivar['name']['default'],
+            #     })
+            # else:
+            # Register #1 value from optimisation
+            result_dict.update(
+                {'top_' + key: top_ivar[key]['default']}
+            )
+        result_dict.update({
+            'top_fitness': '',
+        })
+        # For each key in ivar, display average (picked) value:
+
 
         # Create Meta and Result
         meta = {
@@ -1395,16 +1451,15 @@ class DataTester:
         optim_meta = create_optim_meta(optim_name, ivar, self.xvar, meta, meta_store)
         optim_result = create_optim_result(optim_name, result_dict, meta['name'])
 
-        # Write Meta and Result
-        write_optim_meta(optim_name, optim_meta, meta['name'])
-        write_optim_result(optim_name, optim_result, meta['name'])
+        # Insert ivar
+        insert_ivars(ta_name, trimmed_ivar_results)
 
         # Save optimisation file
         if store:
-            pass
+            # Write Meta and Result
+            write_optim_meta(optim_name, optim_meta, meta['name'])
+            write_optim_result(optim_name, optim_result, meta['name'])
 
-        for ivar_result in final_ivar_results:
-            trimmed_ivar_results.append(ivar_result)
         return trimmed_ivar_results
 
 

@@ -21,6 +21,15 @@ Bug fixes:
 
 6) Load optimisation page later
 
+7) In optimisation, move 'name' to meta level (instead of within ivar_dict['ivar'])
+
+8) Settle todos
+8a) Delete ivar, delete dataset, create custom ivar
+8b) Plot single test
+8c) Create todos for Long Future
+8d) Block optimisation
+8e) Random optimisation
+
 
 Objective:
 
@@ -57,6 +66,13 @@ New.
 8) Shapesetdef contains data specific to certain chart profiles. One can test their robot against these chart profiles
 to see which type of trends/shapes/market conditions it is better at trading in.
 
+# Optimisation
+
+1) Bayesian
+
+2) Small-range args - do not need to optimise as much -
+
+3) Parallel attributes: Detect attributes that are not affected much by other attributes
 
 
 
