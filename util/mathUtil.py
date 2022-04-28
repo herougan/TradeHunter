@@ -1,10 +1,18 @@
+from util.langUtil import try_mean
+
+
 def quartile_out(quartile, data):
     """Takes out extremities"""
     pass
 
 
 def moving_average(period, data):
-    pass
+    avg = []
+    if len(data) < period:
+        return avg
+    for i in range(period-1, len(data)):
+        avg.append(try_mean(data[i-period+1:i]))
+    return avg
 
 
 def moving_stddev(period, data):
