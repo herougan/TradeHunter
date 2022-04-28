@@ -29,7 +29,6 @@ from util.langUtil import craft_instrument_filename, strtodatetime, try_key, rem
     timedeltatoyahootimestr, try_min
 
 import numpy as np
-from sklearn.linear_model import LinearRegression
 
 #  Robot
 from robot import FMACDRobot
@@ -1045,6 +1044,25 @@ class DataTester:
             self.p_bar.setMaximum(1)
             self.p_bar.setValue(0)
 
+        # ===========================
+        #
+        #   ivar_dicts = {
+        #       key: {
+        #           ivar: {
+        #               name: key/origin
+        #               # Args
+        #               key_1: {
+        #                   default: val
+        #               }, ...,
+        #               key_n: {
+        #                   default: val
+        #               }
+        #           }
+        #       }
+        #   }
+        #
+        # ===========================
+
         def adjust_ivar(spread_results):
             pass
 
@@ -1090,7 +1108,7 @@ class DataTester:
                 min_step = args_dict[key]['step_size']  # % of step_size
                 #
                 if min_step:
-                    move = step_size * min_step\
+                    move = step_size * min_step \
                            * try_divide(math.pow(spread_results[key]['fitness_diff'], 2),
                                         normalisation_constant)  # correct direction from fitness_diff
                 else:
@@ -1144,7 +1162,7 @@ class DataTester:
                 'ivar': _ivar
             }
             return ivar
-# todo check name for random_ivar, ivar_spread and suggest_ivar
+
         def ivar_spread(ivar):
             # Ivar itself
             ivar_key_tuples = {
@@ -1298,7 +1316,8 @@ class DataTester:
 
                 ivar_result_tuples = {}  # {key: {ivar, profit, fitness_diff, val_diff}}
                 # Get spread to analyse
-                ivar_tuples_to_test = ivar_spread(ivar_dict['ivar'])  # Initial ivar outside loop or new_ivar from previous loop
+                ivar_tuples_to_test = ivar_spread(
+                    ivar_dict['ivar'])  # Initial ivar outside loop or new_ivar from previous loop
                 # Get spread results
                 for key in ivar_tuples_to_test.keys():
 
@@ -1438,7 +1457,6 @@ class DataTester:
         })
         # For each key in ivar, display average (picked) value:
 
-
         # Create Meta and Result
         meta = {
             'start': self.start_time,
@@ -1461,6 +1479,9 @@ class DataTester:
             write_optim_result(optim_name, optim_result, meta['name'])
 
         return trimmed_ivar_results
+
+    def get_optimisation_types(self):
+        return ['block', 'random_descent', 'random', 'bayesian', 'evolution']
 
 
 #  General

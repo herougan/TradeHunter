@@ -88,3 +88,15 @@ Others:
 
 
 10) Lag Signals
+
+
+
+Others 2:
+
+
+
+1) Box-optimise small ivar ranges
+2) Ivar-choices - Optimise/Manual-set - Values (Init at default)
+3) Re-download all button (beside update all) - deletes all df and redownloads them
+4) Ticker mode. - may need internet connection - too much data. download swaths at a time (in mem only)
+5) Martingale+Grid+Profit_Line
