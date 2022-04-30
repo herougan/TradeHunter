@@ -86,7 +86,7 @@ def checkifyahootimestr(s: str):
 def timedeltatoyahootimestr(_interval: timedelta):
     """XM X minutes, XH X hours, Xd X days, Xw X weeks, Xm X months, all separated by a space
     Interval closest to '1m,2m,5m,15m,30m,60m,90m,1h,1d,5d,1wk,1mo,3mo' will be chosen."""
-    interval = ['1M', '2M', '5M', '15M', '30M', '60M', '1h', '90M', '1d', '5d', '1wk', '1m', '3m']
+    interval = ['1m', '2m', '5m', '15m', '30m', '60m', '1h', '90m', '1d', '5d', '1wk', '1mo', '3mo']
     idx, prev_idx = len(interval) // 2, 0
     left, right = 0, len(interval)
     chosen_interval = _interval
@@ -131,10 +131,6 @@ def timedeltatosigstr(s: timedelta):
         return F'{s.seconds // 60}M'
     else:
         return F"{s.seconds}s"
-
-
-def strtotimedeltadelta(s: str):
-    pass
 
 
 def yahoolimitperiod(period: timedelta, interval: str):

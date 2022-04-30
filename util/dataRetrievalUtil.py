@@ -1,5 +1,4 @@
 # Stats Imports
-import math
 import platform
 from statistics import stdev
 
@@ -10,7 +9,6 @@ import pandas as pd
 # Data Brokers
 import psutil as psutil
 import yfinance as yf
-from yahoofinancials import YahooFinancials
 
 # Utils
 from datetime import timedelta, datetime
@@ -18,16 +16,12 @@ from typing import List
 import os
 from os import listdir
 from os.path import isfile, join
-import glob
 # Custom Utils
 import settings
-from util.statMathUtil import date_to_string as datestring
-from util.langUtil import strtotimedelta, timedeltatosigstr, normify_name, yahoolimitperiod, yahoolimitperiod_leftover, \
+from util.langUtil import strtotimedelta, timedeltatosigstr, normify_name, yahoolimitperiod_leftover, \
     get_size_bytes, try_int, craft_instrument_filename
 
 # Robots
-from robot import FMACDRobot
-from robot import FullFMACDRobot
 
 
 #   DataFrame
@@ -56,8 +50,11 @@ def retrieve(
     # Loop through smaller time periods if period is too big for given interval (denied by yfinance)
     loop_period, n_loop, leftover = yahoolimitperiod_leftover(period, interval)
 
+    if strtotimedelta(interval) < timedelta(days=1) and period > timedelta(days=730):
+        print('Note: Data past 730 days will likely fail to download.')
+
     df_array = []
-    # Retrieve data slowly...
+    # Retrieve data slowly... 'Failed download' will be printed by yfinance upon failure
     for i in range(n_loop + 1):
         if i == n_loop:
             _loop_period = leftover
@@ -122,6 +119,22 @@ def load_df_list():
     # Get list of files that end with .csv
     df_list = [f for f in listdir(path) if isfile(join(path, f)) and f.endswith('.csv')]
     return df_list
+
+
+def remove_all_df():
+    path = F'static/data/'
+    df_list = load_df_list()
+    for df in df_list:
+        os.remove(F'{path}{df}')
+
+
+def remove_df(df):
+    path = F'static/data/'
+    df_list = load_df_list()
+    for _df in df_list:
+        if df == _df:
+            os.remove(F'{path}{df}')
+            break
 
 
 #   DataSet
@@ -191,6 +204,19 @@ def remove_from_dataset(ds_name, symbol, interval, period):
     print(F"Removing {symbol}-{interval}-{period} from {ds_name}")
     dsf = dsf.reset_index(drop=True)
     write_dataset(ds_name, dsf)
+
+
+def remove_dataset(ds_name):
+    folder = F'static/datasetdef'
+    if not ds_name.endswith('.csv'):
+        ds_name += '.csv'
+    full_path = F'{folder}/{ds_name}'
+    if not os.path.exists(full_path):
+        return False
+    if 'windows' in full_path.lower():
+        return False
+    os.remove(full_path)
+    return True
 
 
 def number_of_datafiles(ds_name_list):

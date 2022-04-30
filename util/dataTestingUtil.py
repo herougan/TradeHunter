@@ -2,37 +2,28 @@ import copy
 import datetime
 import os
 import random
-import time
 from datetime import datetime, timedelta
 import math
-from math import *
 from os import listdir
 from os.path import isfile, join
-from statistics import stdev
 from typing import List
-from pathlib import Path
 
 import PyQt5
 import pandas as pd
-from PyQt5.QtWidgets import QProgressBar, QWidget
+from PyQt5.QtWidgets import QProgressBar
 from matplotlib import pyplot as plt
-from matplotlib.pyplot import clf
 
 from robot.abstract.robot import robot
 from settings import EVALUATION_FOLDER, OPTIMISATION_FOLDER, PLOTTING_SETTINGS, TESTING_SETTINGS, OPTIMISATION_SETTINGS
 from util.dataGraphingUtil import plot_robot_instructions, plot_signals, plot_open_signals, candlestick_plot, \
-    get_interval, DATE_FORMAT_DICT, line_plot, plot_line, plot_optimisations
-from util.dataRetrievalUtil import load_dataset, load_df, get_computer_specs, number_of_datafiles, retrieve, try_stdev, \
-    insert_ivar, insert_ivars
-from util.langUtil import craft_instrument_filename, strtodatetime, try_key, remove_special_char, strtotimedelta, \
-    try_divide, try_max, try_mean, get_test_name, get_file_name, get_instrument_from_filename, is_datetime, \
-    timedeltatoyahootimestr, try_min
+    get_interval, DATE_FORMAT_DICT, plot_line, plot_optimisations
+from util.dataRetrievalUtil import load_dataset, load_df, get_computer_specs, number_of_datafiles, try_stdev, \
+    insert_ivars
+from util.langUtil import craft_instrument_filename, strtodatetime, try_key, remove_special_char, try_divide, try_max, try_mean, get_test_name, get_file_name, get_instrument_from_filename, \
+    try_min
 
-import numpy as np
 
 #  Robot
-from robot import FMACDRobot
-from robot import FullFMACDRobot
 
 
 def step_test_robot(r: robot, step: int):

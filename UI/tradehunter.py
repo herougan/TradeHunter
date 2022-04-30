@@ -25,7 +25,7 @@ from util.dataRetrievalUtil import load_trade_advisor_list, get_dataset_changes,
     retrieve_ds, clear_dataset_changes, load_df_list, load_df, load_ivar_list, get_test_steps, \
     load_ivar, init_robot, load_lag_suggestions, load_leverage_suggestions, load_instrument_type_suggestions, \
     load_ivar_as_list, translate_xvar_dict, load_flat_commission_suggestions, load_speed_suggestions, load_ivar_as_dict, \
-    load_capital_suggestions
+    load_capital_suggestions, remove_all_df, remove_dataset_change, remove_dataset
 from util.dataTestingUtil import step_test_robot, DataTester, write_test_result, write_test_meta, load_test_result, \
     load_test_meta, get_tested_robot_list, get_tests_list
 from util.langUtil import normify_name, try_int, leverage_to_float, get_test_name, try_float, strtodatetime, \
@@ -268,6 +268,13 @@ class TradeHunterApp:
             def import_clicked():
                 pass
 
+            def clear_all():
+                ds_names = []
+                for ds_name in ds_names:
+                    # Mark all datasets as un-updated
+                    add_as_dataset_change(ds_name)
+                remove_all_df()
+
             def back():
                 window = TradeHunterApp.MainWindow()
                 window.show()
@@ -288,6 +295,7 @@ class TradeHunterApp:
             back_button = QPushButton('Back')
             import_button = QPushButton('Import')
             update_all_button = QPushButton('Update All')
+            clear_all_button = QPushButton('Clear All')
 
             back_button.clicked.connect(back)
             import_button.clicked.connect(import_clicked)
@@ -310,7 +318,10 @@ class TradeHunterApp:
                 self.table = None
                 self.select = None
                 self.combo = None
+                self.c_win = None
+
                 self.window()
+
 
             def window(self):
 
@@ -438,7 +449,27 @@ class TradeHunterApp:
                     self.build_dataset_instruments(ds_name)
 
                 def delete_button_clicked():
-                    AreYouSureWindow = QWidget()
+                    ds_name = dataset_combo.currentText()  # todo
+
+                    # Construct confirm window
+                    confirm_window = QWidget()
+                    confirm_button = QPushButton()
+                    cancel_button = QPushButton()
+                    confirm_layout = QHBoxLayout()
+                    confirm_window.setLayout(confirm_layout)
+                    confirm_layout.addWidget(confirm_button)
+                    confirm_layout.addWidget(cancel_button)
+
+                    self.c_win = confirm_window
+                    confirm_window.show()
+
+                    def cancel():
+                        self.c_win.close()
+
+                    def confirm():
+                        remove_dataset_change(ds_name)
+                        remove_dataset(ds_name)
+                        self.c_win.close()
 
                 create_button = QPushButton('New')
                 save_button = QPushButton('Save')
@@ -450,6 +481,7 @@ class TradeHunterApp:
                 tail = QHBoxLayout()
                 tail.addWidget(create_button)
                 tail.addWidget(save_button)
+                tail.addWidget(delete_button)
 
                 self.addLayout(tail)
                 self.saved = True
@@ -485,7 +517,7 @@ class TradeHunterApp:
                 self.saved = False
 
             def build_dataset_instruments(self, ds_name):
-                if ds_name is None:
+                if ds_name is None or ds_name == '':
                     clear_table(self.table)
                 else:
                     print("Building dataset instruments", ds_name)
@@ -493,11 +525,19 @@ class TradeHunterApp:
                     set_datatable_sheet(self.table, df)
 
             class CreateDatasetWindow(QWidget):
+
                 def __init__(self):
                     super().__init__()
                     self.window()
                     self.setWindowTitle('Create new Dataset')
                     self.rebuild_f = None
+
+                    self.keyPressed = QtCore.pyqtSignal(QtCore.QEvent)
+
+                def keyPressEvent(self, event):
+                    if event.key() == Qt.Key_Space:
+                        pass
+                    print("Create Dataset keypress", event.key())
 
                 def bind_rebuild(self, rebuild_f):
                     self.rebuild_f = rebuild_f
@@ -531,6 +571,8 @@ class TradeHunterApp:
 
                     cancel_button.clicked.connect(back)
                     select_button.clicked.connect(create)
+
+                    # todo detect button press
 
                     body.addWidget(name_label)
                     body.addWidget(name)
@@ -1185,6 +1227,15 @@ class TradeHunterApp:
                 ivar_select.setFixedHeight(20)
                 dataset_select.setFixedHeight(20)
 
+    class IvarManagement(QWidget):
+        def __init__(self):
+            super().__init__()
+            self.window()
+
+        def window(self):
+            pass
+
+
     class RobotAnalysis(QWidget):
 
         def __init__(self):
@@ -1610,7 +1661,8 @@ class TradeHunterApp:
             # Convert axes back
             x_tick_labels = []
             for _date in dates:
-                x_tick_labels.append(strtodatetime(_date).strftime(DATE_FORMAT_DICT[timedeltatoyahootimestr(interval)]))
+                x_tick_labels.append(strtodatetime(_date).
+                                     strftime(DATE_FORMAT_DICT[timedeltatoyahootimestr(interval).lower()]))
             c.axes.set(xticklabels=x_tick_labels)
 
             self.p_window = self.plot_window(c, F"{name}")
@@ -1940,6 +1992,11 @@ class TradeHunterApp:
             # Replace old summary layout
             self.tail.addLayout(summary_layout)
             self.summary_layout = summary_layout
+
+    class AlgoPlotter(QWidget):
+        """Plots the sim of algorithms such as support finding, trend finding
+        and exploitation algorithms."""
+        pass
 
     # -- Utility
 
