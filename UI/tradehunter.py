@@ -25,7 +25,7 @@ from util.dataRetrievalUtil import load_trade_advisor_list, get_dataset_changes,
     retrieve_ds, clear_dataset_changes, load_df_list, load_df, load_ivar_list, get_test_steps, \
     load_ivar, init_robot, load_lag_suggestions, load_leverage_suggestions, load_instrument_type_suggestions, \
     load_ivar_as_list, translate_xvar_dict, load_flat_commission_suggestions, load_speed_suggestions, load_ivar_as_dict, \
-    load_capital_suggestions, remove_all_df, remove_dataset_change, remove_dataset
+    load_capital_suggestions, remove_all_df, remove_dataset_change, remove_dataset, delete_ivar
 from util.dataTestingUtil import step_test_robot, DataTester, write_test_result, write_test_meta, load_test_result, \
     load_test_meta, get_tested_robot_list, get_tests_list
 from util.langUtil import normify_name, try_int, leverage_to_float, get_test_name, try_float, strtodatetime, \
@@ -202,6 +202,7 @@ class TradeHunterApp:
             self.download_progress = None
             self.datasetpane = None
             self.datatablepane = None
+            self.main_buttons = []
 
         def keyPressEvent(self, event):
             if event.key() == Qt.Key_Space:
@@ -251,12 +252,20 @@ class TradeHunterApp:
                 self.p_window.showMinimized()
                 self.p_window.show()
 
+                # Temporarily disable buttons
+                for button in self.main_buttons:
+                    button.setEnabled(False)
+
                 print("Updating...")
                 for index, row in files_df.iterrows():
                     self.download_progress.setValue(self.download_progress.value() + 1)
                     self.p_window.setWindowTitle(F"Downloading {row['name']}")
                     retrieve_ds(row['name'], True)
                     PyQt5.QtWidgets.QApplication.processEvents()
+
+                # Reenable buttons
+                for button in self.main_buttons:
+                    button.setEnabled(True)
 
                 self.p_window.setWindowTitle(F"Download complete. You may close the window.")
 
@@ -268,7 +277,7 @@ class TradeHunterApp:
             def import_clicked():
                 pass
 
-            def clear_all():
+            def clean_all():
                 ds_names = []
                 for ds_name in ds_names:
                     # Mark all datasets as un-updated
@@ -295,11 +304,17 @@ class TradeHunterApp:
             back_button = QPushButton('Back')
             import_button = QPushButton('Import')
             update_all_button = QPushButton('Update All')
-            clear_all_button = QPushButton('Clear All')
+            clean_all_button = QPushButton('Clean All')
+
+            self.main_buttons.append(back_button)
+            self.import_buttons.append(back_button)
+            self.update_all_buttons.append(back_button)
+            self.clear_all_buttons.append(back_button)
 
             back_button.clicked.connect(back)
             import_button.clicked.connect(import_clicked)
             update_all_button.clicked.connect(update_all)
+            clean_all_button.clicked.connect(clean_all)
 
             progress_bar = QProgressBar()
             progress_bar.setWindowTitle("Progress Bar")
@@ -307,6 +322,7 @@ class TradeHunterApp:
             tail.addWidget(back_button)
             tail.addWidget(import_button)
             tail.addWidget(update_all_button)
+            tail.addWidget(clean_all_button)
 
             self.setLayout(head_body_tail)
 
@@ -1044,10 +1060,6 @@ class TradeHunterApp:
 
                 p_window.show()
 
-                # max = get_test_steps(dataset)
-                # p_bar.setMaximum(max)
-                # p_bar.setMinimum(0)
-
                 ivar = load_ivar_as_dict(robot_name, ivar_name)
 
                 # Setup robot
@@ -1091,10 +1103,8 @@ class TradeHunterApp:
                 # Add canvas and progress bar
                 tail_layout.addWidget(p_bar)
                 tail_layout.addWidget(self.canvas)
-                # p_window.setLayout(p_layout)
-                # p_layout.addWidget(p_bar)
-                #
-                # p_window.show()
+                p_bar.setMinimum(0)
+                p_bar.setMaximum(1)
 
                 ivar = load_ivar_as_dict(robot_name, ivar_name)
 
@@ -1106,7 +1116,7 @@ class TradeHunterApp:
                 data_tester.optimise(robot_name, ivar, ds_names, optim_name, True, self.canvas)
 
                 self.oap = TradeHunterApp.OptimisationAnalysisPage(robot_name, optim_name)
-                self.oap.show()  # next todo
+                self.oap.show()
                 self.close()
 
             def to_simulate():
@@ -1114,6 +1124,11 @@ class TradeHunterApp:
                 svar = {
                     'speed_up': []
                 }
+
+            def to_delete_ivar():
+
+                ivar_name = ivar_combo.currentText()  # todo
+                delete_ivar(robot_name, ivar_name)
 
             # === Bottom === Tail buttons
             back_button.clicked.connect(self.back)
@@ -1226,15 +1241,6 @@ class TradeHunterApp:
 
                 ivar_select.setFixedHeight(20)
                 dataset_select.setFixedHeight(20)
-
-    class IvarManagement(QWidget):
-        def __init__(self):
-            super().__init__()
-            self.window()
-
-        def window(self):
-            pass
-
 
     class RobotAnalysis(QWidget):
 
@@ -1557,7 +1563,7 @@ class TradeHunterApp:
 
             self.load(self.test_result, self.test_meta, self.test_name)
 
-    class OptimisationAnalysisPage(QWidget):
+    class OptimisationAnalysisPage(QWidget):  # todo
         def __init__(self, robot_name='default', test_name='default', prev_window="TradeAdvisorPage"):
             super().__init__()
 

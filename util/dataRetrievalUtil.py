@@ -319,7 +319,7 @@ def set_dataset_changes(dsc: pd.DataFrame):
     dsc.to_csv(path)
 
 
-# List of instrument
+# List of instruments
 
 def load_speed_suggestions():
     return settings.SUGGESTIONS['simulation']['speed']
@@ -429,9 +429,6 @@ def dataframe_to_table(df):
 
 
 # Trade Advisors/Robots
-
-
-# Get bots
 
 
 def load_trade_advisor(ta_name: str):
@@ -573,19 +570,15 @@ def ivar_to_arr(idf: pd.DataFrame):
 
 
 def insert_ivar(ta_name: str, ivar):
-    path = get_ivar_path(ta_name)
-
-    idf = load_ivar_df(ta_name)
-    head = idf.head()
-    data = {}
-    for i in range(len(head)):
-        data.update({
-            head[i]: [ivar[i]]
+    ivar_list = []
+    if 'ivar' not in ivar:
+        # If not in dict form
+        ivar_list.append({
+            'ivar': ivar
         })
-    # n_idf = pd.DataFrame.from_dict(data)
-    n_idf = pd.DataFrame.from_dict(data)
-    idf = idf.append(n_idf)
-    idf.to_csv(path, index=False)  # todo copy from below
+    else:
+        ivar_list.append(ivar)
+    insert_ivars(ta_name, ivar_list)
 
 
 def insert_ivars(ta_name: str, ivar_list):
@@ -647,6 +640,19 @@ def insert_ivars(ta_name: str, ivar_list):
             })
         n_idf = pd.DataFrame(data, index=name)
         idf = idf.append(n_idf)
+    idf.index.name = 'name'
+    idf.to_csv(path)
+
+
+def delete_ivar(ta_name: str, ivar_name: str):
+    path = get_ivar_path(ta_name)
+
+    # Load stored ivars
+    idf = load_ivar_df(ta_name)
+
+    # Drop row
+    idf.drop(labels=ivar_name, axis=0)
+
     idf.index.name = 'name'
     idf.to_csv(path)
 

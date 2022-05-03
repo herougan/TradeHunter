@@ -74,7 +74,7 @@ to see which type of trends/shapes/market conditions it is better at trading in.
 
 3) Parallel attributes: Detect attributes that are not affected much by other attributes
 
-
+4) AI Optimisation
 
 
 

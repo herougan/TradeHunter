@@ -1067,7 +1067,7 @@ class DataTester:
                     keyN: ...,
                 }
                 'fitness': float
-            }, key2..., origin...,}"""
+            }, key2...key_n, origin}"""
 
             main_ivar_dict = spread_results['origin']
             new_ivar = main_ivar_dict['ivar'].copy()
@@ -1085,7 +1085,6 @@ class DataTester:
                     'fitness_diff': main_ivar_dict['fitness'] - spread_results[key]['fitness'],
                     'val_diff': main_ivar_dict['ivar'][key]['default'] - spread_results[key]['ivar'][key]['default'],
                 })
-                # did it decrease?
 
             normalisation_constant = 0
             for key in spread_results.keys():
@@ -1376,15 +1375,15 @@ class DataTester:
                 ivar_dict = new_ivar_dict
                 fitness = new_fitness
                 # exploration
-                # future
-                for optim_vector in optim_field:
-                    pass
-                # exploitation
-                # future
-                candidates = []
-                # choose among candidates
-                for candidate in candidates:
-                    pass
+                # # future
+                # for optim_vector in optim_field:
+                #     pass
+                # # exploitation
+                # # future
+                # candidates = []
+                # # choose among candidates
+                # for candidate in candidates:
+                #     pass
 
                 # ===== Plot =====
                 # Plot new best result from spread
@@ -1396,8 +1395,8 @@ class DataTester:
                     canvas.draw()
                     PyQt5.QtWidgets.QApplication.processEvents()
 
-                # Modify p_window
-                # p_window len(runs) todo
+            # Modify p_window
+            # p_window.setValue(i+1/runs)  # todo
 
         # Descent Trajectory finals # Easier!
         trimmed_ivar_results = []
@@ -1444,9 +1443,15 @@ class DataTester:
                 {'top_' + key: top_ivar[key]['default']}
             )
         result_dict.update({
-            'top_fitness': '',
+            'top_fitness': top_ivar['fitness'],
         })
-        # For each key in ivar, display average (picked) value:
+
+        # Average 'destination' value per ivar
+        for key in final_ivar_results[0].keys():
+            result_dict[F'average_{key}'] = 0
+        for final_ivar_result in final_ivar_results:
+            for key in final_ivar_result.keys():
+                result_dict[F'average_{key}'] += final_ivar_result[key]['default'] / len(final_ivar_results)
 
         # Create Meta and Result
         meta = {
@@ -1470,6 +1475,7 @@ class DataTester:
             write_optim_result(optim_name, optim_result, meta['name'])
 
         return trimmed_ivar_results
+
 
     def get_optimisation_types(self):
         return ['block', 'random_descent', 'random', 'bayesian', 'evolution']
