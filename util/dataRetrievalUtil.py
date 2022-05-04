@@ -137,6 +137,10 @@ def remove_df(df):
             break
 
 
+def get_random_df(ds_name: str):
+    pass  # todo
+
+
 #   DataSet
 
 def load_dataset(ds_name: str) -> pd.DataFrame:

@@ -24,6 +24,7 @@ from util.langUtil import craft_instrument_filename, strtodatetime, try_key, rem
 
 
 #  Robot
+from robot import FMACDRobot
 
 
 def step_test_robot(r: robot, step: int):
@@ -612,7 +613,7 @@ def write_test_result(test_name: str, summary_dicts: List, robot_name: str):
     sdfs = []
     for summary_dict in summary_dicts:
         sdfs.append(summary_dict)
-    sdfs = pd.DataFrame(sdfs, index='name')  # todo not sure if this works
+    sdfs = pd.DataFrame(sdfs)
     sdfs.to_csv(path)
 
     print(F'Writing test result at {path}')
@@ -658,7 +659,7 @@ def write_optim_meta(optim_name: str, meta_dict, robot_name: str):
 
 
 def load_test_result(test_name: str, robot_name: str):
-    folder = F'{OPTIMISATION_FOLDER}/{robot_name}'
+    folder = F'{EVALUATION_FOLDER}/{robot_name}'
     if not test_name.endswith('.csv'):
         test_name += '.csv'
     result_path = F'{folder}/{test_name}'
