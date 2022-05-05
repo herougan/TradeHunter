@@ -48,7 +48,12 @@ SUGGESTIONS = {
     'contract_size': [100000, 10000, 1000],  # Set in stone
     'simulation': {
         'speed': [0.5, 1, 2, 4, 8, 16]
-    }
+    },
+    # Optimisation
+    'optim_depth': [3, 10, 100, 300, 1000],
+    # Simulation
+    'sim_speed': [1],
+    'sim_scope': [80, 100],
 }
 PLOTTING_SETTINGS = {
     'bar_width_to_interval': {
@@ -79,8 +84,8 @@ TESTING_SETTINGS = {
     'optimisation_runs': 3
 }
 OPTIMISATION_SETTINGS = {
-    'max_runs': 100,
-    'arg_step_size': 5,  # Adjusts step size during optimisation.
+    'max_runs': 100,  # optim_depth overwrites this
+    'arg_step_size': 5,  # Adjusts step size during optimisation. (Default: 5)
     # 0.05 = 5% of minimum step value (if appl.) or 5%/10 of full range - max 10%.
     # 5 = 500% of minimum step value. e.g. total percentage magnitude of 'change' vector
     # Many vector components would be <= min step value.

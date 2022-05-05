@@ -1,5 +1,6 @@
 # Stats Imports
 import platform
+import random
 from statistics import stdev
 
 import GPUtil
@@ -138,7 +139,17 @@ def remove_df(df):
 
 
 def get_random_df(ds_name: str):
-    pass  # todo
+    folder = F'static/datasetdef'
+    if not ds_name.endswith('.csv'):
+        ds_name += '.csv'
+
+    # Get random row from dataset
+    dsf = pd.read_csv(F'{folder}/{ds_name}', index_col=0)
+    r = random.randint(0, len(dsf))
+    row = dsf.iloc[r]
+    d_name = F'{craft_instrument_filename(row["symbol"], row["interval"], row["period"])}'
+
+    return d_name
 
 
 #   DataSet
@@ -347,6 +358,14 @@ def load_lag_suggestions():
 
 def load_leverage_suggestions():
     return settings.SUGGESTIONS['leverage']
+
+
+def load_optim_depth_suggestions():
+    return settings.SUGGESTIONS['optim_depth']
+
+
+def load_setting(name: str):
+    return settings.SUGGESTIONS[name]
 
 
 def load_instrument_type_suggestions():

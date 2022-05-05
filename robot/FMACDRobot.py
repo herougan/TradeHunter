@@ -98,6 +98,24 @@ class FMACDRobot(robot):
             'range': [-100, 100],
             'step_size': 1,
         },
+        'amp_constant': {
+            'default': 0,
+            'range': [-100, 100],
+            'step_size': 1,
+            'type': 'continuous',
+        },
+        'amp_types': {
+            'default': 0,
+            'range': [0, 1, 2, 3, 5, 10],
+            'step_size': 1,
+            'type': 'array',
+        },
+        'amp_bins': {
+            'default': 0,
+            'range': [-100, 100],
+            'step_size': 1,
+            'type': 'discrete',
+        }
     }
     # Retrieve Prep
     PREPARE_PERIOD = 200

@@ -30,6 +30,15 @@ Bug fixes:
 8d) Block optimisation
 8e) Random optimisation
 
+9) Consider 1) Small ranges, Discrete, Array and Continuous types
+E.g. Small ranges are not processed in Block or Random runs, Discrete MUST move in steps,
+arrays can only move along array's list and continuous allows for any value, step size being
+the '1-step' value. (In random, MAX_STEP * STEP_SIZE = max step size if normalised and the
+descent only goes in one coordinate direction, so it matters) (e.g. max_step = 1 means that
+normalised over the whole hyperparameter sphere, the parameters can only descend by max 1 step_size.
+Of course, if its only 1 but has N parameters, all the N parameters would move less than 1 step.
+Min. 1 step. (moving much further than dist = 1)
+
 
 Objective:
 

@@ -1004,6 +1004,8 @@ class DataTester:
 
         self.robot = eval(F'{ta_name}.{ta_name}({init_ivar}, {self.xvar})')
         runs = TESTING_SETTINGS['optimisation_runs']
+        if 'optim_depth' in xvar:
+            runs = xvar['optim_depth']
         ivar_dict = {
             'ivar': init_ivar,
             'name': init_ivar['name'],
@@ -1032,9 +1034,9 @@ class DataTester:
             ax = axes[-1][-1]
 
         # Setup progress bar
-        if self.p_bar:
-            self.p_bar.setMaximum(1)
-            self.p_bar.setValue(0)
+        if self.p_bar_2:
+            self.p_bar_2.setMaximum(1)
+            self.p_bar_2.setValue(0)
 
         # ===========================
         #
@@ -1397,7 +1399,7 @@ class DataTester:
                     PyQt5.QtWidgets.QApplication.processEvents()
 
             # Modify p_window
-            # p_window.setValue(i+1/runs)  # todo
+            self.p_bar_2.setValue(i+1/runs)
 
         # Descent Trajectory finals # Easier!
         trimmed_ivar_results = []
@@ -1433,18 +1435,14 @@ class DataTester:
         }
         # For each key in ivar, display top (picked) value:
         top_ivar = final_ivar_results[0]['ivar']
+        top_score = final_ivar_results[0]['fitness']
         for key in top_ivar.keys():
-            # if key.lower() == 'name':
-            #     result_dict.update({
-            #         'top_ivar_name': top_ivar['name']['default'],
-            #     })
-            # else:
             # Register #1 value from optimisation
             result_dict.update(
                 {'top_' + key: top_ivar[key]['default']}
             )
         result_dict.update({
-            'top_fitness': top_ivar['fitness'],
+            'top_fitness': top_score,
         })
 
         # Average 'destination' value per ivar

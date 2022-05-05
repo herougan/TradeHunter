@@ -25,7 +25,8 @@ from util.dataRetrievalUtil import load_trade_advisor_list, get_dataset_changes,
     retrieve_ds, clear_dataset_changes, load_df_list, load_df, load_ivar_list, get_test_steps, \
     load_ivar, init_robot, load_lag_suggestions, load_leverage_suggestions, load_instrument_type_suggestions, \
     load_ivar_as_list, translate_xvar_dict, load_flat_commission_suggestions, load_speed_suggestions, load_ivar_as_dict, \
-    load_capital_suggestions, remove_all_df, remove_dataset_change, remove_dataset, delete_ivar
+    load_capital_suggestions, remove_all_df, remove_dataset_change, remove_dataset, delete_ivar, get_random_df, \
+    load_optim_depth_suggestions, load_setting
 from util.dataTestingUtil import step_test_robot, DataTester, write_test_result, write_test_meta, load_test_result, \
     load_test_meta, get_tested_robot_list, get_tests_list
 from util.langUtil import normify_name, try_int, leverage_to_float, get_test_name, try_float, strtodatetime, \
@@ -74,6 +75,7 @@ class TradeHunterApp:
             dm_button = QPushButton('Data Management')
             ta_button = QPushButton('Trade Advisor')
             sp_button = QPushButton('General Plotter')
+            set_button = QPushButton('Settings')
 
             def on_dm_click():
                 self.dm_window = TradeHunterApp.DataManagementPage()
@@ -96,6 +98,7 @@ class TradeHunterApp:
             layout.addWidget(dm_button)
             layout.addWidget(ta_button)
             layout.addWidget(sp_button)
+            layout.addWidget(set_button)
 
             self.setLayout(layout)
             self.setWindowTitle('Trade Hunter')
@@ -891,67 +894,8 @@ class TradeHunterApp:
 
             def to_test():
 
-                # Check if ivar/dataset selected
-                if not ivar_combo.currentText() or not dataset_combo.currentText():
-                    self.alert_window = QWidget()
-                    alert_layout = QVBoxLayout()
-                    alert = QMessageBox(self.alert_window)
-                    alert.setText('IVar or Dataset not selected!')
-                    alert.show()
-
-                    alert_layout.addWidget(alert)
-
-                    self.alert_window.setLayout(alert_layout)
-                    return self.alert_window
-
-                if not lag_combo.currentText() or not commission_combo.currentText() or \
-                        not leverage_combo.currentText() or not instrument_combo.currentText() or \
-                        not type_combo.currentText():
-                    self.alert_window = QWidget()
-                    alert_layout = QVBoxLayout()
-                    alert = QMessageBox(self.alert_window)
-                    alert.setText('XVar not completed!')
-                    alert.show()
-
-                    alert_layout.addWidget(alert)
-
-                    self.alert_window.setLayout(alert_layout)
-                    return self.alert_window
-
-                if type_combo.currentText() == "Multi":
-                    print("Multi type selected. Data in dataset must have same period.")
-
-                name_text.setPlainText(normify_name(name_text.document().toPlainText()))
-
-                if not name_text.document().toPlainText() or len(name_text.document().toPlainText()) < 2:
-                    self.alert_window = QWidget()
-                    alert_layout = QVBoxLayout()
-                    alert = QMessageBox(self.alert_window)
-                    alert.setText('The test needs a name!')
-                    alert.show()
-
-                    alert_layout.addWidget(alert)
-
-                    self.alert_window.setLayout(alert_layout)
-                    return self.alert_window
-
-                # if not commission_combo.document().toPlainText():
-                #     capital_text.document().setPlaintText('0')
-                if not capital_text.document().toPlainText():
-                    capital_text.document().setPlaintText('0')
-
-                capital = try_int(capital_text.document().toPlainText())
-                if capital <= 0:
-                    self.alert_window = QWidget()
-                    alert_layout = QVBoxLayout()
-                    alert = QMessageBox(self.alert_window)
-                    alert.setText('Please enter a valid number, e.g. 10,000 (USD)')
-                    alert.show()
-
-                    alert_layout.addWidget(alert)
-
-                    self.alert_window.setLayout(alert_layout)
-                    return self.alert_window
+                if not check_input():
+                    return
 
                 # Get name
                 test_name = name_text.document().toPlainText()
@@ -1007,6 +951,11 @@ class TradeHunterApp:
                         # test specific
                         'test_type': type_combo.currentText()}
                 xvar = translate_xvar_dict(xvar)
+                # Try to insert optimisation xvar
+                if optimisation_combo.currentText():
+                    xvar.update({
+                        'optim_depth': try_int(optimisation_combo.currentText()),
+                    })
 
                 ivar_name = ivar_combo.currentText()
 
@@ -1015,21 +964,22 @@ class TradeHunterApp:
                 #
                 p_bar = progress_bar_window()
                 self.canvas = TradeHunterApp.MplMultiCanvas(self, 5, 4, 100, 1, 1)
+                PyQt5.QtWidgets.QApplication.processEvents()
                 # self.canvas = TradeHunterApp.MplCanvas()
                 # Add canvas and progress bar
                 tail_layout.addWidget(p_bar)
                 tail_layout.addWidget(self.canvas)
-                p_bar.setMinimum(0)
-                p_bar.setMaximum(1)
 
                 ivar = load_ivar_as_dict(robot_name, ivar_name)
 
                 # Setup robot
                 data_tester = DataTester(xvar)
-                data_tester.bind_progress_bar(p_bar)
+                data_tester.bind_progress_bar_2(p_bar)
 
                 ds_names = get_dataset_table(dataset_table)
                 data_tester.optimise(robot_name, ivar, ds_names, optim_name, True, self.canvas)
+
+                p_bar.deleteLater()
 
                 self.oap = TradeHunterApp.OptimisationAnalysisPage(robot_name, optim_name)
                 self.oap.show()
@@ -1037,67 +987,8 @@ class TradeHunterApp:
 
             def to_simulate():
 
-                # Check if ivar/dataset selected
-                if not ivar_combo.currentText() or not dataset_combo.currentText():
-                    self.alert_window = QWidget()
-                    alert_layout = QVBoxLayout()
-                    alert = QMessageBox(self.alert_window)
-                    alert.setText('IVar or Dataset not selected!')
-                    alert.show()
-
-                    alert_layout.addWidget(alert)
-
-                    self.alert_window.setLayout(alert_layout)
-                    return self.alert_window
-
-                if not lag_combo.currentText() or not commission_combo.currentText() or \
-                        not leverage_combo.currentText() or not instrument_combo.currentText() or \
-                        not type_combo.currentText():
-                    self.alert_window = QWidget()
-                    alert_layout = QVBoxLayout()
-                    alert = QMessageBox(self.alert_window)
-                    alert.setText('XVar not completed!')
-                    alert.show()
-
-                    alert_layout.addWidget(alert)
-
-                    self.alert_window.setLayout(alert_layout)
-                    return self.alert_window
-
-                if type_combo.currentText() == "Multi":
-                    print("Multi type selected. Data in dataset must have same period.")
-
-                name_text.setPlainText(normify_name(name_text.document().toPlainText()))
-
-                if not name_text.document().toPlainText() or len(name_text.document().toPlainText()) < 2:
-                    self.alert_window = QWidget()
-                    alert_layout = QVBoxLayout()
-                    alert = QMessageBox(self.alert_window)
-                    alert.setText('The test needs a name!')
-                    alert.show()
-
-                    alert_layout.addWidget(alert)
-
-                    self.alert_window.setLayout(alert_layout)
-                    return self.alert_window
-
-                # if not commission_combo.document().toPlainText():
-                #     capital_text.document().setPlaintText('0')
-                if not capital_text.document().toPlainText():
-                    capital_text.document().setPlaintText('0')
-
-                capital = try_int(capital_text.document().toPlainText())
-                if capital <= 0:
-                    self.alert_window = QWidget()
-                    alert_layout = QVBoxLayout()
-                    alert = QMessageBox(self.alert_window)
-                    alert.setText('Please enter a valid number, e.g. 10,000 (USD)')
-                    alert.show()
-
-                    alert_layout.addWidget(alert)
-
-                    self.alert_window.setLayout(alert_layout)
-                    return self.alert_window
+                if not check_input():
+                    return
 
                 # Get XVar
                 xvar = {'lag': lag_combo.currentText(),
@@ -1114,11 +1005,13 @@ class TradeHunterApp:
                 # Use random df from first dataset selected
                 ds_names = get_dataset_table(dataset_table)
                 df_name = get_random_df(ds_names[0])
+                print(F'Simulating first dataframe {df_name}')
 
                 sim_plot_window = TradeHunterApp.SimPlotter()
-                sim_plot_window.test(xvar, ivar, robot_name, df_name)
-                sim_pot_window.show()
-                self.next_window = sim_pot_window  # todo
+                sim_plot_window.test_outside(xvar, ivar, robot_name, df_name, "robot")
+                sim_plot_window.show()
+                self.next_window = sim_plot_window
+                print(F'Moving to sim_plot window')
 
                 self.close()
 
@@ -1194,12 +1087,17 @@ class TradeHunterApp:
             commission_label = QLabel('Commission')
             commission_combo = QComboBox()
             commission_combo.setFixedHeight(20)
+            # Optimisation only
+            optimisation_depth_label = QLabel('Optim. Depth')
+            optimisation_combo = QComboBox()
+            optimisation_combo.setFixedHeight(20)
 
             test_types = ['Multi', 'Single']
             lag_types = load_lag_suggestions()
             leverage_types = load_leverage_suggestions()
             instrument_types = load_instrument_type_suggestions()
             commission_types = load_flat_commission_suggestions()
+            optim_depth_types = load_optim_depth_suggestions()
 
             # Fill in xvar combo options
             for type in test_types:
@@ -1212,11 +1110,14 @@ class TradeHunterApp:
                 instrument_combo.insertItem(0, type)
             for type in commission_types:
                 commission_combo.insertItem(0, str(type))
+            for type in optim_depth_types:
+                instrument_combo.insertItem(0, type)
             type_combo.setCurrentIndex(0)
             lag_combo.setCurrentIndex(0)
             leverage_combo.setCurrentIndex(0)
             instrument_combo.setCurrentIndex(0)
             commission_combo.setCurrentIndex(0)
+            optim_depth_types.setCurrentIndex(0)
 
             # Labels on the left, Widgets on the right
             xvar_left_body = QVBoxLayout()
@@ -1237,6 +1138,7 @@ class TradeHunterApp:
             xvar_right_body.addWidget(instrument_combo, 1.5)
             xvar_right_body.addWidget(type_combo, 1.5)
             xvar_right_body.addWidget(commission_combo, 1.5)
+            xvar_right_body.addWidget(optim_depth_types, 1.5)
 
             xvar_pane.addLayout(xvar_left_body)
             xvar_pane.addLayout(xvar_right_body)
@@ -1767,15 +1669,31 @@ class TradeHunterApp:
             df_left_layout = QVBoxLayout()
             df_right_layout = QVBoxLayout()
 
+            # Robot or Algo Sim
+            type_combo = QComboBox()
+            types = ['Robot', 'Algo']
+            type_combo = QComboBox()
+            test_types = ['Single', 'Multi']
+            test_combo = QComboBox()
+
+            for type in types:
+                type_combo.insertItem(0, type)
+            type_combo.setCurrentIndex(0)
+            for type in test_types:
+                test_combo.insertItem(0, type)
+            test_combo.setCurrentIndex(0)
+
             df_label = QLabel('Data')
             df_select = QComboBox()
             robot_label = QLabel('Robot')
             robot_select = QComboBox()
             ivar_label = QLabel('IVar')
             ivar_select = QComboBox()
+            
             df_select.setFixedHeight(20)
             robot_select.setFixedHeight(20)
             ivar_select.setFixedHeight(20)
+            test_combo.setFixedHeight(20)
 
             sim_label = QLabel('Speed')
             sim_speed = QComboBox()  # Sim Variables
@@ -1800,9 +1718,6 @@ class TradeHunterApp:
             df_select.setCurrentIndex(0)
             sim_speed.setCurrentIndex(0)
             robot_select.setCurrentIndex(0)
-            df_select.setFixedHeight(20)
-            sim_speed.setFixedHeight(20)
-            robot_select.setFixedHeight(20)
 
             df_layout.addLayout(df_left_layout)
             df_layout.addLayout(df_right_layout)
@@ -1844,6 +1759,9 @@ class TradeHunterApp:
                         ivar_right_layout.addWidget(_value)
                     else:
                         self.ivar_label_dict[_key].setText(ivar_df[_key])
+
+            def load_algo_list():
+                pass  # replace ivar
 
             def load_df():
                 df_name = df_select.currentText()
@@ -1945,6 +1863,27 @@ class TradeHunterApp:
             sim_button = QPushButton('Simulate')
             stop_button = QPushButton('Stop')
 
+            def check_input():
+                if not df_select.currentText():
+                    self.alert_window = QWidget()
+                    alert = QMessageBox(self.alert_window)
+                    alert.setText('You have not selected a data file')
+                    alert.show()
+                    return False
+                elif not capital_combo.currentText():
+                    self.alert_window = QWidget()
+                    alert = QMessageBox(self.alert_window)
+                    alert.setText('Please enter a valid number! e.g. 10000')
+                    alert.show()
+                    return False
+                elif not robot_select.currentText():
+                    self.alert_window = QWidget()
+                    alert = QMessageBox(self.alert_window)
+                    alert.setText('You have not selected a robot!')
+                    alert.show()
+                    return False
+                return True
+
             def sim_button_clicked():
                 # self.ivar = {}  # Saved on ivar selection
                 self.xvar = {'lag': lag_combo.currentText(),
@@ -1956,27 +1895,13 @@ class TradeHunterApp:
                 self.xvar = translate_xvar_dict(self.xvar)
                 self.svar = {
                     'speed': try_float(sim_speed.currentText()),
-                    'scope': 80,  # svar:Scope
+                    'scope': load_setting('sim_scope')[0],  # svar:Scope
                 }
-                if not df_select.currentText():
-                    self.alert_window = QWidget()
-                    alert = QMessageBox(self.alert_window)
-                    alert.setText('You have not selected a data file')
-                    alert.show()
-                elif not capital_combo.currentText():
-                    self.alert_window = QWidget()
-                    alert = QMessageBox(self.alert_window)
-                    alert.setText('Please enter a valid number! e.g. 10000')
-                    alert.show()
-                elif not robot_select.currentText():
-                    self.alert_window = QWidget()
-                    alert = QMessageBox(self.alert_window)
-                    alert.setText('You have not selected a robot!')
-                    alert.show()
-                else:
+                type = type_combo.currentText()
+                if check_input():
                     print("Select:", df_select.currentText(), robot_select.currentText())
                     self.test(self.xvar, self.ivar, self.svar, self.robot_select.currentText(),
-                              df_select.currentText(), self.canvas)
+                              df_select.currentText(), self.canvas, type)
 
             # This window does not close upon plotting.
             back_button.clicked.connect(self.back)
@@ -1994,8 +1919,14 @@ class TradeHunterApp:
             self.setLayout(layout)
             self.show()
 
-        def test(self, xvar, ivar, svar, ta_name, df_name):
+        def test(self, xvar, ivar, svar, ta_name, df_name, type):
             data_tester = DataTester(xvar)
+
+            if type == "":
+                pass
+            elif type == "":
+                pass
+
             success, error = data_tester.simulate_single(ta_name, ivar, svar, df_name, self.canvas)
 
             self.plot = QWidget()
@@ -2009,11 +1940,12 @@ class TradeHunterApp:
                 alert_layout.addWidget(alert)
                 alert.show()
 
-        def test_outside(self, xvar, ivar, ta_name, df_name):
-            svar = {
-                # todo
+        def test_outside(self, xvar, ivar, ta_name, df_name, type):
+            svar = {  # Default Values
+                'speed': load_setting('sim_speed')[0],
+                'scope': load_setting('sim_scope')[0],
             }
-            self.test(xvar, ivar, svar, ta_name, df_name)
+            self.test(xvar, ivar, svar, ta_name, df_name, type)
 
         def back(self):
             self.close()
