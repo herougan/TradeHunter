@@ -16,7 +16,7 @@ def strtotimedelta(s: str):
     """XM X minutes, XH X hours, Xd X days, Xw X weeks, Xm X months, all separated by a space"""
     t = timedelta()
     s_array = s.split()
-    for _s in s_array:
+    for _s in s_array:  # Only return first timedelta
         (d, a) = drsplit(_s)
         if d is None:
             pass
@@ -39,10 +39,15 @@ def strtotimedelta(s: str):
     return t
 
 
+def get_yahoo_intervals():
+    interval = ['1M', '2M', '5M', '15M', '30M', '60M', '1h', '90M', '1d', '5d', '1wk', '1mo', '3mo']
+    return interval
+
+
 def strtoyahootimestr(s: str):
     """XM X minutes, XH X hours, Xd X days, Xw X weeks, Xm X months, all separated by a space
     Interval closest to '1m,2m,5m,15m,30m,60m,90m,1h,1d,5d,1wk,1mo,3mo' will be chosen."""
-    interval = ['1M', '2M', '5M', '15M', '30M', '60M', '1h', '90M', '1d', '5d', '1wk', '1mo', '3mo']
+    interval = get_yahoo_intervals()
     idx, prev_idx = len(interval) // 2, 0
     left, right = 0, len(interval)
     chosen_interval = strtotimedelta(s)
@@ -169,8 +174,6 @@ def yahoolimitperiod(period: timedelta, interval: str):
 def yahoolimitperiod_leftover(period: timedelta, interval: str):
     """Divides period into smaller defined chunks, depending on the interval.
     Outputs new_period, n_loop and period_leftover"""
-    n_loop = 1
-    loop_period = period
 
     min_dict = {
         '1m': '7d',

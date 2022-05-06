@@ -1,1 +1,4 @@
 ,name
+0,small_forex.csv
+1,long_forex.csv
+2,short_forex.csv

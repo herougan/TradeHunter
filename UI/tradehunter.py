@@ -26,7 +26,7 @@ from util.dataRetrievalUtil import load_trade_advisor_list, get_dataset_changes,
     load_ivar, init_robot, load_lag_suggestions, load_leverage_suggestions, load_instrument_type_suggestions, \
     load_ivar_as_list, translate_xvar_dict, load_flat_commission_suggestions, load_speed_suggestions, load_ivar_as_dict, \
     load_capital_suggestions, remove_all_df, remove_dataset_change, remove_dataset, delete_ivar, get_random_df, \
-    load_optim_depth_suggestions, load_setting
+    load_optim_depth_suggestions, load_setting, remove_ds_df
 from util.dataTestingUtil import step_test_robot, DataTester, write_test_result, write_test_meta, load_test_result, \
     load_test_meta, get_tested_robot_list, get_tests_list
 from util.langUtil import normify_name, try_int, leverage_to_float, get_test_name, try_float, strtodatetime, \
@@ -213,6 +213,8 @@ class TradeHunterApp:
                 pass
             elif event.key() == Qt.Key_Escape:
                 pass
+            elif event.key() == Qt.Key_Enter:
+                pass
             print("Data Management Window keypress", event.key())
 
         def window(self):
@@ -249,8 +251,6 @@ class TradeHunterApp:
                 print("Preparing to update changed files")
 
                 files_df = get_dataset_changes()
-                # for index, row in files_df.iterrows():
-                #     print(F"File: {row['name']}")
 
                 self.p_window, self.d_progress = progress_window(len(files_df.index))
                 self.p_window.showMinimized()
@@ -343,7 +343,6 @@ class TradeHunterApp:
                 self.c_win = None
 
                 self.window()
-
 
             def window(self):
 
@@ -471,27 +470,43 @@ class TradeHunterApp:
                     self.build_dataset_instruments(ds_name)
 
                 def delete_button_clicked():
-                    ds_name = dataset_combo.currentText()  # todo
+                    ds_name = dataset_combo.currentText()
+                    layout_list = QVBoxLayout()
 
                     # Construct confirm window
                     confirm_window = QWidget()
-                    confirm_button = QPushButton()
-                    cancel_button = QPushButton()
+                    confirm_button = QPushButton('Delete')
+                    cancel_button = QPushButton('Cancel')
+                    text_label = QLabel(F'Delete {ds_name}?')
+                    text_layout = QHBoxLayout()
+                    text_layout.addWidget(text_label)
                     confirm_layout = QHBoxLayout()
-                    confirm_window.setLayout(confirm_layout)
-                    confirm_layout.addWidget(confirm_button)
-                    confirm_layout.addWidget(cancel_button)
 
-                    self.c_win = confirm_window
-                    confirm_window.show()
+                    # Refresh
+                    self.build_dataset_list()
 
                     def cancel():
                         self.c_win.close()
 
                     def confirm():
                         remove_dataset_change(ds_name)
+                        remove_ds_df(ds_name)
                         remove_dataset(ds_name)
                         self.c_win.close()
+
+                    confirm_button.clicked.connect(confirm)
+                    cancel_button.clicked.connect(cancel)
+
+                    layout_list.addLayout(text_layout)
+                    layout_list.addLayout(confirm_layout)
+                    confirm_window.setLayout(layout_list)
+                    confirm_layout.addWidget(confirm_button)
+                    confirm_layout.addWidget(cancel_button)
+
+                    confirm_window.setWindowTitle(F'Dataset deletion')
+
+                    self.c_win = confirm_window
+                    confirm_window.show()
 
                 create_button = QPushButton('New')
                 save_button = QPushButton('Save')
@@ -549,57 +564,61 @@ class TradeHunterApp:
             class CreateDatasetWindow(QWidget):
 
                 def __init__(self):
+                    self.keyPressed = QtCore.pyqtSignal(QtCore.QEvent)
                     super().__init__()
+
+                    # Handles
+                    self.name = None
+
                     self.window()
                     self.setWindowTitle('Create new Dataset')
                     self.rebuild_f = None
 
-                    self.keyPressed = QtCore.pyqtSignal(QtCore.QEvent)
-
                 def keyPressEvent(self, event):
                     if event.key() == Qt.Key_Space:
                         pass
+                    elif event.key() == Qt.Key_Enter:
+                        self.create()
+                    # Couldn't get it to work.
                     print("Create Dataset keypress", event.key())
 
                 def bind_rebuild(self, rebuild_f):
                     self.rebuild_f = rebuild_f
+
+                def create(self):
+                    if self.name.document().toPlainText():
+                        _name = self.name.document().toPlainText() + '.csv'
+                        write_new_empty_dataset(F'{_name}')
+                        self.rebuild_f(_name)
+                        # self.back()  # do not trigger back()'s rebuild_f('')
+                        self.close()
+                    else:
+                        self.alert_window = QWidget()
+                        alert = QMessageBox(self.alert_window)
+                        alert.setText('The name cannot be empty!')
+                        alert.show()
 
                 def window(self):
                     main_layout = QVBoxLayout()
                     body = QHBoxLayout()
                     tail = QHBoxLayout()
 
-                    name = QTextEdit()
-                    name.setFixedHeight(20)
+                    self.name = QTextEdit()
+                    self.name.setFixedHeight(20)
                     name_label = QLabel('Name')
 
                     cancel_button = QPushButton('Cancel')
                     select_button = QPushButton('Select')
-
-                    def create():
-                        if name.document().toPlainText():
-                            _name = name.document().toPlainText()
-                            write_new_empty_dataset(F'{_name}')
-                            self.rebuild_f(_name)
-                            # self.back()  # do not trigger back()'s rebuild_f('')
-                            self.close()
-                        else:
-                            self.alert_window = QWidget()
-                            alert = QMessageBox(self.alert_window)
-                            alert.setText('The name cannot be empty!')
-                            alert.show()
 
                     def back():
                         self.rebuild_f('')
                         self.close()
 
                     cancel_button.clicked.connect(back)
-                    select_button.clicked.connect(create)
-
-                    # todo detect button press
+                    select_button.clicked.connect(self.create)
 
                     body.addWidget(name_label)
-                    body.addWidget(name)
+                    body.addWidget(self.name)
 
                     tail.addWidget(cancel_button)
                     tail.addWidget(select_button)
@@ -1689,7 +1708,7 @@ class TradeHunterApp:
             robot_select = QComboBox()
             ivar_label = QLabel('IVar')
             ivar_select = QComboBox()
-            
+
             df_select.setFixedHeight(20)
             robot_select.setFixedHeight(20)
             ivar_select.setFixedHeight(20)
@@ -2052,7 +2071,7 @@ class TradeHunterApp:
         def __init__(self, parent=None, width=5, height=4, dpi=100, rows=1, cols=1):
             fig = Figure(figsize=(width, height), dpi=dpi)
             self.axes = []
-            height_ratios = [rows/2.0+1]
+            height_ratios = [rows / 2.0 + 1]
             for i in range(1, rows):
                 height_ratios.append(1)
             gs = gridspec.GridSpec(rows, cols, height_ratios=height_ratios, figure=fig)

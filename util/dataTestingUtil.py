@@ -19,9 +19,9 @@ from util.dataGraphingUtil import plot_robot_instructions, plot_signals, plot_op
     get_interval, DATE_FORMAT_DICT, plot_line, plot_optimisations
 from util.dataRetrievalUtil import load_dataset, load_df, get_computer_specs, number_of_datafiles, try_stdev, \
     insert_ivars
-from util.langUtil import craft_instrument_filename, strtodatetime, try_key, remove_special_char, try_divide, try_max, try_mean, get_test_name, get_file_name, get_instrument_from_filename, \
+from util.langUtil import craft_instrument_filename, strtodatetime, try_key, remove_special_char, try_divide, try_max, \
+    try_mean, get_test_name, get_file_name, get_instrument_from_filename, \
     try_min
-
 
 #  Robot
 from robot import FMACDRobot
@@ -1004,8 +1004,8 @@ class DataTester:
 
         self.robot = eval(F'{ta_name}.{ta_name}({init_ivar}, {self.xvar})')
         runs = TESTING_SETTINGS['optimisation_runs']
-        if 'optim_depth' in xvar:
-            runs = xvar['optim_depth']
+        if 'optim_depth' in self.xvar:
+            runs = self.xvar['optim_depth']
         ivar_dict = {
             'ivar': init_ivar,
             'name': init_ivar['name'],
@@ -1399,7 +1399,7 @@ class DataTester:
                     PyQt5.QtWidgets.QApplication.processEvents()
 
             # Modify p_window
-            self.p_bar_2.setValue(i+1/runs)
+            self.p_bar_2.setValue(i + 1 / runs)
 
         # Descent Trajectory finals # Easier!
         trimmed_ivar_results = []
@@ -1474,7 +1474,6 @@ class DataTester:
             write_optim_result(optim_name, optim_result, meta['name'])
 
         return trimmed_ivar_results
-
 
     def get_optimisation_types(self):
         return ['block', 'random_descent', 'random', 'bayesian', 'evolution']

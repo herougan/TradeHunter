@@ -1,9 +1,9 @@
 import os
 
-DATASET_CHANGES_PATH = F''
-COMMON_SYMBOLS_PATH = F''
-COMMON_INTERVALS_PATH = F''
-COMMON_PERIODS_PATH = F''
+DATASET_CHANGES_PATH = F'static/common/datasetchanges.txt'
+COMMON_SYMBOLS_PATH = F'static/common/datasetchanges.txt'
+COMMON_INTERVALS_PATH = F'static/common/datasetchanges.txt'
+COMMON_PERIODS_PATH = F'static/common/datasetchanges.txt'
 
 DATASETDEF_FOLDER = F''
 DATA_FOLDER = F''
@@ -14,6 +14,7 @@ BUILDER_FOLDER = F''
 
 EVALUATION_FOLDER = F'static/results/evaluation'
 OPTIMISATION_FOLDER = F'static/results/optimisation'
+DATA_FOLDER = F'static/data'
 
 ROOT = F''
 STATIC = F'{os.getcwd()}'
@@ -27,7 +28,10 @@ SUGGESTIONS = {
                 '--stock--',
                 'AAPL', 'TLSA', 'GOOGL', 'INTC', 'MSFT', 'AMZN', 'ROKU', 'HD', 'BAC', 'PLTR', 'JPM', 'RBLX',
                 '--forex--',
-                'USD-CAD', 'GBP-USD', 'AUD-USD', 'NZD-USD', 'JPY-USD', 'USD-JPY',
+                'CAD=X', 'EURUSD=X', 'CHF=X', 'GBPUSD=X', 'NZDUSD=X', 'AUDUSD=X',
+                'JPY=X', 'SGD=X', 'CNY=X', 'ZAR=X', 'INR=X',
+                'EURCAD=X', 'EURAUD=X', 'EURJPY=X', 'EURCHF=X', 'EURGBP=X', 'AUDCAD=X',
+                'GBPCHF=X', 'GBPJPY=X', 'CHFJPY=X', 'AUDJPY=X', 'AUDNZD=X',
                 '--common--',
                 'OIL', 'COTTON', 'COFFEE', 'SUGAR', 'WHEAT', 'SOY',
                 '--metals--',

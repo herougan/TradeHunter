@@ -64,7 +64,6 @@ class ClassicSupportFinder:
         },
     }
     PEAK, TROUGH = 1, -1
-
     OTHER_ARGS_DICT = {
 
     }
@@ -98,7 +97,7 @@ class ClassicSupportFinder:
 
     # Util functions
 
-    def calc_strength(support, idx):
+    def calc_strength(self, support, idx):
         start = support['start']
         end = support['end']
         peak = support['peak']
@@ -106,32 +105,32 @@ class ClassicSupportFinder:
         length = end - start
         return math.pow(self.ARGS_DICT['decay'], dist) * math.log(length, 2)
 
-    def decay(strength):
+    def decay(self, strength):
         return strength * self.ARGS_DICT['decay']
 
-    def decay_by(strength, length):
+    def decay_by(self, strength, length):
         return strength * math.pow(self.ARGS_DICT['decay'], length)
 
-    def within_bundle(bundle, support):
+    def within_bundle(self, bundle, support):
         if abs(bundle['height'] - support['height']) < self.ARGS_DICT['bundling_constant']:
             return True
         return False
 
-    def bundle_add(bundle, support):
+    def bundle_add(self, bundle, support):
         pass
 
-    def bundle_decay(bundle):
+    def bundle_decay(self, bundle):
         for support in self.supports:
             support['strength'] = self.decay(support['strength'])
 
-    def create_bundle(support):
+    def create_bundle(self, support):
         bundle = {
             'supports': [support]
         }
         self.bundles.append(bundle)
         return bundle
 
-    def create_support(peak, start, end, height, type):
+    def create_support(self, peak, start, end, height, type):
         support = {
             'peak': peak,
             'start': start,
@@ -155,20 +154,20 @@ class ClassicSupportFinder:
         last_support = support
         return support
 
-    def get_bundle(support):
-        for bundle in bundles:
+    def get_bundle(self, support):
+        for bundle in self.bundles:
             if support in bundle['supports']:
                 return bundle
         return None
 
-    def calculate_bundle_strength(bundle, idx):
+    def calculate_bundle_strength(self, bundle, idx):
         strength = 0
         for support in bundle['supports']:
-            strength += calc_strength(support, idx)
+            strength += self.calc_strength(support, idx)
         bundle['strength'] = strength
         return strength
 
-    def try_extend_peak(support, idx):
+    def try_extend_peak(self, support, idx):
         if support['end'] - support['start']:  # base too long, reset
             support['open'] = False
             return False

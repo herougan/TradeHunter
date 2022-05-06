@@ -20,7 +20,8 @@ from os.path import isfile, join
 # Custom Utils
 import settings
 from util.langUtil import strtotimedelta, timedeltatosigstr, normify_name, yahoolimitperiod_leftover, \
-    get_size_bytes, try_int, craft_instrument_filename
+    get_size_bytes, try_int, craft_instrument_filename, strtoyahootimestr, get_yahoo_intervals
+
 
 # Robots
 
@@ -47,6 +48,10 @@ def retrieve(
         name = craft_instrument_filename(s, interval,
                                          timedeltatosigstr(period))  # F'{s}-{interval}-{timedeltatosigstr(period)}'
     print(F'Retrieving {name}, write: {write}')
+
+    if interval not in get_yahoo_intervals():
+        print(F'Note, interval of {interval} not accepted in yfinance api. Closest alternative will be used.')
+    interval = strtoyahootimestr(interval)
 
     # Loop through smaller time periods if period is too big for given interval (denied by yfinance)
     loop_period, n_loop, leftover = yahoolimitperiod_leftover(period, interval)
@@ -115,10 +120,35 @@ def load_df(name: str):
     return df
 
 
-def load_df_list():
-    path = F'static/data/'
+def load_df_sig(sym: str, inv: str, per: str):
+    path = F'{settings.DATA_FOLDER}/'
+    name = craft_instrument_filename(sym, inv, per)
     # Get list of files that end with .csv
     df_list = [f for f in listdir(path) if isfile(join(path, f)) and f.endswith('.csv')]
+    for df in df_list:
+        if df == name:
+            return df
+    return None
+
+
+def load_df_list():
+    path = F'{settings.DATA_FOLDER}/'
+    # Get list of files that end with .csv
+    df_list = [f for f in listdir(path) if isfile(join(path, f)) and f.endswith('.csv')]
+    return df_list
+
+
+def load_ds_df_list(ds_name: str):
+    dsf = load_dataset(ds_name)
+
+    df_list = []
+    # Get list of dsf's dfs
+    for i, row in dsf.iterrows():
+        # Find file
+        df = load_df_sig(row['symbol'], row['interval'], row['period'])
+        if df:
+            df_list.append(df)
+        pass
     return df_list
 
 
@@ -130,12 +160,20 @@ def remove_all_df():
 
 
 def remove_df(df):
-    path = F'static/data/'
+    path = settings.DATA_FOLDER
     df_list = load_df_list()
     for _df in df_list:
         if df == _df:
-            os.remove(F'{path}{df}')
+            os.remove(F'{path}/{df}')
             break
+
+
+def remove_ds_df(ds_name: str):
+    path = settings.DATA_FOLDER
+    df_list = load_ds_df_list(ds_name)
+    for _df in df_list:
+        os.remove(F'{path}/{_df}')
+        break
 
 
 def get_random_df(ds_name: str):
@@ -213,7 +251,7 @@ def write_new_empty_dataset(ds_name):
     print(F'Creating new dataset {ds_name}.csv')
 
 
-def remove_from_dataset(ds_name, symbol, interval, period):
+def remove_from_dataset(ds_name: str, symbol: str, interval: str, period: str):
     dsf = load_dataset(ds_name)
     dsf = dsf.drop(dsf[(dsf.symbol == symbol) & (dsf.interval == interval) & (dsf.period == period)].index)
     print(F"Removing {symbol}-{interval}-{period} from {ds_name}")
@@ -221,8 +259,9 @@ def remove_from_dataset(ds_name, symbol, interval, period):
     write_dataset(ds_name, dsf)
 
 
-def remove_dataset(ds_name):
+def remove_dataset(ds_name: str):
     folder = F'static/datasetdef'
+    print(F'Removing {ds_name} completely.')
     if not ds_name.endswith('.csv'):
         ds_name += '.csv'
     full_path = F'{folder}/{ds_name}'
@@ -268,7 +307,7 @@ def load_dataset_data(d_list: List[str]) -> List[pd.DataFrame]:
 # Dataset-Changes
 
 def get_dataset_changes() -> pd.DataFrame:
-    path = F'static/common/datasetchanges.txt'
+    path = settings.DATASET_CHANGES_PATH
     dsc = pd.read_csv(path, index_col=0)
     return dsc
 
@@ -297,8 +336,10 @@ def update_specific_dataset_change(ds_name):  # Downloading
 def add_as_dataset_change(ds_name: str):
     '''Changes to any instrument signature contained within the dataset or addition/subtraction of instruments
     count as a dataset change.'''
-    path = F'/static/common/datasetchanges.txt'
-    dsc = pd.read_csv(F'{os.getcwd()}{path}', index_col=0)
+    path = settings.DATASET_CHANGES_PATH
+    dsc = pd.read_csv(F'{os.getcwd()}/{path}', index_col=0)
+    if not ds_name.endswith('.csv'):
+        ds_name = F'{ds_name}.csv'
     print("---------------")
     if ds_name in list(dsc['name']):
         print(F'Overwriting dataset {ds_name} - Abort, already most updated')
@@ -310,8 +351,7 @@ def add_as_dataset_change(ds_name: str):
 
 
 def write_dataset_change(dsc_df: pd.DataFrame):
-    path = F'static/common/datasetchanges.txt'
-
+    path = settings.DATASET_CHANGES_PATH
     print(F'Noting changes in datasetchanges.txt')
     dsc_df.to_csv(path)
 
@@ -323,14 +363,14 @@ def remove_dataset_change(ds_name: str):
 
 
 def clear_dataset_changes():
-    path = F'static/common/datasetchanges.txt'
+    path = settings.DATASET_CHANGES_PATH
 
     df = pd.DataFrame(columns=['name'])
     df.to_csv(path)
 
 
 def set_dataset_changes(dsc: pd.DataFrame):
-    path = F'/static/datasetdef/datasetchanges.txt'
+    path = settings.DATASET_CHANGES_PATH
     dsc.to_csv(path)
 
 
@@ -943,3 +983,13 @@ def try_stdev(list):
 # currencies = ['EURUSD=X', 'JPY=X', 'GBPUSD=X']
 # mutual_funds = ['PRLAX', 'QASGX', 'HISFX']
 # us_treasuries = ['^TNX', '^IRX', '^TYX']
+
+# USD/CAD	EUR/JPY
+# EUR/USD	EUR/CHF
+# USD/CHF	EUR/GBP
+# GBP/USD	AUD/CAD
+# NZD/USD	GBP/CHF
+# AUD/USD	GBP/JPY
+# USD/JPY	CHF/JPY
+# EUR/CAD	AUD/JPY
+# EUR/AUD	AUD/NZD
