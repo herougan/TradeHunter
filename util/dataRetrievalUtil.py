@@ -90,11 +90,15 @@ def retrieve(
 
 def retrieve_ds(ds_name: str, write: bool = False, progress: bool = False):
     df = load_dataset(ds_name)
+    if df is None:
+        print("Failed to open dataset. Cancelling retrieval.")
+        return False
     for index, row in df.iterrows():
         name = craft_instrument_filename(row['symbol'], row['interval'], row['period'])
         df, suc = retrieve_str(row['symbol'], row['interval'], row['period'], write, progress, name)
         if not suc:
             remove_from_dataset(ds_name, row['symbol'], row['interval'], row['period'])
+    return True
 
 
 # Read/Write from local
@@ -177,7 +181,7 @@ def remove_ds_df(ds_name: str):
 
 
 def get_random_df(ds_name: str):
-    folder = F'static/datasetdef'
+    folder = settings.DATASETDEF_FOLDER
     if not ds_name.endswith('.csv'):
         ds_name += '.csv'
 
@@ -193,17 +197,24 @@ def get_random_df(ds_name: str):
 #   DataSet
 
 def load_dataset(ds_name: str) -> pd.DataFrame:
-    folder = F'static/datasetdef'
+    folder = settings.DATASETDEF_FOLDER
     if not ds_name.endswith('.csv'):
         ds_name += '.csv'
-    dsf = pd.read_csv(F'{folder}/{ds_name}', index_col=0)
-    print(F'Reading {folder}/{ds_name}')
+    full_path = F'{folder}/{ds_name}'
+
+    # If file doesn't exist
+    if not file_exists(full_path):
+        print(F'Failed to find file at {full_path}!')
+        return None
+
+    dsf = pd.read_csv(full_path, index_col=0)
+    print(F'Reading {full_path}')
     return dsf
 
 
 def load_dataset_list():
     """Load list of dataset files in datasetdef."""
-    path = F'static/datasetdef/'
+    path = settings.DATASETDEF_FOLDER
     # Get list of files that end with .csv
     df_list = [f for f in listdir(path) if isfile(join(path, f)) and f.endswith('.csv')]
     df_list.sort()
@@ -211,7 +222,7 @@ def load_dataset_list():
 
 
 def save_dataset(ds_name, dsf):
-    folder = F'static/datasetdef'
+    folder = settings.DATASETDEF_FOLDER
     if not ds_name.endswith('.csv'):
         ds_name += '.csv'
     # save new dsf into ds_name
@@ -220,7 +231,7 @@ def save_dataset(ds_name, dsf):
 
 
 def write_dataset(ds_name, dsf):
-    folder = F'static/datasetdef'
+    folder = settings.DATASETDEF_FOLDER
     os.makedirs(folder, exist_ok=True)
     if not ds_name.endswith('.csv'):
         ds_name = F'{ds_name}.csv'
@@ -260,7 +271,7 @@ def remove_from_dataset(ds_name: str, symbol: str, interval: str, period: str):
 
 
 def remove_dataset(ds_name: str):
-    folder = F'static/datasetdef'
+    folder = settings.DATASETDEF_FOLDER
     print(F'Removing {ds_name} completely.')
     if not ds_name.endswith('.csv'):
         ds_name += '.csv'

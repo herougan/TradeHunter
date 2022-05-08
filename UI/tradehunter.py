@@ -264,8 +264,11 @@ class TradeHunterApp:
                 for index, row in files_df.iterrows():
                     self.download_progress.setValue(self.download_progress.value() + 1)
                     self.p_window.setWindowTitle(F"Downloading {row['name']}")
-                    retrieve_ds(row['name'], True)
+                    success = retrieve_ds(row['name'], True)
                     PyQt5.QtWidgets.QApplication.processEvents()
+
+                    # If failed, delete dataset change
+                    remove_dataset_change(row['name'])
 
                 # Reenable buttons
                 for button in self.main_buttons:
@@ -690,7 +693,7 @@ class TradeHunterApp:
                     select_layout.addWidget(robot_combo)
 
                     ta_list = load_trade_advisor_list()
-                    ta_list.sort()
+                    ta_list.sort(reverse=True)
                     for ta in ta_list:
                         # item = QListWidgetItem(ta, robot_select)
                         robot_combo.insertItem(0, ta)
@@ -802,7 +805,9 @@ class TradeHunterApp:
             # Build Dataset selector and table
             dataset_label = QLabel('Dataset')
             dataset_combo = QComboBox()
-            for ds_name in load_dataset_list():
+            dataset_list = load_dataset_list()
+            dataset_list.sort(reverse=True)
+            for ds_name in dataset_list:
                 dataset_combo.insertItem(0, ds_name)
             dataset_combo.setCurrentIndex(0)
             dataset_layout.addWidget(dataset_label)
@@ -825,7 +830,9 @@ class TradeHunterApp:
             # Choose ivar
             ivar_label = QLabel('Initial Variables')
             ivar_combo = QComboBox()
-            for ivar in load_ivar_list(self.robot_name):
+            ivar_list = load_ivar_list(self.robot_name)
+            ivar_list.sort(reverse=True)
+            for ivar in ivar_list:
                 ivar_combo.insertItem(0, ivar)
             ivar_layout.addWidget(ivar_label)
             ivar_layout.addWidget(ivar_combo)
@@ -1130,13 +1137,13 @@ class TradeHunterApp:
             for type in commission_types:
                 commission_combo.insertItem(0, str(type))
             for type in optim_depth_types:
-                instrument_combo.insertItem(0, type)
+                optimisation_combo.insertItem(0, str(type))
             type_combo.setCurrentIndex(0)
             lag_combo.setCurrentIndex(0)
             leverage_combo.setCurrentIndex(0)
             instrument_combo.setCurrentIndex(0)
             commission_combo.setCurrentIndex(0)
-            optim_depth_types.setCurrentIndex(0)
+            optimisation_combo.setCurrentIndex(0)
 
             # Labels on the left, Widgets on the right
             xvar_left_body = QVBoxLayout()
@@ -1149,6 +1156,7 @@ class TradeHunterApp:
             xvar_left_body.addWidget(instrument_label, 1)
             xvar_left_body.addWidget(type_label, 1)
             xvar_left_body.addWidget(commission_label, 1)
+            xvar_left_body.addWidget(optimisation_depth_label, 1)
 
             xvar_right_body.addWidget(name_text, 1.5)
             xvar_right_body.addWidget(lag_combo, 1.5)
@@ -1157,7 +1165,7 @@ class TradeHunterApp:
             xvar_right_body.addWidget(instrument_combo, 1.5)
             xvar_right_body.addWidget(type_combo, 1.5)
             xvar_right_body.addWidget(commission_combo, 1.5)
-            xvar_right_body.addWidget(optim_depth_types, 1.5)
+            xvar_right_body.addWidget(optimisation_combo, 1.5)
 
             xvar_pane.addLayout(xvar_left_body)
             xvar_pane.addLayout(xvar_right_body)
@@ -1182,7 +1190,7 @@ class TradeHunterApp:
             # self.ta_window.show()
             self.close()
 
-        class RobotSetupWindow():
+        class RobotSetupWindow:
 
             def __init__(self, robot):
                 super().__init__()
@@ -1217,6 +1225,7 @@ class TradeHunterApp:
         def __init__(self, robot_name='default', test_name='default'):
             super().__init__()
 
+            self.alert_window = None
             self.test_name = ""
             self.test_result = {}
             self.test_meta = {}
@@ -1336,7 +1345,6 @@ class TradeHunterApp:
             self.optim_combo.setFixedHeight(20)
             robot_label = QLabel('Select Robot')
             test_label = QLabel('Select Test')
-            optim_label = QLabel('Select Optimisation')  # todo
             left_choice.addWidget(robot_label)
             left_choice.addWidget(test_label)
             right_choice.addWidget(self.robot_combo)

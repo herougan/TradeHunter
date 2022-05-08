@@ -5,7 +5,7 @@ COMMON_SYMBOLS_PATH = F'static/common/datasetchanges.txt'
 COMMON_INTERVALS_PATH = F'static/common/datasetchanges.txt'
 COMMON_PERIODS_PATH = F'static/common/datasetchanges.txt'
 
-DATASETDEF_FOLDER = F''
+DATASETDEF_FOLDER = F'static/datasetdef'
 DATA_FOLDER = F''
 RESULTS_FOLDER = F''
 TESTS_FOLDER = F''
