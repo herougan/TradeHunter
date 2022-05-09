@@ -23,9 +23,6 @@ from util.langUtil import strtotimedelta, timedeltatosigstr, normify_name, yahoo
     get_size_bytes, try_int, craft_instrument_filename, strtoyahootimestr, get_yahoo_intervals
 
 
-# Robots
-
-
 #   DataFrame
 
 def retrieve_str(s: str,
@@ -505,11 +502,6 @@ def dataframe_to_table(df):
 # Trade Advisors/Robots
 
 
-def load_trade_advisor(ta_name: str):
-    path = F'robot'
-    pass
-
-
 def load_trade_advisor_list():
     path = F'robot'
     # Get list of files that end with .py
@@ -518,10 +510,14 @@ def load_trade_advisor_list():
     return robot_list
 
 
-def init_robot(ta_name: str, ivar: pd.DataFrame):
-    args_str = eval(F'{ta_name}.ARGS_STR')
-    r = eval(F'{ta_name}.{ta_name}({ivar})')
-    return r
+# Algos
+
+def load_algo_list():
+    path = F'robot'
+    # Get list of files that end with .py
+    robot_list = [os.path.splitext(f)[0] for f in listdir(path) if isfile(join(path, f)) and
+                  f.endswith('.py') and '__init__' not in f]
+    return robot_list
 
 
 # IVar
@@ -538,6 +534,14 @@ def ivar_to_list(idf: pd.DataFrame):
 def load_ivar(ta_name: str, ivar_name: str):
     idf = load_ivar_df(ta_name)
     return idf[idf.index == ivar_name]
+
+
+def load_ivar_vars(ta_name: str, ivar_name: str):
+    keys = load_ivar(ta_name, ivar_name).keys()
+    for key in keys:
+        if key in ['name', 'fitness', 'type']:
+            keys.remove(key)
+    return load_ivar(ta_name, ivar_name).keys()
 
 
 def load_ivar_as_dict(ta_name: str, ivar_name: str):
@@ -559,7 +563,7 @@ def load_ivar_as_dict(ta_name: str, ivar_name: str):
 
 def load_ivar_df(ta_name: str, meta=False) -> pd.DataFrame:
     """Load iVar entry point"""
-    folder = F'robot/ivar'
+    folder = F'{settings.ROBOT_FOLDER}{settings.IVAR_SUB_FOLDER}'
     ivar_file = F'{ta_name}_ivar'
     path = F'{folder}/{ivar_file}.csv'
 
@@ -751,6 +755,62 @@ def result_dict_to_dataset(result_dict):
             key: [result_dict[key]]
         })
     return pd.DataFrame(data, index=False)
+
+
+# Algo's IVar
+
+def load_algo_ivar_list():
+    path = F'{settings.ALGO_FOLDER}{settings.IVAR_SUB_FOLDER}/'
+    # Get list of files that end with .csv
+    ivar_list = [f for f in listdir(path) if isfile(join(path, f)) and f.endswith('.csv')]
+    return ivar_list
+
+
+def load_algo_ivar_df(algo_name: str, meta=False):
+    """May return empty dictionary. If there is no ivar file, no ivar dictionary assumed."""
+    folder = F'{settings.ALGO_FOLDER}{settings.IVAR_SUB_FOLDER}'
+    ivar_file = F'{algo_name}_ivar'
+    path = F'{folder}/{ivar_file}.csv'
+
+    if not file_exists(path):
+        return pd.DataFrame()
+
+    aidf = pd.read_csv(path, index_col='name')
+
+    # Strip meta attributes
+    if not meta:
+        if 'type' in aidf.columns:
+            aidf.drop('type', inplace=True, axis=1)
+        if 'fitness' in aidf.columns:
+            aidf.drop('fitness', inplace=True, axis=1)
+
+    return aidf
+
+
+def load_algo_ivar(algo_name: str, ivar_name: str):
+    aidf = load_algo_ivar_df(algo_name)
+    # for i, row in aidf.iterrows():
+    #     if ivar_name == row['name']:
+    #         return row
+    # return None
+    return aidf[aidf.index == ivar_name]
+
+
+def load_algo_ivar_as_dict(algo_name: str, ivar_name: str):
+    aidf = load_algo_ivar(algo_name, ivar_name)
+    ivar_dict = {}
+    for col in aidf.columns:
+        ivar_dict.update({
+            col: {
+                'default': aidf[col][0],
+            }
+        })
+    ivar_dict.update({
+        'name': {
+            'default': aidf.index[-1]
+        }
+    })
+    return ivar_dict
 
 
 # XVar

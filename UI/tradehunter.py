@@ -23,12 +23,12 @@ from util.dataRetrievalUtil import load_trade_advisor_list, get_dataset_changes,
     write_new_empty_dataset, load_dataset_list, save_dataset, add_as_dataset_change, load_dataset, \
     load_symbol_suggestions, load_interval_suggestions, load_period_suggestions, update_all_dataset_changes, \
     retrieve_ds, clear_dataset_changes, load_df_list, load_df, load_ivar_list, get_test_steps, \
-    load_ivar, init_robot, load_lag_suggestions, load_leverage_suggestions, load_instrument_type_suggestions, \
+    load_ivar, load_lag_suggestions, load_leverage_suggestions, load_instrument_type_suggestions, \
     load_ivar_as_list, translate_xvar_dict, load_flat_commission_suggestions, load_speed_suggestions, load_ivar_as_dict, \
     load_capital_suggestions, remove_all_df, remove_dataset_change, remove_dataset, delete_ivar, get_random_df, \
-    load_optim_depth_suggestions, load_setting, remove_ds_df
+    load_optim_depth_suggestions, load_setting, remove_ds_df, load_algo_list, load_algo_ivar_list
 from util.dataTestingUtil import step_test_robot, DataTester, write_test_result, write_test_meta, load_test_result, \
-    load_test_meta, get_tested_robot_list, get_tests_list
+    load_test_meta, get_tested_robot_list, get_tests_list, get_ivar_vars
 from util.langUtil import normify_name, try_int, leverage_to_float, get_test_name, try_float, strtodatetime, \
     timedeltatoyahootimestr
 
@@ -794,6 +794,17 @@ class TradeHunterApp:
             body = QHBoxLayout()
             tail = QHBoxLayout()
 
+            # ===============================================================
+            #   whole
+            #       head
+            #           X
+            #       body
+            #           panes
+            #               left_pane (dataset, table, ivar)
+            #               xvar_pane (xvar)
+            #       tail
+            # ===============================================================
+
             panes = QHBoxLayout()
             left_pane = QVBoxLayout()
 
@@ -813,6 +824,10 @@ class TradeHunterApp:
             dataset_layout.addWidget(dataset_label)
             dataset_layout.addWidget(dataset_combo)
 
+            # Build dataset clear button and table
+            dataset_clear_button = QPushButton('Clear')
+            dataset_layout.addWidget(dataset_clear_button)
+
             dataset_table = QTableWidget(100, 1)
             dataset_table.setHorizontalHeaderLabels(['Dataset'])
             dataset_table.setEditTriggers(QAbstractItemView.NoEditTriggers)
@@ -824,8 +839,12 @@ class TradeHunterApp:
                 ds_names.append(dataset_combo.currentText())
                 set_dataset_table(dataset_table, ds_names)
 
+            def clear_datasets():
+                clear_table(dataset_table)
+
             # dataset_combo.currentIndexChanged.connect(add_dataset)
             dataset_combo.activated.connect(add_dataset)
+            dataset_clear_button.clicked.connect(clear_datasets)
 
             # Choose ivar
             ivar_label = QLabel('Initial Variables')
@@ -841,7 +860,7 @@ class TradeHunterApp:
             left_pane.addWidget(dataset_table)
             left_pane.addLayout(ivar_layout)
 
-            tail_layout = QHBoxLayout()
+            left_tail_layout = QHBoxLayout()
             back_button = QPushButton("Back")
             test_button = QPushButton("Test")
             optimise_button = QPushButton("Optimise")
@@ -963,7 +982,6 @@ class TradeHunterApp:
                 self.close()
 
             def to_optimise():
-
                 if not check_input():
                     return
 
@@ -991,10 +1009,8 @@ class TradeHunterApp:
                 p_bar = progress_bar_window()
                 self.canvas = TradeHunterApp.MplMultiCanvas(self, 5, 4, 100, 1, 1)
                 PyQt5.QtWidgets.QApplication.processEvents()
-                # self.canvas = TradeHunterApp.MplCanvas()
-                # Add canvas and progress bar
-                tail_layout.addWidget(p_bar)
-                tail_layout.addWidget(self.canvas)
+                tail.addWidget(p_bar)
+                tail.addWidget(self.canvas)
 
                 ivar = load_ivar_as_dict(robot_name, ivar_name)
 
@@ -1087,13 +1103,13 @@ class TradeHunterApp:
             delete_button.clicked.connect(to_delete_ivar)
             back_button.clicked.connect(self.back)
 
-            tail_layout.addWidget(test_button)
-            tail_layout.addWidget(optimise_button)
-            tail_layout.addWidget(simulate_button)
-            tail_layout.addWidget(delete_button)
-            tail_layout.addWidget(back_button)
+            left_tail_layout.addWidget(test_button)
+            left_tail_layout.addWidget(optimise_button)
+            left_tail_layout.addWidget(simulate_button)
+            left_tail_layout.addWidget(delete_button)
+            left_tail_layout.addWidget(back_button)
 
-            left_pane.addLayout(tail_layout)
+            left_pane.addLayout(left_tail_layout)
 
             # === Right === (xvar attributes)
             name_label = QLabel('Test Name')
@@ -1190,7 +1206,7 @@ class TradeHunterApp:
             # self.ta_window.show()
             self.close()
 
-        class RobotSetupWindow:
+        class RobotSetupWindow(QWidget):
 
             def __init__(self, robot):
                 super().__init__()
@@ -1203,6 +1219,55 @@ class TradeHunterApp:
 
                 ivar_select.setFixedHeight(20)
                 dataset_select.setFixedHeight(20)
+
+        class CreateIVarWindow(QWidget):
+            """Create custom IVars (Parent: TestingChamberPage)"""
+            # todo
+            def __init__(self, ta_name):
+                super().__init__()
+                self.robot = ta_name
+                self.ivar_combos = []  # discrete/enum {'name': value, 'combo': _combo}
+                self.ivar_texts = []  # continuous
+
+                self.window()
+
+            def window(self):
+
+                main_layout = QVBoxLayout()
+                ivar_layout = QHBoxLayout()
+                button_layout = QHBoxLayout()
+
+                def back():
+                    self.close()
+
+                create_button = QPushButton('Create')
+                cancel_button = QPushButton('Cancel')
+                create_button.clicked.connect(self.create_ivar)
+                cancel_button.clicked.connect(back)
+
+                button_layout.addWidget(create_button)
+                button_layout.addWidget(cancel_button)
+
+                main_layout.addLayout(ivar_layout)
+                main_layout.addLayout(button_layout)
+
+                self.setWindowTitle(F'{self.robot}: Create new IVar')
+                self.setLayout(main_layout)
+
+                self.show()
+
+            def load_ivar_options(self):
+                args_dict = get_ivar_vars(self.robot)
+
+            def create_ivar_option(self):
+                pass
+
+            def create_ivar(self):
+                for ivar_combo in self.ivar_combos:
+                    pass
+
+                for ivar_text in self.ivar_texts:
+                    pass
 
     class RobotAnalysis(QWidget):
 
@@ -1657,9 +1722,11 @@ class TradeHunterApp:
             super().__init__()
 
             # Combo options
-            self.robot_select = None
-            self.df_select = None
+            self.robot_select = None  # robot options
             self.ivar_select = None
+            self.algo_select = None  # algo
+            self.algo_ivar_select = None
+            self.df_select = None
             self.sim_speed = None
 
             # Handles for particular components
@@ -1668,6 +1735,8 @@ class TradeHunterApp:
             self.head = None
             self.body = None
             self.tail = None
+
+            self.mode = 'Robot'  # default
 
             # Variables
             self.df = None
@@ -1788,7 +1857,7 @@ class TradeHunterApp:
                         self.ivar_label_dict[_key].setText(ivar_df[_key])
 
             def load_algo_list():
-                pass  # replace ivar
+                pass  # replace ivar  # todo this whole algo option in sim plotter
 
             def load_df():
                 df_name = df_select.currentText()
@@ -1949,9 +2018,9 @@ class TradeHunterApp:
         def test(self, xvar, ivar, svar, ta_name, df_name, type):
             data_tester = DataTester(xvar)
 
-            if type == "":
+            if type.lower() == "robot":
                 pass
-            elif type == "":
+            elif type.lower() == "algo":
                 pass
 
             success, error = data_tester.simulate_single(ta_name, ivar, svar, df_name, self.canvas)
@@ -2008,6 +2077,51 @@ class TradeHunterApp:
             # Replace old summary layout
             self.tail.addLayout(summary_layout)
             self.summary_layout = summary_layout
+
+        # Initialise options
+
+        def build_robot_select(self):
+            # Destroy algo UI
+            self.algo_ivar_select.deleteLater()
+            self.algo_select.deleteLater()
+            self.algo_ivar_select = None
+            self.algo_select = None
+
+            self.robot_select = QComboBox()
+            self.ivar_select = QComboBox()
+
+            ta_list = load_trade_advisor_list()
+            ta_list.sort(reverse=True)
+            for ta in ta_list:
+                self.robot_select.insertItem(0, ta)
+            self.robot_select.setCurrentIndex(0)
+            ivar_list = load_ivar_list(self.robot_select.currentText())
+            ivar_list.sort(reverse=True)
+            for ivar in ivar_list:
+                self.ivar_select.insertItem(0, ivar)
+            self.ivar_select.setCurrentIndex(0)
+
+        def build_algo_select(self):
+            # Destroy robot UI
+            self.ivar_select.deleteLater()
+            self.robot_select.deleteLater()
+            self.ivar_select = None
+            self.robot_select = None
+
+            self.algo_select = QComboBox()
+            self.algo_ivar_select = QComboBox()
+
+            algo_list = load_algo_list()
+            algo_list.sort(reverse=True)
+            for algo in algo_list:
+                self.algo_select.insertItem(0, algo)
+            self.algo_select.setCurrentIndex(0)
+            ivar_list = load_algo_ivar_list(self.algo_select.currentText())
+            ivar_list.sort(reverse=True)
+            for ivar in ivar_list:
+                self.algo_ivar_select.insertItem(0, ivar)
+            if len(ivar_list) > 0:
+                self.algo_ivar_select.setCurrentIndex(0)
 
     class AlgoPlotter(QWidget):
         """Plots the sim of algorithms such as support finding, trend finding

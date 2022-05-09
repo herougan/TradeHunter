@@ -698,6 +698,19 @@ def load_optimisation_meta(meta_name: str, robot_name: str):
     return omdf
 
 
+# Robot/Algos eval
+
+
+def get_ivar_vars(robot: str):
+    args_dict = eval(F'{robot}.{robot}.ARGS_DICT')
+    return args_dict
+
+
+def get_algo_ivar_vars(algo: str):
+    args_dict = eval(F'{algo}.{algo}.ARGS_DICT')
+    return args_dict
+
+
 # Stock type
 
 
@@ -999,6 +1012,10 @@ class DataTester:
     # == Optimise ==
     def optimise(self, ta_name: str, init_ivar: List[float], ds_names: List[str], optim_name: str, store=True,
                  meta_store=True, canvas=None):
+        # todo makeover ivar['ivar']['name'] to ivar['name']
+        # todo but yet, when storing, store with name
+        """...
+        Note this function uses progress bar #2."""
         ta_name = remove_special_char(ta_name)
         print('Starting optimisation: ' + F'{ta_name}.{ta_name}({init_ivar}) with i:{init_ivar}, x:{self.xvar}')
 
@@ -1115,7 +1132,8 @@ class DataTester:
 
             # return new ivar
             return {
-                'ivar': new_ivar
+                'ivar': new_ivar,
+                'name': 0  # todo what
             }
 
         def best_ivar_from_spread(spread_results):
@@ -1415,7 +1433,6 @@ class DataTester:
             trimmed_ivar_results.append(final_ivar_results[i])
 
         # Trim unusual results (Too high etc.)
-
         # Add non-final trajectories that scored highly
         # Distinct elements only
 
@@ -1446,11 +1463,13 @@ class DataTester:
         })
 
         # Average 'destination' value per ivar
-        for key in final_ivar_results[0].keys():
+        for key in final_ivar_results[0]['ivar'].keys():
             result_dict[F'average_{key}'] = 0
         for final_ivar_result in final_ivar_results:
-            for key in final_ivar_result.keys():
-                result_dict[F'average_{key}'] += final_ivar_result[key]['default'] / len(final_ivar_results)
+            for key in final_ivar_result['ivar'].keys():
+                if key == 'name':
+                    continue  # Current ver. IVars will not contain 'name'
+                result_dict[F'average_{key}'] += final_ivar_result['ivar'][key]['default'] / len(final_ivar_results)
 
         # Create Meta and Result
         meta = {
@@ -1464,7 +1483,7 @@ class DataTester:
         optim_meta = create_optim_meta(optim_name, ivar, self.xvar, meta, meta_store)
         optim_result = create_optim_result(optim_name, result_dict, meta['name'])
 
-        # Insert ivar
+        # Create new IVar and insert
         insert_ivars(ta_name, trimmed_ivar_results)
 
         # Save optimisation file

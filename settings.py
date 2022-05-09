@@ -16,6 +16,10 @@ EVALUATION_FOLDER = F'static/results/evaluation'
 OPTIMISATION_FOLDER = F'static/results/optimisation'
 DATA_FOLDER = F'static/data'
 
+ROBOT_FOLDER = F'robot'
+ALGO_FOLDER = F'algo'
+IVAR_SUB_FOLDER = F'/ivar'
+
 ROOT = F''
 STATIC = F'{os.getcwd()}'
 
