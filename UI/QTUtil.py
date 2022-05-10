@@ -1,5 +1,6 @@
 import pandas as pd
-from PyQt5.QtWidgets import QTableWidget, QTableWidgetItem
+from PyQt5.QtCore import Qt
+from PyQt5.QtWidgets import QTableWidget, QTableWidgetItem, QPlainTextEdit
 from util.langUtil import check_if_valid_timestr
 
 
@@ -133,3 +134,24 @@ def full_only(map):
         if to_row: _map.append(row)
 
     return _map
+
+
+# util GUI classes
+
+
+class PlainTextEdit(QPlainTextEdit):
+    # todo replace text edits
+    def keyPressEvent(self, event):
+        if event.key() in (Qt.Key_Return, Qt.Key_Enter, Qt.Key_Tab):
+            return
+        super().keyPressEvent(event)
+
+
+class NumericTextEdit(QPlainTextEdit):
+    # todo replace text edits
+    def keyPressEvent(self, event):
+        if event.key() in (Qt.Key_Return, Qt.Key_Enter, Qt.Key_Tab):
+            return
+        if event.key() in (Qt.Key_A):
+            return
+        super().keyPressEvent(event)

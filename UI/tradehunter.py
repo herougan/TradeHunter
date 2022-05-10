@@ -26,7 +26,8 @@ from util.dataRetrievalUtil import load_trade_advisor_list, get_dataset_changes,
     load_ivar, load_lag_suggestions, load_leverage_suggestions, load_instrument_type_suggestions, \
     load_ivar_as_list, translate_xvar_dict, load_flat_commission_suggestions, load_speed_suggestions, load_ivar_as_dict, \
     load_capital_suggestions, remove_all_df, remove_dataset_change, remove_dataset, delete_ivar, get_random_df, \
-    load_optim_depth_suggestions, load_setting, remove_ds_df, load_algo_list, load_algo_ivar_list
+    load_optim_depth_suggestions, load_setting, remove_ds_df, load_algo_list, load_algo_ivar_list, \
+    load_optim_width_suggestions
 from util.dataTestingUtil import step_test_robot, DataTester, write_test_result, write_test_meta, load_test_result, \
     load_test_meta, get_tested_robot_list, get_tests_list, get_ivar_vars
 from util.langUtil import normify_name, try_int, leverage_to_float, get_test_name, try_float, strtodatetime, \
@@ -1000,6 +1001,10 @@ class TradeHunterApp:
                     xvar.update({
                         'optim_depth': try_int(optimisation_combo.currentText()),
                     })
+                if optimisation_w_combo.currentText():
+                    xvar.update({
+                        'optim_width': try_int(optimisation_w_combo.currentText()),
+                    })
 
                 ivar_name = ivar_combo.currentText()
 
@@ -1133,6 +1138,9 @@ class TradeHunterApp:
             optimisation_depth_label = QLabel('Optim. Depth')
             optimisation_combo = QComboBox()
             optimisation_combo.setFixedHeight(20)
+            optimisation_width_label = QLabel('Optim. Depth')
+            optimisation_w_combo = QComboBox()
+            optimisation_w_combo.setFixedHeight(20)
 
             test_types = ['Multi', 'Single']
             lag_types = load_lag_suggestions()
@@ -1140,6 +1148,9 @@ class TradeHunterApp:
             instrument_types = load_instrument_type_suggestions()
             commission_types = load_flat_commission_suggestions()
             optim_depth_types = load_optim_depth_suggestions()
+            optim_depth_types.sort(reverse=True)
+            optim_width_types = load_optim_width_suggestions()
+            optim_width_types.sort(reverse=True)
 
             # Fill in xvar combo options
             for type in test_types:
@@ -1154,12 +1165,15 @@ class TradeHunterApp:
                 commission_combo.insertItem(0, str(type))
             for type in optim_depth_types:
                 optimisation_combo.insertItem(0, str(type))
+            for type in optim_width_types:
+                optimisation_w_combo.insertItem(0, str(type))
             type_combo.setCurrentIndex(0)
             lag_combo.setCurrentIndex(0)
             leverage_combo.setCurrentIndex(0)
             instrument_combo.setCurrentIndex(0)
             commission_combo.setCurrentIndex(0)
             optimisation_combo.setCurrentIndex(0)
+            optimisation_w_combo.setCurrentIndex(0)
 
             # Labels on the left, Widgets on the right
             xvar_left_body = QVBoxLayout()
@@ -1173,6 +1187,7 @@ class TradeHunterApp:
             xvar_left_body.addWidget(type_label, 1)
             xvar_left_body.addWidget(commission_label, 1)
             xvar_left_body.addWidget(optimisation_depth_label, 1)
+            xvar_left_body.addWidget(optimisation_width_label, 1)
 
             xvar_right_body.addWidget(name_text, 1.5)
             xvar_right_body.addWidget(lag_combo, 1.5)
@@ -1182,6 +1197,7 @@ class TradeHunterApp:
             xvar_right_body.addWidget(type_combo, 1.5)
             xvar_right_body.addWidget(commission_combo, 1.5)
             xvar_right_body.addWidget(optimisation_combo, 1.5)
+            xvar_right_body.addWidget(optimisation_w_combo, 1.5)
 
             xvar_pane.addLayout(xvar_left_body)
             xvar_pane.addLayout(xvar_right_body)

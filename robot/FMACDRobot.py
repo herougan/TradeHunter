@@ -304,7 +304,7 @@ class FMACDRobot(robot):
 
         Output: Data statistics start from 1 step before the first datapoint (in .next())
         """
-        self.reset()
+        self.reset(self.ivar, self.xvar)
         self.test_mode = test_mode
 
         # == Data Meta ==

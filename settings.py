@@ -58,7 +58,8 @@ SUGGESTIONS = {
         'speed': [0.5, 1, 2, 4, 8, 16]
     },
     # Optimisation
-    'optim_depth': [3, 10, 100, 300, 1000],
+    'optim_width': [3, 10, 100, 300, 1000, 5000],
+    'optim_depth': [3, 10, 25, 100, 300, 700, 1000],
     # Simulation
     'sim_speed': [1],
     'sim_scope': [80, 100],
@@ -89,7 +90,7 @@ PLOTTING_SETTINGS = {
     'graph_margin': [0.2, 0.2, 0.25],  # x, y, z (if appl.); inner plot margin
 }
 TESTING_SETTINGS = {
-    'optimisation_runs': 3
+    'test_runs': 3
 }
 OPTIMISATION_SETTINGS = {
     'max_runs': 100,  # optim_depth overwrites this
@@ -98,4 +99,6 @@ OPTIMISATION_SETTINGS = {
     # 5 = 500% of minimum step value. e.g. total percentage magnitude of 'change' vector
     # Many vector components would be <= min step value.
     'approach_step_size': 3,
+    'optimisation_width': 5,
+    'optimisation_depth': 3,
 }

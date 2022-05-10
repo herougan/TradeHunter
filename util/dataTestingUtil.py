@@ -10,7 +10,8 @@ from typing import List
 
 import PyQt5
 import pandas as pd
-from PyQt5.QtWidgets import QProgressBar
+from PyQt5.QtCore import Qt
+from PyQt5.QtWidgets import QProgressBar, QPlainTextEdit
 from matplotlib import pyplot as plt
 
 from robot.abstract.robot import robot
@@ -21,7 +22,7 @@ from util.dataRetrievalUtil import load_dataset, load_df, get_computer_specs, nu
     insert_ivars
 from util.langUtil import craft_instrument_filename, strtodatetime, try_key, remove_special_char, try_divide, try_max, \
     try_mean, get_test_name, get_file_name, get_instrument_from_filename, \
-    try_min
+    try_min, try_sgn
 
 #  Robot
 from robot import FMACDRobot
@@ -744,7 +745,6 @@ class DataTester:
         optimised with techniques such as running indicators only once."""
 
         self.start_time = datetime.now()
-
         ta_name = remove_special_char(ta_name)
 
         print('Going to test: ' + F'{ta_name}.{ta_name}({ivar}) with i:{ivar}, x:{self.xvar}')
@@ -756,7 +756,7 @@ class DataTester:
             # self.p_window.show()
 
         # Testing util functions
-        def test_dataset(ds_name):
+        def test_dataset(ds_name: str):
             dsdf = load_dataset(ds_name)
             summary_dict_list = []
 
@@ -1020,9 +1020,6 @@ class DataTester:
         print('Starting optimisation: ' + F'{ta_name}.{ta_name}({init_ivar}) with i:{init_ivar}, x:{self.xvar}')
 
         self.robot = eval(F'{ta_name}.{ta_name}({init_ivar}, {self.xvar})')
-        runs = TESTING_SETTINGS['optimisation_runs']
-        if 'optim_depth' in self.xvar:
-            runs = self.xvar['optim_depth']
         ivar_dict = {
             'ivar': init_ivar,
             'name': init_ivar['name'],
@@ -1030,18 +1027,29 @@ class DataTester:
         for meta in ['name', 'type', 'fitness']:  # Move meta attributes to a higher level
             if meta in init_ivar:
                 ivar_dict.update({
-                    meta: ivar_dict[meta]
+                    meta: init_ivar[meta]
                 })
-                del ivar_dict[meta]
+                del ivar_dict['ivar'][meta]
+
+        args_dict = self.robot.ARGS_DICT  # Basis for optimisation
+        # # Manage types of vars
+        for key in args_dict.keys():
+            # currently not used
+            if 'type' in args_dict[key]:
+                if args_dict[key]['type'] == 'discrete':  # if discrete, cannot decrease min_step
+                    pass
+            args_dict[key]['variability'] = 0  # dec/inc min_step to reach variability average
+            args_dict[key]['smoothness'] = 0  # min_step < noise width, inc min_step to ignore noise
 
         # Number of ivar to capture
         top_n = 3  # Maximum fitness
-
-        args_dict = self.robot.ARGS_DICT  # Basis for optimisation,
-        # not the current keys in ivar though they should be the same
-
         # Base options
-        max_runs = OPTIMISATION_SETTINGS['max_runs']
+        runs = OPTIMISATION_SETTINGS['optimisation_width']
+        max_depth = OPTIMISATION_SETTINGS['optimisation_depth']
+        if 'optim_depth' in self.xvar:
+            runs = self.xvar['optim_depth']
+        if 'optim_width' in self.xvar:
+            max_depth = self.xvar['optim_width']
         step_size = OPTIMISATION_SETTINGS['arg_step_size']  # alpha
         approach_size = OPTIMISATION_SETTINGS['approach_step_size']
 
@@ -1056,11 +1064,16 @@ class DataTester:
             self.p_bar_2.setValue(0)
 
         # ===========================
+        #   IVar Dict diagram
+        # ===========================
         #
         #   ivar_dicts = {
         #       key: {
         #           ivar: {
+        #               # Meta
         #               name: key/origin
+        #               fitness:
+        #               type:
         #               # Args
         #               key_1: {
         #                   default: val
@@ -1074,10 +1087,7 @@ class DataTester:
         #
         # ===========================
 
-        def adjust_ivar(spread_results):
-            pass
-
-        def suggest_ivar(spread_results):
+        def suggest_ivar(spread_results, _i=0, _u=0):
             """Shape of spread results:
             {key1: {
                 'ivar': {
@@ -1091,8 +1101,13 @@ class DataTester:
 
             main_ivar_dict = spread_results['origin']
             new_ivar = main_ivar_dict['ivar'].copy()
-            step_size = OPTIMISATION_SETTINGS['arg_step_size']  # step_size not saved in function
+            step_size = OPTIMISATION_SETTINGS['arg_step_size']  # Size of each full step (x=3,y=4 => d=5)
 
+            diff_dict = {
+                # key: {fitness deviation/val deviation}
+            }
+
+            # Get 'origin'/centre point result
             for key in spread_results.keys():
                 if key == 'origin':
                     spread_results[key].update({
@@ -1102,44 +1117,52 @@ class DataTester:
                     continue
 
                 spread_results[key].update({
-                    'fitness_diff': main_ivar_dict['fitness'] - spread_results[key]['fitness'],
-                    'val_diff': main_ivar_dict['ivar'][key]['default'] - spread_results[key]['ivar'][key]['default'],
+                    # Negative diff indicates a greater new result
+                    'fitness_diff': spread_results[key]['fitness'] - main_ivar_dict['fitness'],
+                    'val_diff': spread_results[key]['ivar'][key]['default'] - main_ivar_dict['ivar'][key]['default'],
                 })
 
             normalisation_constant = 0
             for key in spread_results.keys():
                 normalisation_constant += math.pow(spread_results[key]['fitness_diff'], 2)
-            normalisation_constant /= len(spread_results.keys())
+            normalisation_constant = math.pow(normalisation_constant, 0.5)
 
             for key in spread_results.keys():
                 if key == 'origin':
                     continue
 
-                min_step = args_dict[key]['step_size']  # % of step_size
-                #
+                min_step = args_dict[key]['step_size']  # min size of step (in coordinate), if applicable
+                # if args_dict['type'] == 'continuous':
+                #     pass
+                # elif args_dict['type'] == 'discrete':
+                #     pass
                 if min_step:
+                    # if val is positive, (result is good) move forward in the current direction
+                    # if val is negative, (result is bad) move away from the current direction
+                    # 'move' is the number of steps to take
                     move = step_size * min_step \
-                           * try_divide(math.pow(spread_results[key]['fitness_diff'], 2),
-                                        normalisation_constant)  # correct direction from fitness_diff
-                else:
-                    if step_size > 1 / 10:
-                        step_size = 0.1
-                    move = step_size / 10 * (args_dict[key]['range'][1] - args_dict[key]['step_size'][0])
-
+                           * try_divide(spread_results[key]['fitness_diff'],
+                                        normalisation_constant)
+                else:  # No minimum step_size,
+                    min_step = 1 / 100.0 * (args_dict[key]['range'][1] - args_dict[key]['step_size'][
+                        0])  # Assume minimum step_size of 1/100
+                    move = step_size * min_step \
+                           * try_divide(spread_results[key]['fitness_diff'],
+                                        normalisation_constant)
+                    # move = step_size / 10 * (args_dict[key]['range'][1] - args_dict[key]['step_size'][0])
                 if abs(move) < min_step:
-                    move = try_divide(move, abs(move) * min_step)
-                new_ivar[key]['default'] += move
+                    move = try_divide(move * min_step, abs(move))
+
+                #  sgn(val) represents the original direction. a negative 'move' moves in the opposite direction
+                new_ivar[key]['default'] += move * try_sgn(spread_results[key]['val_diff'])
 
             # return new ivar
             return {
                 'ivar': new_ivar,
-                'name': 0  # todo what
+                'name': F'suggest_{_i}_{_u}'
             }
 
-        def best_ivar_from_spread(spread_results):
-            pass
-
-        def random_ivar():
+        def random_ivar(_i=0):
             """Create a random initial starting ivar"""
             _ivar = {}
             for key in args_dict.keys():
@@ -1153,10 +1176,9 @@ class DataTester:
                     target = r * (arg_range[1] - arg_range[0]) + arg_range[0]
                     steps = (arg_range[1] - arg_range[0]) / step
                     # Binary search
-                    c_step = steps // 2
                     top_step, btm_step = steps, 0
                     while True:
-                        c_step = (top_step + btm_step) // 2
+                        c_step = (top_step + btm_step) // 2  # 0: c_step = steps // 2
                         value = step * c_step + arg_range[0]
                         if abs(value - target) <= step:
                             break
@@ -1169,40 +1191,50 @@ class DataTester:
                         'default': value,
                     },
                 })
-            ivar = {
-                'ivar': _ivar
+            ivar_dict = {
+                'ivar': _ivar,
+                'name': F'random_{_i}'
             }
-            return ivar
+            return ivar_dict
 
-        def ivar_spread(ivar):
+        def ivar_spread(ivar, _i=0, _u=0):
+            """Create ivar_spread from starting ivar origin"""
             # Ivar itself
             ivar_key_tuples = {
                 'origin': {
                     'ivar': ivar,
+                    'name': F'origin_{_i}_{_u}'
                 },
             }
             # Test hypersphere around ivar
             for key in args_dict.keys():
                 r = random.random()
-                _ivar = ivar.copy()
-                _ivar['name'] = key
+                _ivar = copy.deepcopy(ivar)
+                # _ivar['name'] = key  # name is F'spread_{_i}_{_u}', tuple-key is key
                 range = args_dict[key]['range']
                 curr = ivar[key]['default']
+                step = args_dict[key]['step_size']
 
-                t = -1
-                if r > 0.5:
-                    t = 1  # Random +ve/-ve switch
+                # If variability low, increase step
+                var = args_dict[key]['variability']
+                if var == 0:
+                    pass
+
+                # Change t instead
+                # t = -1
+                # if r > 0.5:
+                #     t = 1  # Random +ve/-ve switch
 
                 # Roll to try inc. or dec.
                 if r > 0.5:  # Increase
-                    if range[1] - curr == 0:  # Cannot increase further
+                    if range[1] - curr == 0:  # Cannot increase further/Literally at the end
+                        _val = range[1] - step
+                        _ivar[key]['default'] = _val  # decrease instead
+                    elif range[1] - curr <= step:  # Touch end point
                         _val = range[1]
-                        _ivar[key]['default'] = _val
-                    elif range[1] - curr <= args_dict[key]['step_size']:  # Touch end point
-                        _val = range[1]
-                        _ivar[key]['default'] = _val
+                        _ivar[key]['default'] = _val  # keep it at end
                     else:  # not in any edge case
-                        _val = curr + (range[1] - range[0]) * step_size
+                        _val = curr + step
                         _ivar[key]['default'] = _val
                     ivar_key_tuples.update({
                         key: {
@@ -1211,23 +1243,22 @@ class DataTester:
                     })
                 else:  # Decrease
                     if curr - range[0] == 0:
-                        _val = range[1]
+                        _val = range[0] + step
                         _ivar[key]['default'] = _val
-                    elif curr - range[0] <= args_dict[key]['step_size']:
+                    elif curr - range[0] <= step:
                         _val = range[1]
                         _ivar[key]['default'] = _val
                     else:  #
-                        _val = curr - (range[1] - range[0]) * step_size
+                        _val = curr - step
                         _ivar[key]['default'] = _val
                     ivar_key_tuples.update({
                         key: {
                             'ivar': _ivar,
                         }
                     })
+                # Get name
+                ivar_key_tuples[key]['name'] = F'spread_{key}_{_i}_{_u}'
             return ivar_key_tuples
-
-        def ivar_descend(ivars, results):
-            pass
 
         def get_fitness_score(result):
             # return result['balance'] / result['capital']
@@ -1313,7 +1344,7 @@ class DataTester:
             if i == 0:
                 pass  # ivar = init_ivar
             else:
-                ivar_dict = random_ivar()
+                ivar_dict = random_ivar(i)
             test_result = get_test_result(ivar_dict['ivar'])
             fitness = get_fitness_score(test_result)
             # Full store all ivars and their results
@@ -1328,14 +1359,15 @@ class DataTester:
                 ivar_result_tuples = {}  # {key: {ivar, profit, fitness_diff, val_diff}}
                 # Get spread to analyse
                 ivar_tuples_to_test = ivar_spread(
-                    ivar_dict['ivar'])  # Initial ivar outside loop or new_ivar from previous loop
+                    ivar_dict['ivar'], i, u)  # Initial ivar outside loop or new_ivar from previous loop
                 # Get spread results
                 for key in ivar_tuples_to_test.keys():
-
                     if key == 'origin':
-                        ivar_tuples_to_test[key].update({
+                        ivar_dict.update({
                             'fitness': fitness,
                         })
+                        ivar_result_tuples[key] = ivar_dict
+                        continue
 
                     ivar = ivar_tuples_to_test[key]['ivar']
                     ivar_dict = ivar_tuples_to_test[key]
@@ -1351,7 +1383,7 @@ class DataTester:
                     ivar_collection.append(ivar_dict)
 
                 # Determine next move based on deltas
-                new_ivar_dict = suggest_ivar(ivar_result_tuples)
+                new_ivar_dict = suggest_ivar(ivar_result_tuples, i, u)
                 new_test_result = get_test_result(new_ivar_dict['ivar'])
                 new_fitness = get_fitness_score(new_test_result)
                 # Store new ivar
@@ -1361,7 +1393,7 @@ class DataTester:
                 # Compare new ivar to old ivar
                 diff = new_fitness - fitness
 
-                # === Check terminate conditions ===
+                # === Try Terminate ===
                 # Check divergence for cycles
                 pass
                 # If reflected (Most 90% ivars reflected)
@@ -1384,7 +1416,7 @@ class DataTester:
                 if diff < 0:
                     pass
                 # If too many rounds
-                if u > max_runs:  # ===== OUT =====
+                if u > max_depth:  # ===== OUT =====
                     final_ivar_results.append({
                         'ivar': new_ivar_dict['ivar'],
                         'fitness': new_fitness,
@@ -1397,14 +1429,19 @@ class DataTester:
                 fitness = new_fitness
                 # exploration
                 # # future
+                pass
                 # for optim_vector in optim_field:
                 #     pass
+                pass
                 # # exploitation
+                pass
                 # # future
                 # candidates = []
+                pass
                 # # choose among candidates
                 # for candidate in candidates:
                 #     pass
+                pass
 
                 # ===== Plot =====
                 # Plot new best result from spread
@@ -1433,8 +1470,10 @@ class DataTester:
             trimmed_ivar_results.append(final_ivar_results[i])
 
         # Trim unusual results (Too high etc.)
+        pass
+
         # Add non-final trajectories that scored highly
-        # Distinct elements only
+        pass
 
         # Create result dict
         result_dict = {
@@ -1467,7 +1506,7 @@ class DataTester:
             result_dict[F'average_{key}'] = 0
         for final_ivar_result in final_ivar_results:
             for key in final_ivar_result['ivar'].keys():
-                if key == 'name':
+                if key in ['name', 'fitness', 'type']:
                     continue  # Current ver. IVars will not contain 'name'
                 result_dict[F'average_{key}'] += final_ivar_result['ivar'][key]['default'] / len(final_ivar_results)
 
@@ -1484,6 +1523,8 @@ class DataTester:
         optim_result = create_optim_result(optim_name, result_dict, meta['name'])
 
         # Create new IVar and insert
+        for ivar_result in trimmed_ivar_results:
+            ivar_result['name'] = optim_name + '_' + ivar_result['name']
         insert_ivars(ta_name, trimmed_ivar_results)
 
         # Save optimisation file

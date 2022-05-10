@@ -412,6 +412,10 @@ def load_optim_depth_suggestions():
     return settings.SUGGESTIONS['optim_depth']
 
 
+def load_optim_width_suggestions():
+    return settings.SUGGESTIONS['optim_width']
+
+
 def load_setting(name: str):
     return settings.SUGGESTIONS[name]
 

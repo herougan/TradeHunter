@@ -243,7 +243,6 @@ def is_datetime(v):
     return isinstance(v, datetime)
 
 
-
 # Names/File Names
 
 
@@ -273,7 +272,7 @@ def try_int(s: str) -> int:
         return 0
 
 
-def try_float(s :str) -> float:
+def try_float(s: str) -> float:
     try:
         return float(s)
     except ValueError:
@@ -312,6 +311,14 @@ def try_mean(list):
     for i in list:
         t += i
     return i / len(list)
+
+
+def try_sgn(n1):
+    n1 = try_float(n1)
+    if n1:
+        sgn = math.copysign(1, n1)
+        return sgn
+    return 0
 
 
 # XVar
@@ -408,7 +415,6 @@ def get_test_name(s: str):
     if len(s_arr) == 1:
         return s
     return '.'.join(s_arr[0:-2])
-
 
 # data = yf.download(  # or pdr.get_data_yahoo(...
 #         # tickers list or string as well
