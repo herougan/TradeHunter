@@ -22,7 +22,7 @@ from util.dataRetrievalUtil import load_dataset, load_df, get_computer_specs, nu
     insert_ivars
 from util.langUtil import craft_instrument_filename, strtodatetime, try_key, remove_special_char, try_divide, try_max, \
     try_mean, get_test_name, get_file_name, get_instrument_from_filename, \
-    try_min, try_sgn
+    try_min, try_sgn, in_std_range
 
 #  Robot
 from robot import FMACDRobot
@@ -647,7 +647,7 @@ def write_optim_result(optim_name: str, result_df, robot_name: str):
 
 
 def write_optim_meta(optim_name: str, meta_dict, robot_name: str):
-    folder = F'{EVALUATION_FOLDER}/{robot_name}'
+    folder = F'{OPTIMISATION_FOLDER}/{robot_name}'
     meta_path = F'{folder}/{optim_name}__meta.csv'
 
     if not os.path.exists(folder):
@@ -697,6 +697,14 @@ def load_optimisation_meta(meta_name: str, robot_name: str):
 
     omdf = pd.read_csv(meta_path, index_col=0)
     return omdf
+
+
+def delete_test(test_name: str, robot_name: str):
+    pass  # todo
+
+
+def delete_optimisation(optim_name: str, robot_name: str):
+    pass  # todo
 
 
 # Robot/Algos eval
@@ -1174,17 +1182,21 @@ class DataTester:
                     value = r * (arg_range[1] - arg_range[0]) + arg_range[0]
                 else:
                     target = r * (arg_range[1] - arg_range[0]) + arg_range[0]
-                    steps = (arg_range[1] - arg_range[0]) / step
+                    steps = (arg_range[1] - arg_range[0]) // step
                     # Binary search
                     top_step, btm_step = steps, 0
                     while True:
                         c_step = (top_step + btm_step) // 2  # 0: c_step = steps // 2
                         value = step * c_step + arg_range[0]
-                        if abs(value - target) <= step:
+                        if abs(value - target) <= step or top_step == btm_step:
                             break
                         elif value > target:
+                            if top_step == c_step:
+                                c_step = btm_step
                             top_step = c_step
                         elif value < target:
+                            if btm_step == c_step:
+                                c_step = top_step
                             btm_step = c_step
                 _ivar.update({
                     key: {
@@ -1262,7 +1274,9 @@ class DataTester:
 
         def get_fitness_score(result):
             # return result['balance'] / result['capital']
-            return result['growth_factor']
+            if 'growth_factor' in result:
+                return result['growth_factor']
+            return 0
 
         def get_test_result(_ivar):
             _result, _meta = self.test(ta_name, _ivar, ds_names, '', False, False)
@@ -1394,6 +1408,7 @@ class DataTester:
                 diff = new_fitness - fitness
 
                 # === Try Terminate ===
+                out = False  # Termination condition
                 # Check divergence for cycles
                 pass
                 # If reflected (Most 90% ivars reflected)
@@ -1405,25 +1420,26 @@ class DataTester:
                     new_sgn = math.copysign(1, new_ivar_dict['ivar'][key]['default'])
                     if sgn != new_sgn:
                         reflect_n += 1
-                if reflect_n > 0.9 * len(ivar.keys()):  # ===== OUT =====
-                    final_ivar_results.append({
-                        'ivar': new_ivar_dict['ivar'],
-                        'fitness': new_fitness,
-                        'type': 'reflect',
-                    })
-                    break
+                if reflect_n > (0.9 * len(ivar.keys())):  # ===== OUT =====
+                    out = True
                 # If barely any change
                 if diff < 0:
                     pass
                 # If too many rounds
                 if u > max_depth:  # ===== OUT =====
+                    out = True
+                u += 1
+
+                # Terminate
+                if out:
                     final_ivar_results.append({
                         'ivar': new_ivar_dict['ivar'],
                         'fitness': new_fitness,
                         'type': 'wander',
+                        'name': F'suggest_{i}_{u}'
                     })
                     break
-                u += 1
+
                 # ivar = adjust_ivar(results)
                 ivar_dict = new_ivar_dict
                 fitness = new_fitness
@@ -1459,14 +1475,18 @@ class DataTester:
         # Descent Trajectory finals # Easier!
         trimmed_ivar_results = []
         final_fitness_scores = [d['fitness'] for d in final_ivar_results]
-        general_fitness_scores = fitness_collection
         top_fitness_score, btm_fitness_score, avg_fitness_score = \
             try_max(final_fitness_scores), try_min(final_fitness_scores), try_mean(final_fitness_scores)
-        std = try_stdev(final_fitness_scores)
+        std_fitness_score = try_stdev(final_fitness_scores)
 
         # Trim bad results/Collect top results
         final_ivar_results = sorted(final_ivar_results, key=lambda x: x['fitness'], reverse=True)
-        for i in range(top_n):  # top n, index 0 is highest
+        for ivar_result in final_ivar_results:
+            if len(final_ivar_results) <= 5:
+                break
+            if not in_std_range(ivar_result['fitness'], avg_fitness_score, std_fitness_score, 3):
+                final_ivar_results.remove(ivar_result)
+        for i in range(max(len(final_ivar_results), top_n)):  # top n, index 0 is highest
             trimmed_ivar_results.append(final_ivar_results[i])
 
         # Trim unusual results (Too high etc.)
@@ -1480,7 +1500,7 @@ class DataTester:
             'high': top_fitness_score,  # from picked ivars
             'low': btm_fitness_score,
             'average': avg_fitness_score,
-            'std_deviation': std,
+            'std_deviation': std_fitness_score,
             # ----
             'average_overall': try_mean(fitness_collection),
             'low_overall': try_min(fitness_collection),
@@ -1535,8 +1555,9 @@ class DataTester:
 
         return trimmed_ivar_results
 
-    def get_optimisation_types(self):
-        return ['block', 'random_descent', 'random', 'bayesian', 'evolution']
+
+def get_optimisation_types(self):
+    return ['block', 'random_descent', 'random', 'bayesian', 'evolution']
 
 
 #  General

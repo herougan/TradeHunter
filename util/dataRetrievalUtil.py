@@ -315,6 +315,7 @@ def load_dataset_data(d_list: List[str]) -> List[pd.DataFrame]:
 # Dataset-Changes
 
 def get_dataset_changes() -> pd.DataFrame:
+    """index, name"""
     path = settings.DATASET_CHANGES_PATH
     dsc = pd.read_csv(path, index_col=0)
     return dsc
@@ -364,6 +365,17 @@ def write_dataset_change(dsc_df: pd.DataFrame):
     dsc_df.to_csv(path)
 
 
+def replace_dataset_change(ds_name: str, new_name: str):
+    dsc = get_dataset_changes()
+    _exists = False
+    for i, row in dsc.iterrows():
+        if row['name'].lower() == ds_name.lower():
+            _exists = True
+    if _exists:
+        remove_dataset_change(ds_name)
+        add_as_dataset_change(new_name)
+
+
 def remove_dataset_change(ds_name: str):
     dsc = get_dataset_changes()
     dsc.drop(dsc[dsc.name == ds_name].index)
@@ -380,6 +392,17 @@ def clear_dataset_changes():
 def set_dataset_changes(dsc: pd.DataFrame):
     path = settings.DATASET_CHANGES_PATH
     dsc.to_csv(path)
+
+
+def rename_dataset(ds_name: str, new_name: str):
+    # Get df
+    dsf = load_dataset(ds_name)
+    # Create new file
+    write_dataset(new_name, dsf)
+    # destroy old file
+    remove_dataset(ds_name)
+    # If file in dataset_changes, remove and update if removed (otherwise, ignore)
+    replace_dataset_change(ds_name, new_name)
 
 
 # List of instruments
@@ -697,6 +720,7 @@ def insert_ivars(ta_name: str, ivar_list):
             if key not in cols:
                 continue  # Ignore if not inside.
             if key == 'name':  # Add name as index
+                ivar_dict['name'] = ivar['name']
                 continue
             data.update({
                 key: [ivar[key]['default']],
@@ -704,8 +728,8 @@ def insert_ivars(ta_name: str, ivar_list):
 
         # Create indexer
         name = ["none"]
-        if 'name' in ivar_dict['ivar']:
-            name = [ivar['name']['default']]
+        if 'name' in ivar_dict:
+            name = [ivar_dict['name']]
 
         # Fill in meta attributes
         data.update({
@@ -722,6 +746,17 @@ def insert_ivars(ta_name: str, ivar_list):
             })
         n_idf = pd.DataFrame(data, index=name)
         idf = idf.append(n_idf)
+        # pd.concat(idf, n_idf)
+    idf.index.name = 'name'
+    idf.to_csv(path)
+
+
+def insert_ivar_df(ta_name: str, ivar_df):
+    path = get_ivar_path(ta_name)
+
+    # Load stored ivars
+    idf = load_ivar_df(ta_name)
+    idf.append(ivar_df)
     idf.index.name = 'name'
     idf.to_csv(path)
 
@@ -759,6 +794,18 @@ def result_dict_to_dataset(result_dict):
             key: [result_dict[key]]
         })
     return pd.DataFrame(data, index=False)
+
+
+def rename_ivar(ta_name: str, ivar_name: str, new_name: str):
+    # Get idf
+    ivar = load_ivar_df(ta_name)
+    # Get idf row n_idf
+    n_idf = ivar[ivar.index == ivar_name]
+    ivar.drop(ivar[ivar.index == ivar_name].index)
+    # Insert new renamed n_idf
+    n_idf.index = new_name
+    n_idf.index.name = 'name'
+    pass  # todo
 
 
 # Algo's IVar

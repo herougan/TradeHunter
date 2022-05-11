@@ -120,6 +120,19 @@ def clear_table(table: QTableWidget):
             table.setItem(i, u, item)
 
 
+def count_table(table: QTableWidget):
+
+    rows = 0
+    for i in range(table.rowCount()):
+        empty = False
+        for u in range(table.columnCount()):
+            if not table.item(i, u):
+                empty = True
+        if not empty:
+            rows += 1
+    return rows
+
+
 def full_only(map):
     _map = []
     for i in range(map.count()):

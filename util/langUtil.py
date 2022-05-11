@@ -321,6 +321,18 @@ def try_sgn(n1):
     return 0
 
 
+def in_range(n1, n2=[0, 1]):
+    n1 = try_float(n1)
+    if n1 and len(n2) >= 2:
+        if n2[0] < n1 < n2[1]:
+            return True
+    return False
+
+
+def in_std_range(n1, avg, stdev, order=1):
+    return in_range(n1, [avg-order*stdev, avg+order*stdev])
+
+
 # XVar
 
 

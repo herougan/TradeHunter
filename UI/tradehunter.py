@@ -17,7 +17,7 @@ import sys
 from matplotlib.figure import Figure
 
 from UI.QTUtil import get_datatable_sheet, set_datatable_sheet, clear_table, set_col_cell_sheet, get_dataset_table, \
-    set_dataset_table
+    set_dataset_table, count_table
 from util.dataGraphingUtil import plot_single, candlestick_plot, init_plot, DATE_FORMAT_DICT, get_interval
 from util.dataRetrievalUtil import load_trade_advisor_list, get_dataset_changes, update_specific_dataset_change, \
     write_new_empty_dataset, load_dataset_list, save_dataset, add_as_dataset_change, load_dataset, \
@@ -27,7 +27,7 @@ from util.dataRetrievalUtil import load_trade_advisor_list, get_dataset_changes,
     load_ivar_as_list, translate_xvar_dict, load_flat_commission_suggestions, load_speed_suggestions, load_ivar_as_dict, \
     load_capital_suggestions, remove_all_df, remove_dataset_change, remove_dataset, delete_ivar, get_random_df, \
     load_optim_depth_suggestions, load_setting, remove_ds_df, load_algo_list, load_algo_ivar_list, \
-    load_optim_width_suggestions
+    load_optim_width_suggestions, rename_dataset, rename_ivar
 from util.dataTestingUtil import step_test_robot, DataTester, write_test_result, write_test_meta, load_test_result, \
     load_test_meta, get_tested_robot_list, get_tests_list, get_ivar_vars
 from util.langUtil import normify_name, try_int, leverage_to_float, get_test_name, try_float, strtodatetime, \
@@ -512,16 +512,68 @@ class TradeHunterApp:
                     self.c_win = confirm_window
                     confirm_window.show()
 
+                def rename_button_clicked():
+                    ds_name = dataset_combo.currentText()
+                    layout_list = QVBoxLayout()
+
+                    # Construct confirm window
+                    confirm_window = QWidget()
+                    confirm_button = QPushButton('Delete')
+                    cancel_button = QPushButton('Cancel')
+                    text_label = QLabel(F'Rename {ds_name}')
+                    text_text = QTextEdit()
+                    text_layout = QHBoxLayout()
+                    text_layout.addWidget(text_label)
+                    confirm_layout = QHBoxLayout()
+
+                    # Refresh
+                    self.build_dataset_list()
+
+                    def check_input():
+                        if not text_text.document():
+                            return False
+                        return True
+
+                    def cancel():
+                        self.c_win.close()
+
+                    def confirm():
+                        if not check_input():
+                            return
+
+                        new_name = text_text.document().toPlainText()
+
+                        rename_dataset(ds_name, normify_name(new_name))
+                        self.c_win.close()
+
+                    confirm_button.clicked.connect(confirm)
+                    cancel_button.clicked.connect(cancel)
+
+                    layout_list.addLayout(text_layout)
+                    layout_list.addWidget(text_text)
+                    layout_list.addLayout(confirm_layout)
+                    confirm_window.setLayout(layout_list)
+                    confirm_layout.addWidget(confirm_button)
+                    confirm_layout.addWidget(cancel_button)
+
+                    confirm_window.setWindowTitle(F'Dataset renaming')
+
+                    self.c_win = confirm_window
+                    confirm_window.show()
+
                 create_button = QPushButton('New')
                 save_button = QPushButton('Save')
                 delete_button = QPushButton('Delete')
+                rename_button = QPushButton('Rename')
                 create_button.clicked.connect(create_button_clicked)
                 save_button.clicked.connect(save_button_clicked)
+                rename_button.clicked.connect(rename_button_clicked)
                 delete_button.clicked.connect(delete_button_clicked)
 
                 tail = QHBoxLayout()
                 tail.addWidget(create_button)
                 tail.addWidget(save_button)
+                tail.addWidget(rename_button)
                 tail.addWidget(delete_button)
 
                 self.addLayout(tail)
@@ -772,6 +824,7 @@ class TradeHunterApp:
             super().__init__()
             self.robot_name = robot_name
             self.setWindowTitle(robot_name)
+            self.c_win = None
             self.window()
 
             # progress
@@ -861,12 +914,18 @@ class TradeHunterApp:
             left_pane.addWidget(dataset_table)
             left_pane.addLayout(ivar_layout)
 
+            delete_ivar_button = QPushButton("Delete")
+            create_ivar_button = QPushButton("Create")
+            rename_ivar_button = QPushButton("Rename")
+            ivar_layout.addWidget(create_ivar_button)
+            ivar_layout.addWidget(delete_ivar_button)
+            ivar_layout.addWidget(rename_ivar_button)
+
             left_tail_layout = QHBoxLayout()
             back_button = QPushButton("Back")
             test_button = QPushButton("Test")
             optimise_button = QPushButton("Optimise")
             simulate_button = QPushButton("Simulate")
-            delete_button = QPushButton("Delete IVar")
 
             robot_name = self.robot_name
 
@@ -921,7 +980,7 @@ class TradeHunterApp:
                 # if not commission_combo.document().toPlainText():
                 #     capital_text.document().setPlaintText('0')
                 if not capital_text.document().toPlainText():
-                    capital_text.document().setPlaintText('0')
+                    capital_text.document().setPlainText('0')
 
                 capital = try_int(capital_text.document().toPlainText())
                 if capital <= 0:
@@ -936,7 +995,21 @@ class TradeHunterApp:
                     self.alert_window.setLayout(alert_layout)
                     return False
 
+                # Check number of datasets. Need at least one!
+                if not count_table(dataset_table):
+                    self.alert_window = QWidget()
+                    alert_layout = QVBoxLayout()
+                    alert = QMessageBox(self.alert_window)
+                    alert.setText('Please insert at least one dataset into the table.')
+                    alert.show()
+
+                    alert_layout.addWidget(alert)
+
+                    self.alert_window.setLayout(alert_layout)
+                    return False
+
                 return True
+                # return False
 
             def to_test():
 
@@ -1024,12 +1097,12 @@ class TradeHunterApp:
                 data_tester.bind_progress_bar_2(p_bar)
 
                 ds_names = get_dataset_table(dataset_table)
-                data_tester.optimise(robot_name, ivar, ds_names, optim_name, True, self.canvas)
+                ivar_results = data_tester.optimise(robot_name, ivar, ds_names, optim_name, True, self.canvas)
 
                 p_bar.deleteLater()
 
                 self.oap = TradeHunterApp.OptimisationAnalysisPage(robot_name, optim_name)
-                self.oap.show()
+                self.oap.show()  # todo
                 self.close()
 
             def to_simulate():
@@ -1101,17 +1174,57 @@ class TradeHunterApp:
 
                 confirm_window.show()
 
+            def to_create_ivar():
+                pass
+
+            def to_rename_ivar():
+
+                ivar_name = ivar_combo.currentText()
+
+                choice_window = QWidget()
+                self.c_win = choice_window
+                main_layout = QVBoxLayout()
+                text_layout = QHBoxLayout()
+                button_layout = QHBoxLayout()
+
+                cancel_button = QPushButton('Cancel')
+                rename_button = QPushButton('Rename')
+                button_layout.addWidget(rename_button)
+                button_layout.addWidget(cancel_button)
+
+                text_label = QLabel('Name:')
+                text_text = QTextEdit()
+                text_layout.addWidget(text_label)
+                text_layout.addWidget(text_text)
+
+                main_layout.addLayout(text_layout)
+                main_layout.addLayout(button_layout)
+                choice_window.setLayout(main_layout)
+
+                def rename():
+                    new_name = ''
+                    rename_ivar(ivar_name, new_name)
+
+                def back():
+                    self.close()
+
+                rename_button.clicked.connect(rename)
+                cancel_button.clicked.connect(back)
+
+                choice_window.show()
+
             # === Bottom === Tail buttons
             test_button.clicked.connect(to_test)
             optimise_button.clicked.connect(to_optimise)
             simulate_button.clicked.connect(to_simulate)
-            delete_button.clicked.connect(to_delete_ivar)
+            delete_ivar_button.clicked.connect(to_delete_ivar)
+            create_ivar_button.clicked.connect(to_create_ivar)
+            rename_ivar_button.clicked.connect(to_rename_ivar)
             back_button.clicked.connect(self.back)
 
             left_tail_layout.addWidget(test_button)
             left_tail_layout.addWidget(optimise_button)
             left_tail_layout.addWidget(simulate_button)
-            left_tail_layout.addWidget(delete_button)
             left_tail_layout.addWidget(back_button)
 
             left_pane.addLayout(left_tail_layout)
@@ -1138,7 +1251,7 @@ class TradeHunterApp:
             optimisation_depth_label = QLabel('Optim. Depth')
             optimisation_combo = QComboBox()
             optimisation_combo.setFixedHeight(20)
-            optimisation_width_label = QLabel('Optim. Depth')
+            optimisation_width_label = QLabel('Optim. Width')
             optimisation_w_combo = QComboBox()
             optimisation_w_combo.setFixedHeight(20)
 
@@ -1285,7 +1398,8 @@ class TradeHunterApp:
                 for ivar_text in self.ivar_texts:
                     pass
 
-    class RobotAnalysis(QWidget):
+    class RobotAnalysisPage(QWidget):
+        """Comparisons, analysis etc."""
 
         def __init__(self):
             self.window()
@@ -1294,16 +1408,14 @@ class TradeHunterApp:
         def window(self):
             vis_button = QPushButton('Visualise')  # Load graphs
 
-        # delete ivars etc
-
-    class DataAnalysis(QWidget):
+    class DataAnalysisPage(QWidget):
         """Lets you study details of (single) data and lets you carve them based on their properties e.g.
         ranging versus trending."""
         pass
 
     class ResultAnalysisPage(QWidget):
 
-        def __init__(self, robot_name='default', test_name='default'):
+        def __init__(self, robot_name='default', test_name='default', type='test'):
             super().__init__()
 
             self.alert_window = None
@@ -1414,6 +1526,14 @@ class TradeHunterApp:
             main_layout.addLayout(body_layout)
             main_layout.addLayout(tail_layout)
 
+            # Select Type
+            type_label = QLabel('Type')
+            type_combo = QComboBox()
+            choices = ['Optimisation', 'Test', 'Algo']
+            choices.sort(reverse=True)
+            for choice in choices:
+                type_combo.insertItem(0, choice)  # todo ability to do, optim, algo
+
             # Choice Pane
             choice_pane = QHBoxLayout()
             left_choice = QVBoxLayout()
@@ -1425,7 +1545,7 @@ class TradeHunterApp:
             self.test_combo.setFixedHeight(20)
             self.optim_combo.setFixedHeight(20)
             robot_label = QLabel('Select Robot')
-            test_label = QLabel('Select Test')
+            test_label = QLabel('Select Result')
             left_choice.addWidget(robot_label)
             left_choice.addWidget(test_label)
             right_choice.addWidget(self.robot_combo)
@@ -1435,8 +1555,11 @@ class TradeHunterApp:
             head_layout.addLayout(choice_pane)
 
             quit_button = QPushButton('Exit')
+            delete_button = QPushButton('Delete')
             quit_button.clicked.connect(self.back)
+            delete_button.clicked.connect(self.back)
             tail_layout.addWidget(quit_button)
+            tail_layout.addWidget(delete_button)
 
             self.robot_combo_update()
             # load_tests([])  # Wait for selection
@@ -1553,6 +1676,12 @@ class TradeHunterApp:
                 alert.show()
             for test in tests:
                 self.test_combo.addItem(test)
+
+        def algo_combo_update(self):
+            pass
+
+        def optim_combo_update(self):
+            pass
 
         # Load results
 
