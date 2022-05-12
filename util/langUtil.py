@@ -262,6 +262,10 @@ def remove_special_char(s: str):
     return s.replace('_', '')
 
 
+def to_camel_case(s: str):
+    return s
+
+
 # Try
 
 

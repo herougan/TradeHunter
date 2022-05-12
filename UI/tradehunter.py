@@ -17,7 +17,8 @@ import sys
 from matplotlib.figure import Figure
 
 from UI.QTUtil import get_datatable_sheet, set_datatable_sheet, clear_table, set_col_cell_sheet, get_dataset_table, \
-    set_dataset_table, count_table
+    set_dataset_table, count_table, NumericTextEdit
+from settings import IVarType, InputUIType
 from util.dataGraphingUtil import plot_single, candlestick_plot, init_plot, DATE_FORMAT_DICT, get_interval
 from util.dataRetrievalUtil import load_trade_advisor_list, get_dataset_changes, update_specific_dataset_change, \
     write_new_empty_dataset, load_dataset_list, save_dataset, add_as_dataset_change, load_dataset, \
@@ -27,11 +28,11 @@ from util.dataRetrievalUtil import load_trade_advisor_list, get_dataset_changes,
     load_ivar_as_list, translate_xvar_dict, load_flat_commission_suggestions, load_speed_suggestions, load_ivar_as_dict, \
     load_capital_suggestions, remove_all_df, remove_dataset_change, remove_dataset, delete_ivar, get_random_df, \
     load_optim_depth_suggestions, load_setting, remove_ds_df, load_algo_list, load_algo_ivar_list, \
-    load_optim_width_suggestions, rename_dataset, rename_ivar
+    load_optim_width_suggestions, rename_dataset, rename_ivar, insert_ivar
 from util.dataTestingUtil import step_test_robot, DataTester, write_test_result, write_test_meta, load_test_result, \
     load_test_meta, get_tested_robot_list, get_tests_list, get_ivar_vars
 from util.langUtil import normify_name, try_int, leverage_to_float, get_test_name, try_float, strtodatetime, \
-    timedeltatoyahootimestr
+    timedeltatoyahootimestr, to_camel_case
 
 
 class TradeHunterApp:
@@ -1135,6 +1136,18 @@ class TradeHunterApp:
 
                 self.close()
 
+            def reload_ivars(ivar_name='*Default'):
+                ivar_combo.clear()
+                ivar_list = load_ivar_list(self.robot_name)
+                ivar_list.sort(reverse=True)
+                i, u = 0, 0
+                for ivar in ivar_list:
+                    ivar_combo.insertItem(i, ivar)
+                    i += 1
+                    if ivar.lower() == ivar_name.lower():
+                        u = i
+                ivar.setCurrentIndex(u)
+
             def to_delete_ivar():
 
                 ivar_name = ivar_combo.currentText()
@@ -1148,6 +1161,8 @@ class TradeHunterApp:
                     return
 
                 confirm_window = QWidget()
+                main_layout = QVBoxLayout()
+                body_layout = QHBoxLayout()
                 confirm_layout = QHBoxLayout()
 
                 confirm_button = QPushButton('Yes')
@@ -1155,7 +1170,12 @@ class TradeHunterApp:
 
                 confirm_layout.addWidget(confirm_button)
                 confirm_layout.addWidget(cancel_button)
-                confirm_window.setLayout(confirm_layout)
+                main_layout.addLayout(body_layout)
+                main_layout.addLayout(confirm_layout)
+                confirm_window.setLayout(main_layout)
+
+                text_label = QLabel(F'Delete {ivar_name}?')
+                body_layout.addWidget(text_label)
 
                 def confirm():
                     delete_ivar(robot_name, ivar_name)
@@ -1175,7 +1195,10 @@ class TradeHunterApp:
                 confirm_window.show()
 
             def to_create_ivar():
-                pass
+                self.create_window = None
+                self.create_window = self.CreateIvarWindow()
+                self.create_window.show()
+                self.create_window.bind_rebuild(reload_ivars)
 
             def to_rename_ivar():
 
@@ -1351,12 +1374,18 @@ class TradeHunterApp:
 
         class CreateIVarWindow(QWidget):
             """Create custom IVars (Parent: TestingChamberPage)"""
-            # todo
+
             def __init__(self, ta_name):
                 super().__init__()
+                self.ivar = {}
+                self.ivar_name = ""
                 self.robot = ta_name
-                self.ivar_combos = []  # discrete/enum {'name': value, 'combo': _combo}
-                self.ivar_texts = []  # continuous
+                self.option_elements = []  # {name, type, label, input}
+                self.left = None
+                self.right = None
+
+                # Rebuild
+                self.rebuild = None
 
                 self.window()
 
@@ -1366,12 +1395,23 @@ class TradeHunterApp:
                 ivar_layout = QHBoxLayout()
                 button_layout = QHBoxLayout()
 
+                left_layout = QVBoxLayout()
+                right_layout = QVBoxLayout()
+                ivar_layout.addLayout(left_layout)
+                ivar_layout.addLayout(right_layout)
+                self.left = left_layout
+                self.right = right_layout
+
                 def back():
                     self.close()
 
+                def create():
+                    self.create_ivar()
+                    back()
+
                 create_button = QPushButton('Create')
                 cancel_button = QPushButton('Cancel')
-                create_button.clicked.connect(self.create_ivar)
+                create_button.clicked.connect(create)
                 cancel_button.clicked.connect(back)
 
                 button_layout.addWidget(create_button)
@@ -1385,18 +1425,155 @@ class TradeHunterApp:
 
                 self.show()
 
-            def load_ivar_options(self):
-                args_dict = get_ivar_vars(self.robot)
+            # Load UI
 
-            def create_ivar_option(self):
-                pass
+            def load_ivar_options(self):
+                """Load option values from UI"""
+                self.ivar = {}
+                for key in self.options.keys():
+                    option = self.options[key]
+                    if key == 'name':
+                        self.ivar_name = self.get_option_input(option)
+                        continue
+                    self.ivar.update({
+                        key: {
+                            'default': self.get_option_input(option)
+                        }
+                    })
+                # ivar_dict does not contain 'name' and must be added 'outside' later.
+                # {ivar: {key: default,...}, name: name}
+                return self.ivar
+
+            def delete_ivar_options(self):
+                for key in self.options.keys():
+                    option = self.options[key]
+                    _label = option['label']
+                    _input = option['input']
+                    # delete
+                    _label.deleteLater()
+                    _input.deleteLater()
+
+            def create_ivar_options(self):
+                """Create UI elements corresponding to ivar inputs"""
+                args_dict = get_ivar_vars(self.robot)
+                self.delete_ivar_options()
+                self.options = {}
+
+                # Add name slot
+                # name_label = QLabel('name')
+                # name_text = QTextEdit()
+                # self.left.addWidget(name_label)
+                # self.right.addWidget(name_text)
+                args_dict.update({
+                    'name': {
+                        'type': IVarType.TEXT,
+                        'default': "",
+                    }
+                })
+
+                for key in args_dict.keys():
+                    arg = args_dict[key]
+                    type = IVarType.CONTINUOUS
+                    # name = key
+                    # if 'type' in arg:
+                    #     type = arg['type']
+                    # value = arg['default']
+                    # if type == IVarType.CONTINUOUS:
+                    #     range = arg['range']
+                    # if 'step' in arg:
+                    #     step = arg['step_size']
+
+                    _label = QLabel(to_camel_case(key))
+                    _input = None
+                    _input_type = InputUIType.TEXT
+                    if type == IVarType.CONTINUOUS:
+                        _input = NumericTextEdit()
+
+                        _input_type = InputUIType.NUMBER
+                    elif type == IVarType.DISCRETE:
+                        _input = QComboBox()
+                        # Insert options
+                        default = arg['default']
+                        arg_range = arg['range']
+                        step = arg['step_size']
+
+                        options = range(arg_range[0], arg_range[1] + step, step)
+                        i = 0
+                        for option in options:
+                            _input.insertItem(option, i)
+                            i += 1
+
+                        # Find default value in range:
+                        if arg_range[0] < default < arg_range[1]:
+                            default_steps = (default - arg_range[0]) // step
+                            _input.setCurrentIndex(default_steps)
+                        else:
+                            _input.setCurrentIndex(0)
+
+                        _input_type = InputUIType.COMBO_NUMBER
+                    elif type == IVarType.ENUM:
+                        _input = QComboBox()
+                        # Insert options
+                        i = 0
+                        for r in arg['range']:
+                            _input.insertItem(r, i)
+                            i += 1
+
+                        _input_type = InputUIType.COMBO
+                    else:
+                        _input = QTextEdit()
+                        _input_type = InputUIType.TEXT
+
+                    self.option_elements.update({
+                        key: {
+                            'type': _input_type,
+                            'label': _label,
+                            'input': _input,
+                        }
+                    })
+
+                    self.left.addWidget(_label)
+                    self.right.addWidget(_input)
+
+            def get_option_input(self, option_dict):
+                if option_dict['type'] == InputUIType.TEXT:
+                    return option_dict['input'].document().toPlainText()
+                elif option_dict['type'] == InputUIType.COMBO_NUMBER:
+                    return try_float(option_dict['input'].document().currentText())
+                elif option_dict['type'] == InputUIType.COMBO:
+                    return option_dict['input'].document().toPlainText()
+                elif option_dict['type'] == IVarType.NUMBER:
+                    return try_float(option_dict['input'].document().toPlainText())
+                else:
+                    return "None"
+
+            def check_input(self, option_dict):
+                if option_dict['type'] == InputUIType.TEXT:  # todo
+                    if 1+1 == 2:
+                        print('1+1=2')
+                    return option_dict['input'].document().toPlainText()
+                elif option_dict['type'] == InputUIType.COMBO_NUMBER:
+                    return try_float(option_dict['input'].document().currentText())
+                elif option_dict['type'] == InputUIType.COMBO:
+                    return option_dict['input'].document().toPlainText()
+                elif option_dict['type'] == IVarType.NUMBER:
+                    return try_float(option_dict['input'].document().toPlainText())
+                else:
+                    return "None"
+
+            # Actions
 
             def create_ivar(self):
-                for ivar_combo in self.ivar_combos:
-                    pass
+                ivar_dict = {}
+                ivar_dict.update({
+                    'ivar': self.load_ivar_options(),
+                    'name': self.ivar_name,
+                })
+                insert_ivar(self.ta_name, ivar_dict)
+                self.rebuild(self.ivar_name)
 
-                for ivar_text in self.ivar_texts:
-                    pass
+            def bind_rebuild(self, f):
+                self.rebuild = f
 
     class RobotAnalysisPage(QWidget):
         """Comparisons, analysis etc."""

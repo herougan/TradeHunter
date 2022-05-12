@@ -21,6 +21,7 @@ from datetime import datetime, timedelta
 # and MACD hist and SMA200 as secondary conditions.
 #
 #
+from settings import IVarType
 from util.langUtil import strtotimedelta, get_instrument_type, strtodatetime
 from util.robotDataUtil import generate_base_signal_dict
 
@@ -40,11 +41,13 @@ class FMACDRobot(robot):
             'default': 1.5,
             'range': [0.75, 3],
             'step_size': 0.1,  # Default step size
+            'type': IVarType.CONTINUOUS,
         },
         'sma_period': {
             'default': 200,
             'range': [100, 300],
             'step_size': 10,
+            'type': IVarType.CONTINUOUS,
         },
     }
     OTHER_ARGS_DICT = {
