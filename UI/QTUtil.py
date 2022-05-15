@@ -153,7 +153,6 @@ def full_only(map):
 
 
 class PlainTextEdit(QPlainTextEdit):
-    # todo replace text edits
     def keyPressEvent(self, event):
         if event.key() in (Qt.Key_Return, Qt.Key_Enter, Qt.Key_Tab):
             return
@@ -161,10 +160,16 @@ class PlainTextEdit(QPlainTextEdit):
 
 
 class NumericTextEdit(QPlainTextEdit):
-    # todo replace text edits
     def keyPressEvent(self, event):
         if event.key() in (Qt.Key_Return, Qt.Key_Enter, Qt.Key_Tab):
             return
-        if event.key() in (Qt.Key_A):
+        if event.key() in (Qt.Key_A, Qt.Key_B, Qt.Key_C, Qt.Key_D, Qt.Key_E, Qt.Key_F, Qt.Key_G, Qt.Key_H, Qt.Key_I
+                           , Qt.Key_J, Qt.Key_K, Qt.Key_L, Qt.Key_M, Qt.Key_N, Qt.Key_O, Qt.Key_Q, Qt.Key_R, Qt.Key_S
+                           , Qt.Key_T, Qt.Key_U, Qt.Key_V, Qt.Key_W, Qt.Key_X, Qt.Key_Y, Qt.Key_Z,):
             return
         super().keyPressEvent(event)
+
+
+class TextEditForm(QPlainTextEdit):
+    """Pressing 'tab' moves to the next input"""
+    pass

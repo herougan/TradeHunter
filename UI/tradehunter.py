@@ -1196,7 +1196,8 @@ class TradeHunterApp:
 
             def to_create_ivar():
                 self.create_window = None
-                self.create_window = self.CreateIvarWindow()
+                self.create_window = TradeHunterApp.TestingChamberPage.CreateIVarWindow(self.robot_name)
+                # todo
                 self.create_window.show()
                 self.create_window.bind_rebuild(reload_ivars)
 
@@ -1380,13 +1381,14 @@ class TradeHunterApp:
                 self.ivar = {}
                 self.ivar_name = ""
                 self.robot = ta_name
-                self.option_elements = []  # {name, type, label, input}
+                self.args_dict = {}
+                self.option_elements = {}  # {name, type, label, input}
                 self.left = None
                 self.right = None
+                self.alert_window = None
 
                 # Rebuild
                 self.rebuild = None
-
                 self.window()
 
             def window(self):
@@ -1401,13 +1403,15 @@ class TradeHunterApp:
                 ivar_layout.addLayout(right_layout)
                 self.left = left_layout
                 self.right = right_layout
+                self.create_ivar_options()
 
                 def back():
                     self.close()
 
                 def create():
-                    self.create_ivar()
-                    back()
+                    if self.check_input():
+                        self.create_ivar()
+                        back()
 
                 create_button = QPushButton('Create')
                 cancel_button = QPushButton('Cancel')
@@ -1427,17 +1431,20 @@ class TradeHunterApp:
 
             # Load UI
 
+            def ivar_type_to_input_type(self, ivar_type):
+                pass
+
             def load_ivar_options(self):
                 """Load option values from UI"""
                 self.ivar = {}
-                for key in self.options.keys():
-                    option = self.options[key]
+                for key in self.option_elements.keys():
+                    option_dict = self.option_elements[key]
                     if key == 'name':
-                        self.ivar_name = self.get_option_input(option)
+                        self.ivar_name = self.get_option_input(option_dict)
                         continue
                     self.ivar.update({
                         key: {
-                            'default': self.get_option_input(option)
+                            'default': self.get_option_input(option_dict)
                         }
                     })
                 # ivar_dict does not contain 'name' and must be added 'outside' later.
@@ -1445,7 +1452,7 @@ class TradeHunterApp:
                 return self.ivar
 
             def delete_ivar_options(self):
-                for key in self.options.keys():
+                for key in self.option_elements.keys():
                     option = self.options[key]
                     _label = option['label']
                     _input = option['input']
@@ -1455,25 +1462,21 @@ class TradeHunterApp:
 
             def create_ivar_options(self):
                 """Create UI elements corresponding to ivar inputs"""
-                args_dict = get_ivar_vars(self.robot)
-                self.delete_ivar_options()
-                self.options = {}
 
                 # Add name slot
-                # name_label = QLabel('name')
-                # name_text = QTextEdit()
-                # self.left.addWidget(name_label)
-                # self.right.addWidget(name_text)
-                args_dict.update({
+                args_dict = {
                     'name': {
                         'type': IVarType.TEXT,
                         'default': "",
                     }
-                })
+                }
+                args_dict.update(get_ivar_vars(self.robot))
+                self.args_dict = args_dict
+                self.delete_ivar_options()
 
                 for key in args_dict.keys():
                     arg = args_dict[key]
-                    type = IVarType.CONTINUOUS
+                    _type = IVarType.CONTINUOUS
                     # name = key
                     # if 'type' in arg:
                     #     type = arg['type']
@@ -1486,11 +1489,11 @@ class TradeHunterApp:
                     _label = QLabel(to_camel_case(key))
                     _input = None
                     _input_type = InputUIType.TEXT
-                    if type == IVarType.CONTINUOUS:
+                    if _type == IVarType.CONTINUOUS:
                         _input = NumericTextEdit()
 
                         _input_type = InputUIType.NUMBER
-                    elif type == IVarType.DISCRETE:
+                    elif _type == IVarType.DISCRETE:
                         _input = QComboBox()
                         # Insert options
                         default = arg['default']
@@ -1511,7 +1514,7 @@ class TradeHunterApp:
                             _input.setCurrentIndex(0)
 
                         _input_type = InputUIType.COMBO_NUMBER
-                    elif type == IVarType.ENUM:
+                    elif _type == IVarType.ENUM:
                         _input = QComboBox()
                         # Insert options
                         i = 0
@@ -1524,11 +1527,14 @@ class TradeHunterApp:
                         _input = QTextEdit()
                         _input_type = InputUIType.TEXT
 
+                    _label.setFixedHeight(20)
+                    _input.setFixedHeight(20)
                     self.option_elements.update({
                         key: {
                             'type': _input_type,
                             'label': _label,
                             'input': _input,
+                            'ivar_type': _type,
                         }
                     })
 
@@ -1539,34 +1545,68 @@ class TradeHunterApp:
                 if option_dict['type'] == InputUIType.TEXT:
                     return option_dict['input'].document().toPlainText()
                 elif option_dict['type'] == InputUIType.COMBO_NUMBER:
-                    return try_float(option_dict['input'].document().currentText())
+                    return try_float(option_dict['input'].currentText())
                 elif option_dict['type'] == InputUIType.COMBO:
-                    return option_dict['input'].document().toPlainText()
-                elif option_dict['type'] == IVarType.NUMBER:
+                    return option_dict['input'].document().currentText()
+                elif option_dict['type'] == InputUIType.NUMBER:
                     return try_float(option_dict['input'].document().toPlainText())
                 else:
                     return "None"
 
-            def check_input(self, option_dict):
-                if option_dict['type'] == InputUIType.TEXT:  # todo
-                    if 1+1 == 2:
-                        print('1+1=2')
-                    return option_dict['input'].document().toPlainText()
-                elif option_dict['type'] == InputUIType.COMBO_NUMBER:
-                    return try_float(option_dict['input'].document().currentText())
-                elif option_dict['type'] == InputUIType.COMBO:
-                    return option_dict['input'].document().toPlainText()
-                elif option_dict['type'] == IVarType.NUMBER:
-                    return try_float(option_dict['input'].document().toPlainText())
-                else:
-                    return "None"
+            def check_input(self):
+                complaints = []
+                for key in self.option_elements.keys():
+                    option_dict = self.option_elements[key]
+                    if option_dict['type'] == InputUIType.TEXT:  # Text Edit
+                        # If has value
+                        if not option_dict['input'].document():
+                            complaints.append(F'{key}\'s field is empty')
+                            return False
+                        # If correct type of value
+                        # if True:
+                        #     self.summon_alert('wrong')
+                        # If in range
+                        # if True:
+                        #     self.summon_alert('wrong')
+                        return False
+                    elif option_dict['type'] == InputUIType.COMBO_NUMBER:  # Combo
+                        if not option_dict['input'].getCurrentText():
+                            complaints.append(F'{key}\'s field is empty')
+                    elif option_dict['type'] == InputUIType.COMBO:  # Combo
+                        if not option_dict['input'].getCurrentText():
+                            complaints.append(F'{key}\'s field is empty')
+                    elif option_dict['type'] == InputUIType.NUMBER:  # Numeric Text Edit
+                        # If has value
+                        if not option_dict['input'].document():
+                            complaints.append(F'{key}\'s field is empty')
+                        # Check if is a number
+                        if not option_dict['input'].toPlainText().isnumeric():
+                            complaints.append(F'{key}\'s field must be a number')
+                        # Check if in range
+                        number = try_float(option_dict['input'].toPlainText())
+                        if self.args_dict[key]['range'][0] < number < self.args_dict[key]['range'][1]:
+                            complaints.append(F'{key}\'s Number out of range!')
+                if complaints:
+                    _complaint = ""
+                    for complaint in complaints:
+                        _complaint += complaint + "\n"
+                    self.summon_alert(complaints)
+                    return False
+                return True
+
+            def summon_alert(self, text):
+                self.alert_window = QWidget()
+                alert = QMessageBox(self.alert_window)
+                alert.setText(text)
+                alert.show()
 
             # Actions
 
             def create_ivar(self):
                 ivar_dict = {}
+                self.load_ivar_options()
                 ivar_dict.update({
-                    'ivar': self.load_ivar_options(),
+                    'ivar': self.ivar,
                     'name': self.ivar_name,
                 })
                 insert_ivar(self.ta_name, ivar_dict)

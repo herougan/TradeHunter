@@ -1486,7 +1486,7 @@ class DataTester:
                 break
             if not in_std_range(ivar_result['fitness'], avg_fitness_score, std_fitness_score, 3):
                 final_ivar_results.remove(ivar_result)
-        for i in range(max(len(final_ivar_results), top_n)):  # top n, index 0 is highest
+        for i in range(min(len(final_ivar_results), top_n)):  # top n, index 0 is highest
             trimmed_ivar_results.append(final_ivar_results[i])
 
         # Trim unusual results (Too high etc.)
