@@ -30,7 +30,8 @@ from util.dataRetrievalUtil import load_trade_advisor_list, get_dataset_changes,
     load_optim_depth_suggestions, load_setting, remove_ds_df, load_algo_list, load_algo_ivar_list, \
     load_optim_width_suggestions, rename_dataset, rename_ivar, insert_ivar
 from util.dataTestingUtil import step_test_robot, DataTester, write_test_result, write_test_meta, load_test_result, \
-    load_test_meta, get_tested_robot_list, get_tests_list, get_ivar_vars
+    load_test_meta, get_tested_robot_list, get_tests_list, get_ivar_vars, delete_test, delete_algo_result, \
+    delete_optimisation, get_optimised_robot_list, get_optimisations_list, get_algo_results_list, get_analysed_algo_list
 from util.langUtil import normify_name, try_int, leverage_to_float, get_test_name, try_float, strtodatetime, \
     timedeltatoyahootimestr, to_camel_case
 
@@ -1432,7 +1433,18 @@ class TradeHunterApp:
             # Load UI
 
             def ivar_type_to_input_type(self, ivar_type):
-                pass
+                if ivar_type == IVarType.TEXT:
+                    return InputUIType.TEXT
+                elif ivar_type == IVarType.CONTINUOUS:
+                    return InputUIType.TEXT  # InputUIType.SLIDER
+                elif ivar_type == IVarType.ENUM:
+                    return InputUIType.COMBO
+                elif ivar_type == IVarType.DISCRETE:
+                    return InputUIType.COMBO_NUMBER
+                elif ivar_type == IVarType.ARRAY:
+                    return InputUIType.COMBO_NUMBER
+                else:
+                    return InputUIType.TEXT
 
             def load_ivar_options(self):
                 """Load option values from UI"""
@@ -1476,21 +1488,20 @@ class TradeHunterApp:
 
                 for key in args_dict.keys():
                     arg = args_dict[key]
-                    _type = IVarType.CONTINUOUS
-                    # name = key
-                    # if 'type' in arg:
-                    #     type = arg['type']
-                    # value = arg['default']
-                    # if type == IVarType.CONTINUOUS:
-                    #     range = arg['range']
-                    # if 'step' in arg:
-                    #     step = arg['step_size']
 
+                    # Get type, initiate label/input variables
+                    _type = arg['type']
                     _label = QLabel(to_camel_case(key))
                     _input = None
                     _input_type = InputUIType.TEXT
+
                     if _type == IVarType.CONTINUOUS:
-                        _input = NumericTextEdit()
+                        # _input = NumericTextEdit()
+
+                        _input = QSlider(Qt.Horizontal)
+                        _input.setMinimum(arg['range'][0])
+                        _input.setMaximum(arg['range'][1])
+                        _input.setValue(arg['default'])
 
                         _input_type = InputUIType.NUMBER
                     elif _type == IVarType.DISCRETE:
@@ -1550,6 +1561,8 @@ class TradeHunterApp:
                     return option_dict['input'].document().currentText()
                 elif option_dict['type'] == InputUIType.NUMBER:
                     return try_float(option_dict['input'].document().toPlainText())
+                elif option_dict['type'] == InputUIType.SLIDER:
+                    return option_dict['input'].tickPosition()
                 else:
                     return "None"
 
@@ -1645,8 +1658,10 @@ class TradeHunterApp:
             self.robot_combo = None
             self.test_combo = None
             self.optim_combo = None
-            self.labels = []  # for deletion and re-addition
-            self.labels_2 = []
+            self.type_combo = None
+            # Labels for editting
+            self.robot_label = None
+            self.test_label = None
             self.layouts = []
             self.d_p = None
             self.w_p = None
@@ -1750,31 +1765,50 @@ class TradeHunterApp:
             choices.sort(reverse=True)
             for choice in choices:
                 type_combo.insertItem(0, choice)  # todo ability to do, optim, algo
+            type_combo.setFixedHeight(20)
+            self.type_combo = type_combo
 
             # Choice Pane
             choice_pane = QHBoxLayout()
             left_choice = QVBoxLayout()
             right_choice = QVBoxLayout()
-            self.robot_combo = QComboBox()
-            self.test_combo = QComboBox()
-            self.optim_combo = QComboBox()
+            left_choice.addWidget(type_label)
+            right_choice.addWidget(type_combo)
+
+            # Robot side, default
+            self.robot_combo = QComboBox()  # Can be overridden to be algo
+            self.test_combo = QComboBox()  # Can be overriden to be optim
+            # self.optim_combo = QComboBox()
             self.robot_combo.setFixedHeight(20)
             self.test_combo.setFixedHeight(20)
-            self.optim_combo.setFixedHeight(20)
-            robot_label = QLabel('Select Robot')
-            test_label = QLabel('Select Result')
-            left_choice.addWidget(robot_label)
-            left_choice.addWidget(test_label)
+            # self.optim_combo.setFixedHeight(20)
+            self.robot_label = QLabel('Select Robot')
+            self.test_label = QLabel('Select Result')
+            left_choice.addWidget(self.robot_label)
+            left_choice.addWidget(self.test_label)
             right_choice.addWidget(self.robot_combo)
             right_choice.addWidget(self.test_combo)
             choice_pane.addLayout(left_choice)
             choice_pane.addLayout(right_choice)
             head_layout.addLayout(choice_pane)
 
+            def delete():
+                type = type_combo.currentText().lower()
+                thing = self.robot_combo.currentText()
+                result = self.test_combo.currentText()
+
+                # Delete thing
+                if type == "optimisation":
+                    delete_optimisation(result, thing)
+                elif type == "test":
+                    delete_test(result, thing)
+                elif type == "algo":
+                    delete_algo_result(result, thing)
+
             quit_button = QPushButton('Exit')
             delete_button = QPushButton('Delete')
             quit_button.clicked.connect(self.back)
-            delete_button.clicked.connect(self.back)
+            delete_button.clicked.connect(delete)
             tail_layout.addWidget(quit_button)
             tail_layout.addWidget(delete_button)
 
@@ -1867,9 +1901,44 @@ class TradeHunterApp:
                 label.deleteLater()
 
         # Update combo boxes
-        def robot_combo_update(self):
+        def type_combo_update(self):
+            type = self.type_combo.currentText().lower()
+            if type == "test":
+                self.robot_label.setText('Select robot')
+                self.test_label.setText('Select test result')
+                self.robot_combo_update("test")
+                self.test_combo_update()
+            elif type == "optimisation":
+                self.robot_label.setText('Select robot')
+                self.test_label.setText('Select optim. result')
+                self.robot_combo_update("optimisation")
+                self.optim_combo_update()
+            elif type == "algo":
+                self.robot_label.setText('Select algo')
+                self.test_label.setText('Select analysis')
+                self.algo_combo_update()
+                self.algo_result_combo_update()
+
+        def robot_combo_update(self, type):
             self.robot_combo.clear()
-            robots = get_tested_robot_list()
+            robots = []
+            if type == "test":
+                robots = get_tested_robot_list()
+            elif type == "optimisation":
+                robots = get_optimised_robot_list()
+
+            for robot in robots:
+                self.robot_combo.addItem(robot)
+            if len(robots) < 1:
+                alert_w = QMessageBox('No tests found')
+                alert_w.show()
+            if self.robot_combo.currentText():
+                self.test_combo_update()
+
+        def algo_combo_update(self):
+            self.robot_combo.clear()
+            robots = get_analysed_algo_list()
+
             for robot in robots:
                 self.robot_combo.addItem(robot)
             if len(robots) < 1:
@@ -1888,19 +1957,57 @@ class TradeHunterApp:
                 # alert_w.show()
                 alert_layout = QVBoxLayout()
                 alert = QMessageBox(self.alert_window)
+                alert.setText(F'No optimisations under {robot_name} found')
+                alert_layout.addWidget(alert)
+                alert.show()
+            for test in tests:
+                self.test_combo.addItem(test)
+
+        def optim_combo_update(self):
+            robot_name = self.robot_combo.currentText()
+            tests = get_optimisations_list(robot_name)
+            self.test_combo.clear()
+            if len(tests) < 1:
+                self.alert_window = QWidget()
+                # alert_w = QMessageBox(F'No tests under {robot_name} found')
+                # alert_w.show()
+                alert_layout = QVBoxLayout()
+                alert = QMessageBox(self.alert_window)
                 alert.setText(F'No tests under {robot_name} found')
                 alert_layout.addWidget(alert)
                 alert.show()
             for test in tests:
                 self.test_combo.addItem(test)
 
-        def algo_combo_update(self):
-            pass
-
-        def optim_combo_update(self):
-            pass
+        def algo_result_combo_update(self):
+            algo_name = self.robot_combo.currentText()
+            tests = get_algo_results_list(algo_name)
+            self.test_combo.clear()
+            if len(tests) < 1:
+                self.alert_window = QWidget()
+                # alert_w = QMessageBox(F'No tests under {robot_name} found')
+                # alert_w.show()
+                alert_layout = QVBoxLayout()
+                alert = QMessageBox(self.alert_window)
+                alert.setText(F'No results under {algo_name} found')
+                alert_layout.addWidget(alert)
+                alert.show()
+            for test in tests:
+                self.test_combo.addItem(test)
 
         # Load results
+
+        def combo_load(self):
+            """Load based on combo box inputs"""
+            type = self.type_combo.currentText().lower()
+            thing = self.robot_combo.currentText()
+            result = self.test_combo.currentText()
+            if type == "test":
+                self.get_and_load_name(thing, result)
+            elif type == "optimisation":
+                self.get_and_load_optim_name(thing, result)
+            elif type == "algo":
+                self.get_and_load_algo_name(thing, result)
 
         def force_load(self, robot_name, test_name):
             self.get_and_load_name(robot_name, test_name)
@@ -1930,6 +2037,12 @@ class TradeHunterApp:
             self.delete_labels()
             self.create_labels()
 
+        def load_optim(self):
+            pass
+
+        def load_algo_result(self):
+            pass
+
         def get_and_load(self):
 
             robot_name = self.robot_combo.currentText()
@@ -1951,6 +2064,23 @@ class TradeHunterApp:
             self.test_meta = load_test_meta(test_meta_name, robot_name)
 
             self.load(self.test_result, self.test_meta, self.test_name)
+
+        def get_and_load_optim_name(self, robot_name, optim_name):
+
+            self.robot_name = robot_name
+            self.test_name = optim_name
+
+            optim_result_name = F'{self.optim_name}.csv'
+            optim_meta_name = F'{self.optim_name}__meta.csv'
+
+            # Load results and meta
+            self.optim_result = load_optimisation_result(optim_result_name, robot_name)
+            self.optim_meta = load_optimisation_meta(optim_meta_name, robot_name)
+
+            self.load(self.test_result, self.test_meta, self.test_name)
+
+        def get_and_load_algo_name(self, algo_name, result_name):
+            pass
 
     class OptimisationAnalysisPage(QWidget):  # todo
         def __init__(self, robot_name='default', test_name='default', prev_window="TradeAdvisorPage"):
@@ -2224,6 +2354,25 @@ class TradeHunterApp:
             def load_df():
                 df_name = df_select.currentText()
                 self.df = df_name
+
+            def load_main_combo():
+                type = type_combo.currentText().lower()
+                robots = []
+
+                if type == 'algo':
+                    robots = load_algo_list()
+                    self.robot_label.setText('Algorithm')
+                elif type == 'robot':
+                    robots = load_trade_advisor_list()
+                    self.robot_label.setText('Robot')
+
+                self.robot_select.clear()
+                robots.sort(reverse=True)
+                for robot in robots:
+                    self.robot_select.insertItem(robot, 0)
+                self.robot_select.setCurrentIndex(0)
+
+            type_combo.activated.connect(load_main_combo)
 
             load_ivar_label_list()
             load_ivar_labels()

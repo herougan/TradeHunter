@@ -14,6 +14,7 @@ BUILDER_FOLDER = F''
 
 EVALUATION_FOLDER = F'static/results/evaluation'
 OPTIMISATION_FOLDER = F'static/results/optimisation'
+ALGO_ANALYSIS_FOLDER = F'static/results/algo'
 DATA_FOLDER = F'static/data'
 
 ROBOT_FOLDER = F'robot'
@@ -122,3 +123,4 @@ class InputUIType:
     TABLE = 4
     NUMBER = 5
     COMBO_NUMBER = 6
+    SLIDER = 7

@@ -15,7 +15,8 @@ from PyQt5.QtWidgets import QProgressBar, QPlainTextEdit
 from matplotlib import pyplot as plt
 
 from robot.abstract.robot import robot
-from settings import EVALUATION_FOLDER, OPTIMISATION_FOLDER, PLOTTING_SETTINGS, TESTING_SETTINGS, OPTIMISATION_SETTINGS
+from settings import EVALUATION_FOLDER, OPTIMISATION_FOLDER, PLOTTING_SETTINGS, TESTING_SETTINGS, OPTIMISATION_SETTINGS, \
+    ALGO_ANALYSIS_FOLDER
 from util.dataGraphingUtil import plot_robot_instructions, plot_signals, plot_open_signals, candlestick_plot, \
     get_interval, DATE_FORMAT_DICT, plot_line, plot_optimisations
 from util.dataRetrievalUtil import load_dataset, load_df, get_computer_specs, number_of_datafiles, try_stdev, \
@@ -582,15 +583,22 @@ def create_optim_result(optim_name, result_dict, robot_name: str):
 def get_optimised_robot_list():
     folder = F'{OPTIMISATION_FOLDER}'
     os.makedirs(folder, exist_ok=True)
-    folders = os.listdir(F'{folder}')
-    return folders
+    files = os.listdir(F'{folder}')
+    return files
 
 
 def get_tested_robot_list():
     folder = F'{EVALUATION_FOLDER}'
     os.makedirs(folder, exist_ok=True)
-    folders = os.listdir(F'{folder}')
-    return folders
+    files = os.listdir(F'{folder}')
+    return files
+
+
+def get_analysed_algo_list():
+    folder = F'{ALGO_ANALYSIS_FOLDER}'
+    os.makedirs(folder, exist_ok=True)
+    files = os.listdir(F'{folder}')
+    return files
 
 
 def get_tests_list(robot_name: str):
@@ -602,6 +610,36 @@ def get_tests_list(robot_name: str):
         if not get_file_name(file).endswith('__meta'):
             _files.append(get_test_name(file))
     return _files
+
+
+def get_optimisations_list(robot_name: str):
+    folder = F'{OPTIMISATION_FOLDER}/{robot_name}'
+    os.makedirs(folder, exist_ok=True)
+    files = os.listdir(F'{folder}')
+    _files = []
+    for file in files:
+        if not get_file_name(file).endswith('__meta'):
+            _files.append(get_test_name(file))
+    return _files
+    folder = F'{EVALUATION_FOLDER}/{robot_name}'
+    os.makedirs(folder, exist_ok=True)
+    files = os.listdir(F'{folder}')
+    _files = []
+    for file in files:
+        if not get_file_name(file).endswith('__meta'):
+            _files.append(get_test_name(file))
+    return _files
+
+def get_algo_results_list(algo_name: str):
+    folder = F'{ALGO_ANALYSIS_FOLDER}/{algo_name}'
+    os.makedirs(folder, exist_ok=True)
+    files = os.listdir(F'{folder}')
+    _files = []
+    for file in files:
+        if not get_file_name(file).endswith('__meta'):
+            _files.append(get_test_name(file))
+    return _files
+
 
 
 def write_test_result(test_name: str, summary_dicts: List, robot_name: str):
@@ -704,6 +742,10 @@ def delete_test(test_name: str, robot_name: str):
 
 
 def delete_optimisation(optim_name: str, robot_name: str):
+    pass  # todo
+
+
+def delete_algo_result(result_name: str, algo_name: str):
     pass  # todo
 
 
@@ -1157,12 +1199,18 @@ class DataTester:
                     move = step_size * min_step \
                            * try_divide(spread_results[key]['fitness_diff'],
                                         normalisation_constant)
-                    # move = step_size / 10 * (args_dict[key]['range'][1] - args_dict[key]['step_size'][0])
+
                 if abs(move) < min_step:
                     move = try_divide(move * min_step, abs(move))
 
                 #  sgn(val) represents the original direction. a negative 'move' moves in the opposite direction
                 new_ivar[key]['default'] += move * try_sgn(spread_results[key]['val_diff'])
+                #  If outside range
+                range = args_dict[key]['range']
+                if new_ivar[key]['default'] > range[1]:
+                    new_ivar[key]['default'] = range[1]
+                elif new_ivar[key]['default'] < range[0]:
+                    new_ivar[key]['default'] = range[0]
 
             # return new ivar
             return {
@@ -1220,7 +1268,6 @@ class DataTester:
             }
             # Test hypersphere around ivar
             for key in args_dict.keys():
-                r = random.random()
                 _ivar = copy.deepcopy(ivar)
                 # _ivar['name'] = key  # name is F'spread_{_i}_{_u}', tuple-key is key
                 range = args_dict[key]['range']
@@ -1232,37 +1279,48 @@ class DataTester:
                 if var == 0:
                     pass
 
-                # Change t instead
-                # t = -1
-                # if r > 0.5:
-                #     t = 1  # Random +ve/-ve switch
+                # Roll r
+                r = random.random()
+                t = -1  # Decrease
+                if r > 0.5:
+                    t = 1  # Increase
 
-                # Roll to try inc. or dec.
-                if r > 0.5:  # Increase
-                    if range[1] - curr == 0:  # Cannot increase further/Literally at the end
-                        _val = range[1] - step
-                        _ivar[key]['default'] = _val  # decrease instead
-                    elif range[1] - curr <= step:  # Touch end point
-                        _val = range[1]
-                        _ivar[key]['default'] = _val  # keep it at end
-                    else:  # not in any edge case
-                        _val = curr + step
-                        _ivar[key]['default'] = _val
-                    ivar_key_tuples.update({
-                        key: {
-                            'ivar': _ivar,
-                        }
-                    })
-                else:  # Decrease
-                    if curr - range[0] == 0:
-                        _val = range[0] + step
-                        _ivar[key]['default'] = _val
-                    elif curr - range[0] <= step:
-                        _val = range[1]
-                        _ivar[key]['default'] = _val
-                    else:  #
-                        _val = curr - step
-                        _ivar[key]['default'] = _val
+                if curr == range[1]:  # Extreme right, decrease regardless
+                    _ivar[key]['default'] -= step
+                elif curr == range[0]:  # Extreme left, increase regardless
+                    _ivar[key]['default'] += step
+                _ivar[key]['default'] += step * t
+                if curr >= range[1]:  # If reach over the right, set to right bound
+                    _ivar[key]['default'] -= range[1]
+                elif curr <= range[0]:  # If reach over the left, set to left
+                    _ivar[key]['default'] += range[0]
+                    # # Roll to try inc. or dec.
+                    # if r > 0.5:  # Increase
+                    #     if range[1] - curr == 0:  # Cannot increase further/Literally at the end
+                    #         _val = range[1] - step
+                    #         _ivar[key]['default'] = _val  # decrease instead
+                    #     elif range[1] - curr <= step:  # Touch end point
+                    #         _val = range[1]
+                    #         _ivar[key]['default'] = _val  # keep it at end
+                    #     else:  # not in any edge case
+                    #         _val = curr + step
+                    #         _ivar[key]['default'] = _val
+                    #     ivar_key_tuples.update({
+                    #         key: {
+                    #             'ivar': _ivar,
+                    #         }
+                    #     })
+                    # else:  # Decrease
+                    #     if curr - range[0] == 0:
+                    #         _val = range[0] + step
+                    #         _ivar[key]['default'] = _val
+                    #     elif curr - range[0] <= step:
+                    #         _val = range[0]
+                    #         _ivar[key]['default'] = _val
+                    #     else:  #
+                    #         _val = curr - step
+                    #         _ivar[key]['default'] = _val
+
                     ivar_key_tuples.update({
                         key: {
                             'ivar': _ivar,
