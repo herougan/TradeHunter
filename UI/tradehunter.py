@@ -17,7 +17,7 @@ import sys
 from matplotlib.figure import Figure
 
 from UI.QTUtil import get_datatable_sheet, set_datatable_sheet, clear_table, set_col_cell_sheet, get_dataset_table, \
-    set_dataset_table, count_table, NumericTextEdit
+    set_dataset_table, count_table, NumericTextEdit, DoubleSlider, PlainTextEdit
 from settings import IVarType, InputUIType
 from util.dataGraphingUtil import plot_single, candlestick_plot, init_plot, DATE_FORMAT_DICT, get_interval
 from util.dataRetrievalUtil import load_trade_advisor_list, get_dataset_changes, update_specific_dataset_change, \
@@ -31,7 +31,8 @@ from util.dataRetrievalUtil import load_trade_advisor_list, get_dataset_changes,
     load_optim_width_suggestions, rename_dataset, rename_ivar, insert_ivar
 from util.dataTestingUtil import step_test_robot, DataTester, write_test_result, write_test_meta, load_test_result, \
     load_test_meta, get_tested_robot_list, get_tests_list, get_ivar_vars, delete_test, delete_algo_result, \
-    delete_optimisation, get_optimised_robot_list, get_optimisations_list, get_algo_results_list, get_analysed_algo_list
+    delete_optimisation, get_optimised_robot_list, get_optimisations_list, get_algo_results_list, \
+    get_analysed_algo_list, load_optimisation_result, load_optimisation_meta, load_algo_result, load_algo_meta
 from util.langUtil import normify_name, try_int, leverage_to_float, get_test_name, try_float, strtodatetime, \
     timedeltatoyahootimestr, to_camel_case
 
@@ -520,10 +521,11 @@ class TradeHunterApp:
 
                     # Construct confirm window
                     confirm_window = QWidget()
-                    confirm_button = QPushButton('Delete')
+                    confirm_button = QPushButton('Rename')
                     cancel_button = QPushButton('Cancel')
                     text_label = QLabel(F'Rename {ds_name}')
                     text_text = QTextEdit()
+                    text_text.setFixedHeight(25)
                     text_layout = QHBoxLayout()
                     text_layout.addWidget(text_label)
                     confirm_layout = QHBoxLayout()
@@ -546,6 +548,7 @@ class TradeHunterApp:
                         new_name = text_text.document().toPlainText()
 
                         rename_dataset(ds_name, normify_name(new_name))
+                        self.build_dateset_specific(new_name)
                         self.c_win.close()
 
                     confirm_button.clicked.connect(confirm)
@@ -1103,8 +1106,8 @@ class TradeHunterApp:
 
                 p_bar.deleteLater()
 
-                self.oap = TradeHunterApp.OptimisationAnalysisPage(robot_name, optim_name)
-                self.oap.show()  # todo
+                self.oap = TradeHunterApp.ResultAnalysisPage(robot_name, optim_name, 'optimisation')
+                self.oap.show()
                 self.close()
 
             def to_simulate():
@@ -1256,12 +1259,12 @@ class TradeHunterApp:
 
             # === Right === (xvar attributes)
             name_label = QLabel('Test Name')
-            name_text = QTextEdit()
+            name_text = PlainTextEdit()
             name_text.setFixedHeight(20)
             lag_label = QLabel('Lag')
             lag_combo = QComboBox()
             capital_label = QLabel('Capital')
-            capital_text = QTextEdit()
+            capital_text = NumericTextEdit()
             capital_text.setFixedHeight(20)
             leverage_label = QLabel('Leverage')
             leverage_combo = QComboBox()
@@ -1474,36 +1477,45 @@ class TradeHunterApp:
 
             def create_ivar_options(self):
                 """Create UI elements corresponding to ivar inputs"""
-
                 # Add name slot
                 args_dict = {
                     'name': {
                         'type': IVarType.TEXT,
                         'default': "",
                     }
-                }
+                }  # todo slider is here
                 args_dict.update(get_ivar_vars(self.robot))
                 self.args_dict = args_dict
                 self.delete_ivar_options()
 
                 for key in args_dict.keys():
                     arg = args_dict[key]
+                    # todo new layers here; use 30, 70 horizontal layout
+                    # or 30, 60, 10 layout for sliders
+                    arg_layer = QHBoxLayout()
 
                     # Get type, initiate label/input variables
                     _type = arg['type']
                     _label = QLabel(to_camel_case(key))
                     _input = None
                     _input_type = InputUIType.TEXT
+                    _secondary_label = None
 
                     if _type == IVarType.CONTINUOUS:
                         # _input = NumericTextEdit()
 
-                        _input = QSlider(Qt.Horizontal)
+                        _input = DoubleSlider(Qt.Horizontal)
                         _input.setMinimum(arg['range'][0])
                         _input.setMaximum(arg['range'][1])
                         _input.setValue(arg['default'])
 
                         _input_type = InputUIType.NUMBER
+                        _secondary_label = QLabel(str(arg['default']))
+
+                        def update_value(val):
+                            _secondary_label.setText(str(val))
+
+                        _input.doubleValueChanged.connect(update_value)
                     elif _type == IVarType.DISCRETE:
                         _input = QComboBox()
                         # Insert options
@@ -1551,6 +1563,7 @@ class TradeHunterApp:
 
                     self.left.addWidget(_label)
                     self.right.addWidget(_input)
+                    self.right.addWidget(_secondary_label)
 
             def get_option_input(self, option_dict):
                 if option_dict['type'] == InputUIType.TEXT:
@@ -1645,14 +1658,21 @@ class TradeHunterApp:
 
     class ResultAnalysisPage(QWidget):
 
-        def __init__(self, robot_name='default', test_name='default', type='test'):
+        def __init__(self, robot_name='default', test_name='default', _type='test'):
             super().__init__()
 
+            # UI Components
+            self.labels = []
+            self.labels_2 = []
             self.alert_window = None
+
+            # Information
+            self.robot_name = ""
             self.test_name = ""
             self.test_result = {}
             self.test_meta = {}
             self.summary_dict = {}
+            self._type = _type.lower()
 
             # Interact-able UI Elements:
             self.robot_combo = None
@@ -1670,80 +1690,10 @@ class TradeHunterApp:
             self.window()
             if robot_name.lower() == 'default' or test_name.lower() == 'default':
                 # Default Test Result, not Robot Ivar
-                self.summary_dict = {
-                    'period': 0,
-                    'n_bars': 0,
-                    'ticks': 0,
-                    #
-                    'total_profit': 0,
-                    'gross_profit': 0,
-                    'gross_loss': 0,
-                    #
-                    'profit_factor': 0,
-                    'recovery_factor': 0,
-                    'AHPR': 0,
-                    'GHPR': 0,
-                    #
-                    'total_trades': 0,
-                    'total_deals': 0,
-                    #
-                    'balance_drawdown_abs': 0,
-                    'balance_drawdown_max': 0,
-                    'balance_drawdown_rel': 0,
-                    'balance_drawdown_avg': 0,
-                    'balance_drawdown_len_avg': 0,
-                    'balance_drawdown_len_max': 0,
-                    'equity_drawdown_abs': 0,
-                    'equity_drawdown_max': 0,
-                    'equity_drawdown_rel': 0,
-                    'equity_drawdown_avg': 0,
-                    'equity_drawdown_len_avg': 0,
-                    'equity_drawdown_len_max': 0,
-                    #
-                    'expected_payoff': 0,
-                    'sharpe_ratio': 0,
-                    'standard_deviation': 0,
-                    'LR_correlation': 0,
-                    'LR_standard_error': 0,
-                    #
-                    'total_short_trades': 0,
-                    'total_long_trades': 0,
-                    'short_trades_won': 0,
-                    'long_trades_won': 0,
-                    'trades_won': 0,
-                    'trades_lost': 0,
-                    #
-                    'largest_profit_trade': 0,
-                    'average_profit_trade': 0,
-                    'largest_loss_trade': 0,
-                    'average_loss_trade': 0,
-                    #
-                    'longest_trade_length': 0,
-                    'shortest_trade_length': 0,
-                    'average_trade_length': 0,
-                    'average_profit_length': 0,
-                    'average_loss_length': 0,
-                    'period_to_profit': 0,
-                    'period_to_gross': 0,
-                    #
-                    'max_consecutive_wins': 0,
-                    'max_consecutive_profit': 0,
-                    'avg_consecutive_wins': 0,
-                    'avg_consecutive_profit': 0,
-                    'max_consecutive_losses': 0,
-                    'max_consecutive_loss': 0,
-                    'avg_consecutive_losses': 0,
-                    'avg_consecutive_loss': 0,
-                    #
-                    'n_symbols': 0,
-                    'margin_level': 0,
-                    'z_score': 0,
-                    #
-                    'dataset': 'None',
-                }
+                self.generate_empty_dict()
                 self.create_labels()
             else:
-                self.force_load(robot_name, test_name)
+                self.force_load(robot_name, test_name)  # self._type, don't need to pass in
 
         def window(self):
 
@@ -1752,7 +1702,7 @@ class TradeHunterApp:
 
             head_layout = QVBoxLayout()
             body_layout = QVBoxLayout()
-            tail_layout = QVBoxLayout()
+            tail_layout = QHBoxLayout()
 
             main_layout.addLayout(head_layout)
             main_layout.addLayout(body_layout)
@@ -1764,7 +1714,7 @@ class TradeHunterApp:
             choices = ['Optimisation', 'Test', 'Algo']
             choices.sort(reverse=True)
             for choice in choices:
-                type_combo.insertItem(0, choice)  # todo ability to do, optim, algo
+                type_combo.insertItem(0, choice)
             type_combo.setFixedHeight(20)
             self.type_combo = type_combo
 
@@ -1777,7 +1727,7 @@ class TradeHunterApp:
 
             # Robot side, default
             self.robot_combo = QComboBox()  # Can be overridden to be algo
-            self.test_combo = QComboBox()  # Can be overriden to be optim
+            self.test_combo = QComboBox()  # Can be overridden to be optim
             # self.optim_combo = QComboBox()
             self.robot_combo.setFixedHeight(20)
             self.test_combo.setFixedHeight(20)
@@ -1797,13 +1747,16 @@ class TradeHunterApp:
                 thing = self.robot_combo.currentText()
                 result = self.test_combo.currentText()
 
-                # Delete thing
+                # Delete thing and Reload combo
                 if type == "optimisation":
                     delete_optimisation(result, thing)
+                    self.robot_combo_update('optimisation')
                 elif type == "test":
                     delete_test(result, thing)
+                    self.robot_combo_update('test')
                 elif type == "algo":
                     delete_algo_result(result, thing)
+                    self.robot_combo_update('algo')
 
             quit_button = QPushButton('Exit')
             delete_button = QPushButton('Delete')
@@ -1812,9 +1765,7 @@ class TradeHunterApp:
             tail_layout.addWidget(quit_button)
             tail_layout.addWidget(delete_button)
 
-            self.robot_combo_update()
-            # load_tests([])  # Wait for selection
-
+            self.type_combo.activated.connect(self.type_combo_update)
             self.robot_combo.activated.connect(self.test_combo_update)
             self.test_combo.activated.connect(self.get_and_load)
 
@@ -1823,6 +1774,9 @@ class TradeHunterApp:
             self.g_p = self.graph_pane()
             body_layout.addLayout(self.d_p)
             # tail_layout.addLayout(self.g_p)  # no graph to display
+
+            self.robot_combo_update(self._type)
+            # load_tests([])  # Wait for selection
 
             main_layout.addLayout(head_layout)
             main_layout.addLayout(body_layout)
@@ -1844,6 +1798,11 @@ class TradeHunterApp:
 
         def back(self):
             self.close()
+
+        def generate_empty_dict(self):
+            self.summary_dict = {
+                '!': 'Choose a result'
+            }
 
         # Reload data pane
         def create_labels(self):
@@ -1899,53 +1858,129 @@ class TradeHunterApp:
                 label.deleteLater()
             for label in self.labels_2:
                 label.deleteLater()
+                
+        def clear_labels(self):
+            self.delete_labels()
+            self.generate_empty_dict()
+            self.create_labels()
 
         # Update combo boxes
         def type_combo_update(self):
             type = self.type_combo.currentText().lower()
+            self._type = type
+            self.test_combo.clear()
+            self.clear_labels()
             if type == "test":
                 self.robot_label.setText('Select robot')
                 self.test_label.setText('Select test result')
                 self.robot_combo_update("test")
-                self.test_combo_update()
+                if self.robot_combo.count() > 1:
+                    self.test_combo_update()
             elif type == "optimisation":
                 self.robot_label.setText('Select robot')
                 self.test_label.setText('Select optim. result')
                 self.robot_combo_update("optimisation")
-                self.optim_combo_update()
+                if self.robot_combo.count() > 1:
+                    self.optim_combo_update()
             elif type == "algo":
                 self.robot_label.setText('Select algo')
                 self.test_label.setText('Select analysis')
-                self.algo_combo_update()
-                self.algo_result_combo_update()
+                self.robot_combo_update("algo")
+                if self.robot_combo.count() > 1:
+                    self.algo_result_combo_update()
 
-        def robot_combo_update(self, type):
+        def robot_combo_update(self, _type):
+            """Refresh all combos under type."""
             self.robot_combo.clear()
+            self.clear_labels()
             robots = []
-            if type == "test":
+            if _type == "test":
                 robots = get_tested_robot_list()
-            elif type == "optimisation":
+            elif _type == "optimisation":
                 robots = get_optimised_robot_list()
+            elif _type == 'algo':
+                robots = get_analysed_algo_list()
 
             for robot in robots:
                 self.robot_combo.addItem(robot)
-            if len(robots) < 1:
-                alert_w = QMessageBox('No tests found')
-                alert_w.show()
-            if self.robot_combo.currentText():
-                self.test_combo_update()
+            if len(robots) < 1:  # If there are no robots/algos found
+                self.alert_window = QWidget()
+                alert_layout = QVBoxLayout()
+                alert = QMessageBox(self.alert_window)
+                alert.setText(F'Nothing found.')
+                alert_layout.addWidget(alert)
+                alert.show()
+            else:
+                self.robot_combo.setCurrentIndex(0)
 
-        def algo_combo_update(self):
+            # Given the robot, update list of results
+            if self.robot_combo.currentText():
+                if _type == "test":
+                    self.test_combo_update()
+                elif _type == "optimisation":
+                    self.optim_combo_update()
+                elif _type == "algo":
+                    self.algo_result_combo_update()
+            else:
+                self.test_combo.clear()
+
+        def robot_combo_update_to(self, _type, robot, test):
+            """Refresh all combos under type, robot and test."""
             self.robot_combo.clear()
-            robots = get_analysed_algo_list()
+            cap_type = ""
+            robots = []
+            if _type == "test":
+                robots = get_tested_robot_list()
+                cap_type = "Test"
+            elif _type == "optimisation":
+                robots = get_optimised_robot_list()
+                cap_type = "Optimisation"
+            elif _type == 'algo':
+                robots = get_analysed_algo_list()
+                cap_type = "Algo"
+            idx = self.type_combo.findText(cap_type)
+            self.type_combo.setCurrentIndex(idx)
 
             for robot in robots:
                 self.robot_combo.addItem(robot)
-            if len(robots) < 1:
-                alert_w = QMessageBox('No tests found')
-                alert_w.show()
-            if self.robot_combo.currentText():
+            if len(robots) < 1:  # If there are no robots/algos found
+                self.alert_window = QWidget()
+                alert_layout = QVBoxLayout()
+                alert = QMessageBox(self.alert_window)
+                alert.setText(F'Nothing found.')
+                alert_layout.addWidget(alert)
+                alert.show()
+            else:
+                idx = self.robot_combo.findText(robot)
+                self.robot_combo.setCurrentIndex(idx)
+
+            # Given the robot, update list of results
+            if _type == "test":
                 self.test_combo_update()
+            elif _type == "optimisation":
+                self.optim_combo_update()
+            elif _type == "algo":
+                self.algo_result_combo_update()
+            idx = self.test_combo.findText(test)
+            if not idx < 0:
+                self.test_combo.setCurrentIndex(idx)
+
+        # def algo_combo_update(self):
+        #     self.robot_combo.clear()
+        #     algo_name = self.robot_combo.currentText()
+        #     robots = get_analysed_algo_list()
+        #
+        #     for robot in robots:
+        #         self.robot_combo.addItem(robot)
+        #     if len(robots) < 1:
+        #         self.alert_window = QWidget()
+        #         alert_layout = QVBoxLayout()
+        #         alert = QMessageBox(self.alert_window)
+        #         alert.setText(F'No tests under {algo_name} found')
+        #         alert_layout.addWidget(alert)
+        #         alert.show()
+        #     if self.robot_combo.currentText():
+        #         self.test_combo_update()
 
         def test_combo_update(self):
             robot_name = self.robot_combo.currentText()
@@ -1953,24 +1988,6 @@ class TradeHunterApp:
             self.test_combo.clear()
             if len(tests) < 1:
                 self.alert_window = QWidget()
-                # alert_w = QMessageBox(F'No tests under {robot_name} found')
-                # alert_w.show()
-                alert_layout = QVBoxLayout()
-                alert = QMessageBox(self.alert_window)
-                alert.setText(F'No optimisations under {robot_name} found')
-                alert_layout.addWidget(alert)
-                alert.show()
-            for test in tests:
-                self.test_combo.addItem(test)
-
-        def optim_combo_update(self):
-            robot_name = self.robot_combo.currentText()
-            tests = get_optimisations_list(robot_name)
-            self.test_combo.clear()
-            if len(tests) < 1:
-                self.alert_window = QWidget()
-                # alert_w = QMessageBox(F'No tests under {robot_name} found')
-                # alert_w.show()
                 alert_layout = QVBoxLayout()
                 alert = QMessageBox(self.alert_window)
                 alert.setText(F'No tests under {robot_name} found')
@@ -1978,6 +1995,28 @@ class TradeHunterApp:
                 alert.show()
             for test in tests:
                 self.test_combo.addItem(test)
+            if tests:
+                # default load
+                test_name = self.test_combo.currentText()
+                self.get_and_load_name(robot_name, test_name)
+
+        def optim_combo_update(self):
+            robot_name = self.robot_combo.currentText()
+            tests = get_optimisations_list(robot_name)
+            self.test_combo.clear()
+            if len(tests) < 1:
+                self.alert_window = QWidget()
+                alert_layout = QVBoxLayout()
+                alert = QMessageBox(self.alert_window)
+                alert.setText(F'No optimisations of {robot_name} found')
+                alert_layout.addWidget(alert)
+                alert.show()
+            for test in tests:
+                self.test_combo.addItem(test)
+            if tests:
+                # default load
+                test_name = self.test_combo.currentText()
+                self.get_and_load_optim_name(robot_name, test_name)
 
         def algo_result_combo_update(self):
             algo_name = self.robot_combo.currentText()
@@ -1985,8 +2024,6 @@ class TradeHunterApp:
             self.test_combo.clear()
             if len(tests) < 1:
                 self.alert_window = QWidget()
-                # alert_w = QMessageBox(F'No tests under {robot_name} found')
-                # alert_w.show()
                 alert_layout = QVBoxLayout()
                 alert = QMessageBox(self.alert_window)
                 alert.setText(F'No results under {algo_name} found')
@@ -1994,39 +2031,59 @@ class TradeHunterApp:
                 alert.show()
             for test in tests:
                 self.test_combo.addItem(test)
+            if tests:
+                # default load
+                test_name = self.test_combo.currentText()
+                self.get_and_load_algo_name(algo_name, test_name)
 
         # Load results
 
         def combo_load(self):
             """Load based on combo box inputs"""
-            type = self.type_combo.currentText().lower()
+            _type = self.type_combo.currentText().lower()
             thing = self.robot_combo.currentText()
             result = self.test_combo.currentText()
-            if type == "test":
+            if _type == "test":
                 self.get_and_load_name(thing, result)
-            elif type == "optimisation":
+            elif _type == "optimisation":
                 self.get_and_load_optim_name(thing, result)
-            elif type == "algo":
+            elif _type == "algo":
                 self.get_and_load_algo_name(thing, result)
 
         def force_load(self, robot_name, test_name):
-            self.get_and_load_name(robot_name, test_name)
 
-            # Combo Selection to reflect this:
-            self.robot_combo_update()
-            idx = self.robot_combo.findText(robot_name)
-            if idx == -1:
-                idx == 0
-            if self.robot_combo.count() < 1:
-                return
+            # Load results only
+            if self._type == 'test':
+                self.get_and_load_name(robot_name, test_name)
+            elif self._type == 'optimisation':
+                self.get_and_load_optim_name(robot_name, test_name)
+            elif self._type == 'algo':
+                self.get_and_load_algo_name(robot_name, test_name)
+
+            # Update visual components
+            self.robot_combo_update_to(self._type, robot_name, test_name)
+
+        def reflect(self, type_name, robot_name, test_name):
+            # Update type_combo
+            idx = self.type_combo.findText(type_name)
+            if not idx < 0:
+                self.test_combo.setCurrentIndex(idx)
+            else:
+                print(F"A major error has occured.")
             self.robot_combo.setCurrentIndex(idx)
-
+            # Combo Selection to reflect this:
+            idx = self.robot_combo.findText(robot_name)
+            if not idx < 0:
+                self.robot_combo.setCurrentIndex(idx)
+            else:
+                print(F"An error has occured. {robot_name} cannot be found.")
             # Test Selection
-            self.test_combo_update()
-            idx = self.test_combo.findText(test_name)
-            if self.test_combo.count() < 1:
-                return
-            self.test_combo.setCurrentIndex(idx)
+            if not self.test_combo.count() < 1:
+                idx = self.test_combo.findText(test_name)
+                if not idx < 0:
+                    self.test_combo.setCurrentIndex(idx)
+                else:
+                    print(F"An error has occured. {test_name} cannot be found.")
 
         def load(self, test_result, test_meta, test_name):
             self.test_name = test_name
@@ -2037,19 +2094,19 @@ class TradeHunterApp:
             self.delete_labels()
             self.create_labels()
 
-        def load_optim(self):
-            pass
-
-        def load_algo_result(self):
-            pass
-
         def get_and_load(self):
 
             robot_name = self.robot_combo.currentText()
             test_name = self.test_combo.currentText()
             test_name = get_test_name(test_name)
+            self._type = self.type_combo.currentText().lower()
 
-            self.get_and_load_name(robot_name, test_name)
+            if self._type == 'test':
+                self.get_and_load_name(robot_name, test_name)
+            elif self._type == 'optimisation':
+                self.get_and_load_optim_name(robot_name, test_name)
+            elif self._type == 'algo':
+                self.get_and_load_algo_name(robot_name, test_name)
 
         def get_and_load_name(self, robot_name, test_name):
 
@@ -2067,20 +2124,31 @@ class TradeHunterApp:
 
         def get_and_load_optim_name(self, robot_name, optim_name):
 
-            self.robot_name = robot_name
+            self.robot_name = robot_name  # Same name used as test
             self.test_name = optim_name
 
-            optim_result_name = F'{self.optim_name}.csv'
-            optim_meta_name = F'{self.optim_name}__meta.csv'
+            optim_result_name = F'{self.test_name}.csv'
+            optim_meta_name = F'{self.test_name}__meta.csv'
 
             # Load results and meta
-            self.optim_result = load_optimisation_result(optim_result_name, robot_name)
-            self.optim_meta = load_optimisation_meta(optim_meta_name, robot_name)
+            self.test_result = load_optimisation_result(optim_result_name, robot_name)
+            self.test_meta = load_optimisation_meta(optim_meta_name, robot_name)
 
             self.load(self.test_result, self.test_meta, self.test_name)
 
         def get_and_load_algo_name(self, algo_name, result_name):
-            pass
+
+            self.robot_name = algo_name
+            self.test_name = result_name
+
+            optim_result_name = F'{self.test_name}.csv'
+            optim_meta_name = F'{self.test_name}__meta.csv'
+
+            # Load results and meta
+            self.test_result = load_algo_result(optim_result_name, algo_name)
+            self.test_meta = load_algo_meta(optim_meta_name, algo_name)
+
+            self.load(self.test_result, self.test_meta, self.test_name)
 
     class OptimisationAnalysisPage(QWidget):  # todo
         def __init__(self, robot_name='default', test_name='default', prev_window="TradeAdvisorPage"):

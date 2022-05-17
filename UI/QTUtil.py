@@ -1,6 +1,6 @@
 import pandas as pd
-from PyQt5.QtCore import Qt
-from PyQt5.QtWidgets import QTableWidget, QTableWidgetItem, QPlainTextEdit
+from PyQt5.QtCore import Qt, pyqtSignal
+from PyQt5.QtWidgets import QTableWidget, QTableWidgetItem, QPlainTextEdit, QSlider
 from util.langUtil import check_if_valid_timestr
 
 
@@ -151,17 +151,24 @@ def full_only(map):
 
 # util GUI classes
 
+ALPHABETS = (Qt.Key_A, Qt.Key_B, Qt.Key_C, Qt.Key_D, Qt.Key_E, Qt.Key_F, Qt.Key_G, Qt.Key_H, Qt.Key_I
+                           , Qt.Key_J, Qt.Key_K, Qt.Key_L, Qt.Key_M, Qt.Key_N, Qt.Key_O, Qt.Key_Q, Qt.Key_R, Qt.Key_S
+                           , Qt.Key_T, Qt.Key_U, Qt.Key_V, Qt.Key_W, Qt.Key_X, Qt.Key_Y, Qt.Key_Z,)
+NUMERALS = (Qt.Key_1, Qt.Key_2, Qt.Key_3, Qt.Key_4, Qt.Key_5, Qt.Key_6, Qt.Key_7, Qt.Key_8, Qt.Key_9, Qt.Key_0, )
+ALPHANUMERICS = ALPHABETS + NUMERALS
+SPACE_KEYS = (Qt.Key_Return, Qt.Key_Enter, Qt.Key_Tab,)
+
 
 class PlainTextEdit(QPlainTextEdit):
     def keyPressEvent(self, event):
-        if event.key() in (Qt.Key_Return, Qt.Key_Enter, Qt.Key_Tab):
+        if event.key() in SPACE_KEYS:
             return
         super().keyPressEvent(event)
 
 
 class NumericTextEdit(QPlainTextEdit):
     def keyPressEvent(self, event):
-        if event.key() in (Qt.Key_Return, Qt.Key_Enter, Qt.Key_Tab):
+        if event.key() in SPACE_KEYS:
             return
         if event.key() in (Qt.Key_A, Qt.Key_B, Qt.Key_C, Qt.Key_D, Qt.Key_E, Qt.Key_F, Qt.Key_G, Qt.Key_H, Qt.Key_I
                            , Qt.Key_J, Qt.Key_K, Qt.Key_L, Qt.Key_M, Qt.Key_N, Qt.Key_O, Qt.Key_Q, Qt.Key_R, Qt.Key_S
@@ -172,4 +179,89 @@ class NumericTextEdit(QPlainTextEdit):
 
 class TextEditForm(QPlainTextEdit):
     """Pressing 'tab' moves to the next input"""
+    pass
+
+
+# class DoubleSlider(QSlider):
+#
+#     # create our our signal that we can connect to if necessary
+#     doubleValueChanged = pyqtSignal(float)
+#
+#     def __init__(self, decimals=3, *args, **kargs):
+#         super(DoubleSlider, self).__init__( *args, **kargs)
+#         self._multi = 10 ** decimals
+#
+#         self.valueChanged.connect(self.emitDoubleValueChanged)
+#
+#     def emitDoubleValueChanged(self):
+#         value = float(super(DoubleSlider, self).value())/self._multi
+#         self.doubleValueChanged.emit(value)
+#
+#     def value(self):
+#         return float(super(DoubleSlider, self).value()) / self._multi
+#
+#     def setMinimum(self, value):
+#         return super(DoubleSlider, self).setMinimum(value * self._multi)
+#
+#     def setMaximum(self, value):
+#         return super(DoubleSlider, self).setMaximum(value * self._multi)
+#
+#     def setSingleStep(self, value):
+#         return super(DoubleSlider, self).setSingleStep(value * self._multi)
+#
+#     def singleStep(self):
+#         return float(super(DoubleSlider, self).singleStep()) / self._multi
+#
+#     def setValue(self, value):
+#         super(DoubleSlider, self).setValue(int(value * self._multi))
+
+
+class DoubleSlider(QSlider):
+
+    doubleValueChanged = pyqtSignal(float)
+
+    def __init__(self, *args, **kargs):
+        super(DoubleSlider, self).__init__( *args, **kargs)
+        self._min = 0
+        self._max = 99
+        self.interval = 1
+
+    def emitDoubleValueChanged(self):
+        self.doubleValueChanged.emit(self.value)
+
+    def setValue(self, value):
+        index = round((value - self._min) / self.interval)
+        return super(DoubleSlider, self).setValue(index)
+
+    def value(self):
+        return self.index * self.interval + self._min
+
+    @property
+    def index(self):
+        return super(DoubleSlider, self).value()
+
+    def setIndex(self, index):
+        return super(DoubleSlider, self).setValue(index)
+
+    def setMinimum(self, value):
+        self._min = value
+        self._range_adjusted()
+
+    def setMaximum(self, value):
+        self._max = value
+        self._range_adjusted()
+
+    def setInterval(self, value):
+        # To avoid division by zero
+        if not value:
+            raise ValueError('Interval of zero specified')
+        self.interval = value
+        self._range_adjusted()
+
+    def _range_adjusted(self):
+        number_of_steps = int((self._max - self._min) / self.interval)
+        super(DoubleSlider, self).setMaximum(number_of_steps)
+
+
+class DoubleStepSlider(QSlider):
     pass

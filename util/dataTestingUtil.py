@@ -20,7 +20,7 @@ from settings import EVALUATION_FOLDER, OPTIMISATION_FOLDER, PLOTTING_SETTINGS, 
 from util.dataGraphingUtil import plot_robot_instructions, plot_signals, plot_open_signals, candlestick_plot, \
     get_interval, DATE_FORMAT_DICT, plot_line, plot_optimisations
 from util.dataRetrievalUtil import load_dataset, load_df, get_computer_specs, number_of_datafiles, try_stdev, \
-    insert_ivars
+    insert_ivars, file_exists, try_delete_file
 from util.langUtil import craft_instrument_filename, strtodatetime, try_key, remove_special_char, try_divide, try_max, \
     try_mean, get_test_name, get_file_name, get_instrument_from_filename, \
     try_min, try_sgn, in_std_range
@@ -630,6 +630,7 @@ def get_optimisations_list(robot_name: str):
             _files.append(get_test_name(file))
     return _files
 
+
 def get_algo_results_list(algo_name: str):
     folder = F'{ALGO_ANALYSIS_FOLDER}/{algo_name}'
     os.makedirs(folder, exist_ok=True)
@@ -639,7 +640,6 @@ def get_algo_results_list(algo_name: str):
         if not get_file_name(file).endswith('__meta'):
             _files.append(get_test_name(file))
     return _files
-
 
 
 def write_test_result(test_name: str, summary_dicts: List, robot_name: str):
@@ -703,8 +703,12 @@ def load_test_result(test_name: str, robot_name: str):
         test_name += '.csv'
     result_path = F'{folder}/{test_name}'
 
-    trdf = pd.read_csv(result_path, index_col=0)
-    return trdf
+    if file_exists(result_path):
+        trdf = pd.read_csv(result_path, index_col=0)
+        return trdf
+    else:
+        print(F'Error! {result_path} cannot be found!')
+    return pd.DataFrame()
 
 
 def load_test_meta(meta_name: str, robot_name: str):
@@ -713,8 +717,12 @@ def load_test_meta(meta_name: str, robot_name: str):
         meta_name += '.csv'
     meta_path = F'{folder}/{meta_name}'
 
-    tmdf = pd.read_csv(meta_path, index_col=0)
-    return tmdf
+    if file_exists(meta_path):
+        tmdf = pd.read_csv(meta_path, index_col=0)
+        return tmdf
+    else:
+        print(F'Error! {meta_path} cannot be found!')
+    return pd.DataFrame()
 
 
 def load_optimisation_result(optim_name: str, robot_name: str):
@@ -723,8 +731,12 @@ def load_optimisation_result(optim_name: str, robot_name: str):
         optim_name += '.csv'
     result_path = F'{folder}/{optim_name}'
 
-    trdf = pd.read_csv(result_path, index_col=0)
-    return trdf
+    if file_exists(result_path):
+        trdf = pd.read_csv(result_path, index_col=0)
+        return trdf
+    else:
+        print(F'Error! {result_path} cannot be found!')
+    return pd.DataFrame()
 
 
 def load_optimisation_meta(meta_name: str, robot_name: str):
@@ -733,20 +745,61 @@ def load_optimisation_meta(meta_name: str, robot_name: str):
         meta_name += '.csv'
     meta_path = F'{folder}/{meta_name}'
 
-    omdf = pd.read_csv(meta_path, index_col=0)
-    return omdf
+    if file_exists(meta_path):
+        omdf = pd.read_csv(meta_path, index_col=0)
+        return omdf
+    else:
+        print(F'Error! {meta_path} cannot be found!')
+    return pd.DataFrame()
+
+
+def load_algo_result(result_name: str, algo_name: str):
+    folder = F'{ALGO_ANALYSIS_FOLDER}/{algo_name}'
+    if not result_name.endswith('.csv'):
+        result_name += '.csv'
+    result_path = F'{folder}/{result_name}'
+
+    if file_exists(result_path):
+        trdf = pd.read_csv(result_path, index_col=0)
+        return trdf
+    else:
+        print(F'Error! {result_path} cannot be found!')
+    return pd.DataFrame()
+
+
+def load_algo_meta(meta_name: str, algo_name: str):
+    folder = F'{ALGO_ANALYSIS_FOLDER}/{algo_name}'
+    if not meta_name.endswith('.csv'):
+        meta_name += '.csv'
+    meta_path = F'{folder}/{meta_name}'
+
+    if file_exists(meta_path):
+        omdf = pd.read_csv(meta_path, index_col=0)
+        return omdf
+    else:
+        print(F'Error! {meta_path} cannot be found!')
+    return pd.DataFrame()
 
 
 def delete_test(test_name: str, robot_name: str):
-    pass  # todo
+    path = F'{EVALUATION_FOLDER}/{robot_name}/{test_name}.csv'
+    meta_path = F'{path}__meta.csv'
+    try_delete_file(path)
+    try_delete_file(meta_path)
 
 
 def delete_optimisation(optim_name: str, robot_name: str):
-    pass  # todo
+    path = F'{OPTIMISATION_FOLDER}/{robot_name}/{optim_name}'
+    meta_path = F'{path}__meta.csv'
+    try_delete_file(path)
+    try_delete_file(meta_path)
 
 
 def delete_algo_result(result_name: str, algo_name: str):
-    pass  # todo
+    path = F'{ALGO_ANALYSIS_FOLDER}/{algo_name}/{result_name}'
+    meta_path = F'{path}__meta.csv'
+    try_delete_file(path)
+    try_delete_file(meta_path)
 
 
 # Robot/Algos eval
@@ -1294,38 +1347,12 @@ class DataTester:
                     _ivar[key]['default'] -= range[1]
                 elif curr <= range[0]:  # If reach over the left, set to left
                     _ivar[key]['default'] += range[0]
-                    # # Roll to try inc. or dec.
-                    # if r > 0.5:  # Increase
-                    #     if range[1] - curr == 0:  # Cannot increase further/Literally at the end
-                    #         _val = range[1] - step
-                    #         _ivar[key]['default'] = _val  # decrease instead
-                    #     elif range[1] - curr <= step:  # Touch end point
-                    #         _val = range[1]
-                    #         _ivar[key]['default'] = _val  # keep it at end
-                    #     else:  # not in any edge case
-                    #         _val = curr + step
-                    #         _ivar[key]['default'] = _val
-                    #     ivar_key_tuples.update({
-                    #         key: {
-                    #             'ivar': _ivar,
-                    #         }
-                    #     })
-                    # else:  # Decrease
-                    #     if curr - range[0] == 0:
-                    #         _val = range[0] + step
-                    #         _ivar[key]['default'] = _val
-                    #     elif curr - range[0] <= step:
-                    #         _val = range[0]
-                    #         _ivar[key]['default'] = _val
-                    #     else:  #
-                    #         _val = curr - step
-                    #         _ivar[key]['default'] = _val
 
-                    ivar_key_tuples.update({
-                        key: {
-                            'ivar': _ivar,
-                        }
-                    })
+                ivar_key_tuples.update({
+                    key: {
+                        'ivar': _ivar,
+                    }
+                })
                 # Get name
                 ivar_key_tuples[key]['name'] = F'spread_{key}_{_i}_{_u}'
             return ivar_key_tuples

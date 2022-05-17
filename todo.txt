@@ -6,32 +6,25 @@ DataTestingUtil tests based on data retrieved. Text File is used as reference (o
 
 Bug fixes:
 
-2o) Create ivar  TEST
-2z) Delete test
-2p) Delete optim
+2) Discrete sliders, if large number of possibilities -> discrete slider in steps only.
+(Continuous ignores steps)
+2a) TextEdit updates value if slider moved, Slider updates if textEdit editted (only on 'edit_complete')
+wait 1s? On fail a.k.a out or range - go to range[0] or range[1]
+2b) All elements put on rows instead of self.left, self.right. Rows use either slider-spacing or normal-spacing
+label - combo/slider+edit/edit
+2c) text->slider, slider->text event functions - not stack against each other
+2d) Create Ivar function, does it work?
 
-3) Rename dataset
+3e) check if delete works properly
+3f) When load default robot_combo_load -> load first test
 
-4b) Delete test result
-
-RESULT ANALYSIS - different types
-CREATE IVAR - ivar
-
-1) check all titles are good enough
-
-1) Fix optimisation
+4) check all titles are good enough
 
 5) Bring progress windows to the front
 5b) Testing and optimisation: Progress bar embedded
 5c) Graph embedded during optimisation
 5d) result analysis shows all datasets tested
 
-7) In optimisation, move 'name' to meta level (instead of within ivar_dict['ivar'])
-
-8) Settle todos
-8a) Delete ivar, delete dataset, create custom ivar
-8b) Plot single test
-8c) Create todos for Long Future
 8d) Block optimisation
 8e) Random optimisation
 

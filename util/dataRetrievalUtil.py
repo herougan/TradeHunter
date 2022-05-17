@@ -983,6 +983,14 @@ def dataframe_ok(df: pd.DataFrame) -> bool:
     return False
 
 
+def try_delete_file(filepath):
+    if not file_exists(filepath):
+        print(F'Failed to delete file at {filepath}. No file found')
+        return
+    print(F'Delete file at {filepath}')
+    os.remove(filepath)
+
+
 # Hardware
 
 def get_computer_specs():
