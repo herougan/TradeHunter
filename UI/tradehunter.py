@@ -17,7 +17,7 @@ import sys
 from matplotlib.figure import Figure
 
 from UI.QTUtil import get_datatable_sheet, set_datatable_sheet, clear_table, set_col_cell_sheet, get_dataset_table, \
-    set_dataset_table, count_table, NumericTextEdit, DoubleSlider, PlainTextEdit
+    set_dataset_table, count_table, NumericTextEdit, DoubleSlider, PlainTextEdit, ConfirmWindow, QuickAlertWindow
 from settings import IVarType, InputUIType
 from util.dataGraphingUtil import plot_single, candlestick_plot, init_plot, DATE_FORMAT_DICT, get_interval
 from util.dataRetrievalUtil import load_trade_advisor_list, get_dataset_changes, update_specific_dataset_change, \
@@ -150,7 +150,7 @@ class TradeHunterApp:
                 self.splot_window.show()
 
             def ssim_clicked():
-                self.ssim_window = TradeHunterApp.SimPlotter()
+                self.ssim_window = TradeHunterApp.SimulatorPlot()
                 self.ssim_window.show()
 
             def ssym_clicked():
@@ -190,6 +190,7 @@ class TradeHunterApp:
             layout.addLayout(tail)
 
             self.setLayout(layout)
+            self.setWindowTitle('General Plotter')
             self.show()
 
         def back(self):
@@ -338,6 +339,7 @@ class TradeHunterApp:
             tail.addWidget(clean_all_button)
 
             self.setLayout(head_body_tail)
+            self.setWindowTitle('Data Management')
 
         class DatasetPane(QVBoxLayout):
 
@@ -821,6 +823,7 @@ class TradeHunterApp:
                 self.close()
 
             self.setLayout(layout)
+            self.setWindowTitle('Trade Advisor')
 
     # - Trade Advisor Pages
     class TestingChamberPage(QWidget):
@@ -908,10 +911,17 @@ class TradeHunterApp:
             # Choose ivar
             ivar_label = QLabel('Initial Variables')
             ivar_combo = QComboBox()
-            ivar_list = load_ivar_list(self.robot_name)
-            ivar_list.sort(reverse=True)
-            for ivar in ivar_list:
-                ivar_combo.insertItem(0, ivar)
+
+            def load_ivar_combo():
+                # Clear
+                ivar_combo.clear()
+                # Load new list
+                ivar_list = load_ivar_list(self.robot_name)
+                ivar_list.sort(reverse=True)
+                for ivar in ivar_list:
+                    ivar_combo.insertItem(0, ivar)
+                ivar_combo.setCurrentIndex(0)
+            load_ivar_combo()
             ivar_layout.addWidget(ivar_label)
             ivar_layout.addWidget(ivar_combo)
 
@@ -1169,7 +1179,7 @@ class TradeHunterApp:
                 body_layout = QHBoxLayout()
                 confirm_layout = QHBoxLayout()
 
-                confirm_button = QPushButton('Yes')
+                confirm_button = QPushButton('Delete')
                 cancel_button = QPushButton('Cancel')
 
                 confirm_layout.addWidget(confirm_button)
@@ -1185,9 +1195,10 @@ class TradeHunterApp:
                     delete_ivar(robot_name, ivar_name)
 
                     # reset combo box
-                    ivar_combo.clear()
-                    for ivar in load_ivar_list(self.robot_name):
-                        ivar_combo.insertItem(0, ivar)
+                    # ivar_combo.clear()
+                    # for ivar in load_ivar_list(self.robot_name):
+                    #     ivar_combo.insertItem(0, ivar)
+                    load_ivar_combo()
                     confirm_window.close()
 
                 def cancel():
@@ -1356,6 +1367,7 @@ class TradeHunterApp:
             whole.addLayout(tail)
 
             self.setLayout(whole)
+            self.setWindowTitle('Testing Chamber')
             self.show()
 
         def back(self):
@@ -1651,6 +1663,8 @@ class TradeHunterApp:
         def window(self):
             vis_button = QPushButton('Visualise')  # Load graphs
 
+            self.setWindowTitle('Robot Analysis')
+
     class DataAnalysisPage(QWidget):
         """Lets you study details of (single) data and lets you carve them based on their properties e.g.
         ranging versus trending."""
@@ -1664,7 +1678,8 @@ class TradeHunterApp:
             # UI Components
             self.labels = []
             self.labels_2 = []
-            self.alert_window = None
+            self.alert_window = None  # Have to save to prevent auto garbage collection
+            self.confirm_window = None
 
             # Information
             self.robot_name = ""
@@ -1743,22 +1758,35 @@ class TradeHunterApp:
             head_layout.addLayout(choice_pane)
 
             def delete():
-                type = type_combo.currentText().lower()
+                _type = type_combo.currentText().lower()
                 thing = self.robot_combo.currentText()
                 result = self.test_combo.currentText()
 
-                # Delete thing and Reload combo
-                if type == "optimisation":
-                    delete_optimisation(result, thing)
-                    self.robot_combo_update('optimisation')
-                elif type == "test":
-                    delete_test(result, thing)
-                    self.robot_combo_update('test')
-                elif type == "algo":
-                    delete_algo_result(result, thing)
-                    self.robot_combo_update('algo')
+                if not thing or not result:
+                    self.alert_window = QuickAlertWindow("No file selected!", "Alert Window", "OK")
+                    return
 
-            quit_button = QPushButton('Exit')
+                def delete_f():
+                    # Delete thing and Reload combo
+                    if _type == "optimisation":
+                        delete_optimisation(result, thing)
+                        self.robot_combo_update('optimisation')
+                    elif _type == "test":
+                        delete_test(result, thing)
+                        self.robot_combo_update('test')
+                    elif _type == "algo":
+                        delete_algo_result(result, thing)
+                        self.robot_combo_update('algo')
+
+                    # Close window when done
+                    self.confirm_window.close()
+
+                self.confirm_window = ConfirmWindow(F'Are you sure you want to delete \'{result}\'', 'Deletion Window',
+                                                    'Delete', 'Cancel')
+                self.confirm_window.bind_function(delete_f)
+                self.confirm_window.show()
+
+            quit_button = QPushButton('Back')
             delete_button = QPushButton('Delete')
             quit_button.clicked.connect(self.back)
             delete_button.clicked.connect(delete)
@@ -1783,6 +1811,7 @@ class TradeHunterApp:
             main_layout.addLayout(tail_layout)
 
             self.setLayout(main_layout)
+            self.setWindowTitle('Result Analysis')
 
         def data_pane(self):
             data_pane = QHBoxLayout()
@@ -2150,19 +2179,6 @@ class TradeHunterApp:
 
             self.load(self.test_result, self.test_meta, self.test_name)
 
-    class OptimisationAnalysisPage(QWidget):  # todo
-        def __init__(self, robot_name='default', test_name='default', prev_window="TradeAdvisorPage"):
-            super().__init__()
-
-        def window(self):
-            pass
-
-        def create_label(self):
-            pass
-
-        def delete_label(self):
-            pass
-
     class VisualWindow(QWidget):
         def __init__(self, prev_window="TradeAdvisorPage"):
             self.prev_window = prev_window
@@ -2181,6 +2197,7 @@ class TradeHunterApp:
             p_layout.addWidget(p_bar)
 
             self.setLayout(p_layout)
+            self.setWindowTitle('Visual Window')
 
     # - Plotter
 
@@ -2236,6 +2253,7 @@ class TradeHunterApp:
             layout.addLayout(tail)
 
             self.setLayout(layout)
+            self.setWindowTitle('Simple Plotter')
             self.show()
 
         def back(self):
@@ -2276,7 +2294,7 @@ class TradeHunterApp:
 
             return p_window
 
-    class SimPlotter(QWidget):
+    class SimulatorPlot(QWidget):
 
         def __init__(self):
             super().__init__()
@@ -2295,6 +2313,8 @@ class TradeHunterApp:
             self.head = None
             self.body = None
             self.tail = None
+            # UI subcomponents
+            self.labels = []
 
             self.mode = 'Robot'  # default
 
@@ -2341,6 +2361,8 @@ class TradeHunterApp:
 
             df_label = QLabel('Data')
             df_select = QComboBox()
+            type_label = QLabel('Type')
+            type_select = QComboBox()
             robot_label = QLabel('Robot')
             robot_select = QComboBox()
             ivar_label = QLabel('IVar')
@@ -2355,10 +2377,12 @@ class TradeHunterApp:
             sim_speed = QComboBox()  # Sim Variables
 
             df_left_layout.addWidget(df_label, 0.25)
+            df_left_layout.addWidget(type_label, 0.25)
             df_left_layout.addWidget(robot_label, 0.25)
             df_left_layout.addWidget(ivar_label, 0.25)
             df_left_layout.addWidget(sim_label, 0.25)
             df_right_layout.addWidget(df_select, 0.25)
+            df_right_layout.addWidget(type_select, 0.25)
             df_right_layout.addWidget(robot_select, 0.25)
             df_right_layout.addWidget(ivar_select, 0.25)
             df_right_layout.addWidget(sim_speed, 0.25)
@@ -2385,39 +2409,108 @@ class TradeHunterApp:
 
             # === IVar Layout ===
             ivar_layout = QHBoxLayout()
+            ivar_text_label = QLabel('IVar:')
+            ivar_empty_label = QLabel('')
+            ivar_text_label.setFixedHeight(20)
+            ivar_empty_label.setFixedHeight(20)
+            ivar_text_label.setAlignment(Qt.AlignTop)
+            ivar_empty_label.setAlignment(Qt.AlignTop)
             ivar_left_layout = QVBoxLayout()
             ivar_right_layout = QVBoxLayout()
+            ivar_left_layout.addWidget(ivar_text_label)
+            ivar_right_layout.addWidget(ivar_empty_label)
             self.ivar_label_dict = {}
 
             def load_ivar_label_list():
                 robot = self.robot_select.currentText()
+                self.ivar_select.clear()
                 ivars = load_ivar_list(robot)
+                ivars.sort(reverse=True)
                 for ivar in ivars:
                     self.ivar_select.addItem(ivar)
                 self.ivar_select.setCurrentIndex(0)
+                # Update labels
+                load_ivar_labels()
+
+            def load_algo_ivar_label_list():
+                """Load algo ivar list. Usually empty."""
+                algo = self.robot_select.currentText()
+                self.ivar_select.clear()
+                ivars = load_algo_ivar_list(algo)
+                ivars.sort(reverse=True)
+                for ivar in ivars:
+                    self.ivar_select.addItem(ivar)
+                if len(ivars) > 0:
+                    self.ivar_select.setCurrentIndex(0)
+                # Update labels
+                load_ivar_labels()
 
             def load_ivar_labels():
+
+                # Clear old labels
+                for label in self.labels:
+                    label.deleteLater()
+                self.labels = []
+
                 ivar = self.ivar_select.currentText()
                 robot = self.robot_select.currentText()
+                if not ivar or robot:
+                    _1 = QLabel(F'There are no IVars.')
+                    ivar_left_layout.addWidget(_1)
+                    self.labels.append(_1)
+                    return
                 ivar_df = load_ivar_as_dict(robot, ivar)
-                self.ivar = load_ivar_as_list(robot, ivar)
-
+                # self.ivar = load_ivar_as_list(robot, ivar)
+                self.ivar = load_ivar_as_dict(robot, ivar)
                 keys = self.ivar_label_dict.keys()
+
                 for _key in ivar_df.keys():
                     if _key.lower() == 'name':
                         continue
                     if _key not in keys:
                         _label = QLabel(_key)
                         # _value = QLabel(str(ivar_df[_key].values[0]))
-                        _value = QLabel(str(ivar_df[_key]))
+                        _value = QLabel(str(ivar_df[_key]['default']))
+                        _label.setFixedHeight(20)
+                        _value.setFixedHeight(20)
+
+                        # Labels
+                        self.labels.append(_label)
+                        self.labels.append(_value)
                         self.ivar_label_dict.update({_label: _value})
                         ivar_left_layout.addWidget(_label)
                         ivar_right_layout.addWidget(_value)
                     else:
                         self.ivar_label_dict[_key].setText(ivar_df[_key])
 
-            def load_algo_list():
-                pass  # replace ivar  # todo this whole algo option in sim plotter
+            def load_algo_combo():
+                """General method 'load_robot_list' calls this method"""
+                algos = load_algo_list()
+                algos.sort(reverse=True)
+                for algo in algos:
+                    robot_select.addItem(algo)
+                robot_select.setCurrentIndex(0)
+
+                # Propagate changes
+                load_algo_ivar_label_list()
+
+            def load_robot_combo():
+                _type = type_select.currentText().lower()
+                if _type == "algo":
+                    load_algo_combo()
+                    return
+                elif _type == "robot":
+                    pass
+
+                # If robot:
+                robots = load_trade_advisor_list()
+                robots.sort(reverse=True)
+                for robot in robots():
+                    robot_select.addItem(robot)
+                robot_select.setCurrentIndex(0)
+
+                # Propagate changes
+                load_ivar_label_list()
 
             def load_df():
                 df_name = df_select.currentText()
@@ -2440,14 +2533,15 @@ class TradeHunterApp:
                     self.robot_select.insertItem(robot, 0)
                 self.robot_select.setCurrentIndex(0)
 
-            type_combo.activated.connect(load_main_combo)
-
             load_ivar_label_list()
             load_ivar_labels()
             load_df()
 
+            type_combo.activated.connect(load_main_combo)
             ivar_select.activated.connect(load_ivar_labels)
+            type_select.activated.connect(load_robot_combo)
             df_select.activated.connect(load_df)
+            robot_select.activated.connect(load_ivar_label_list)
 
             ivar_layout.addLayout(ivar_left_layout)
             ivar_layout.addLayout(ivar_right_layout)
@@ -2467,8 +2561,8 @@ class TradeHunterApp:
             leverage_combo = QComboBox()
             instrument_label = QLabel('Instrument')
             instrument_combo = QComboBox()
-            type_label = QLabel('Type')  # Singular/Multi
-            type_combo = QComboBox()
+            sim_type_label = QLabel('Sim Type')  # Singular/Multi
+            sim_type_combo = QComboBox()
             commission_label = QLabel('Commission')
             commission_combo = QComboBox()
             commission_combo.setFixedHeight(20)
@@ -2518,6 +2612,9 @@ class TradeHunterApp:
             xvar_layout.addLayout(xvar_right_layout, 1)
 
             # Add all col layouts
+            df_layout.addStretch()
+            ivar_layout.addStretch()
+            xvar_layout.addStretch()
             head.addLayout(df_layout, 1)
             head.addLayout(ivar_layout, 1)
             head.addLayout(xvar_layout, 2)
@@ -2560,6 +2657,12 @@ class TradeHunterApp:
                 return True
 
             def sim_button_clicked():
+                program_type = type_combo.currentText().lower()
+                if program_type == 'algo':
+                    pass
+                elif program_type == 'robot':
+                    pass
+
                 # self.ivar = {}  # Saved on ivar selection
                 self.xvar = {'lag': lag_combo.currentText(),
                              'capital': try_int(capital_combo.currentText()),
@@ -2572,11 +2675,11 @@ class TradeHunterApp:
                     'speed': try_float(sim_speed.currentText()),
                     'scope': load_setting('sim_scope')[0],  # svar:Scope
                 }
-                type = type_combo.currentText()
+                sim_type = sim_type_combo.currentText()
                 if check_input():
-                    print("Select:", df_select.currentText(), robot_select.currentText())
+                    print("Simulating:", df_select.currentText(), robot_select.currentText())
                     self.test(self.xvar, self.ivar, self.svar, self.robot_select.currentText(),
-                              df_select.currentText(), self.canvas, type)
+                              df_select.currentText(), type)
 
             # This window does not close upon plotting.
             back_button.clicked.connect(self.back)
@@ -2592,6 +2695,7 @@ class TradeHunterApp:
             layout.addLayout(tail, 1)
 
             self.setLayout(layout)
+            self.setWindowTitle('Simulation Plot')
             self.show()
 
         def test(self, xvar, ivar, svar, ta_name, df_name, type):

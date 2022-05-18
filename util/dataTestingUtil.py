@@ -782,22 +782,25 @@ def load_algo_meta(meta_name: str, algo_name: str):
 
 
 def delete_test(test_name: str, robot_name: str):
-    path = F'{EVALUATION_FOLDER}/{robot_name}/{test_name}.csv'
-    meta_path = F'{path}__meta.csv'
+    folder = F'{EVALUATION_FOLDER}/{robot_name}'
+    path = F'{folder}/{test_name}.csv'
+    meta_path = F'{folder}/{test_name}__meta.csv'
     try_delete_file(path)
     try_delete_file(meta_path)
 
 
 def delete_optimisation(optim_name: str, robot_name: str):
-    path = F'{OPTIMISATION_FOLDER}/{robot_name}/{optim_name}'
-    meta_path = F'{path}__meta.csv'
+    folder = F'{OPTIMISATION_FOLDER}/{robot_name}'
+    path = F'{folder}/{optim_name}.csv'
+    meta_path = F'{folder}/{optim_name}__meta.csv'
     try_delete_file(path)
     try_delete_file(meta_path)
 
 
 def delete_algo_result(result_name: str, algo_name: str):
-    path = F'{ALGO_ANALYSIS_FOLDER}/{algo_name}/{result_name}'
-    meta_path = F'{path}__meta.csv'
+    folder = F'{ALGO_ANALYSIS_FOLDER}/{algo_name}'
+    path = F'{folder}/{result_name}.csv'
+    meta_path = F'{folder}/{result_name}__meta.csv'
     try_delete_file(path)
     try_delete_file(meta_path)
 

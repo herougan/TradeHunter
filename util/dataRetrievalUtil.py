@@ -540,7 +540,7 @@ def load_trade_advisor_list():
 # Algos
 
 def load_algo_list():
-    path = F'robot'
+    path = F'algo'
     # Get list of files that end with .py
     robot_list = [os.path.splitext(f)[0] for f in listdir(path) if isfile(join(path, f)) and
                   f.endswith('.py') and '__init__' not in f]
@@ -766,9 +766,13 @@ def delete_ivar(ta_name: str, ivar_name: str):
 
     # Load stored ivars
     idf = load_ivar_df(ta_name)
+    if idf[idf.index == ivar_name].__len__():
+        print(F'Deleted {ivar_name} from {ta_name} IVars')
+    else:
+        print(F'Failed to delete {ivar_name} from {ta_name} IVars')
 
     # Drop row
-    idf.drop(labels=ivar_name, axis=0)
+    idf = idf.drop(labels=ivar_name, axis=0)
 
     idf.index.name = 'name'
     idf.to_csv(path)
@@ -810,8 +814,8 @@ def rename_ivar(ta_name: str, ivar_name: str, new_name: str):
 
 # Algo's IVar
 
-def load_algo_ivar_list():
-    path = F'{settings.ALGO_FOLDER}{settings.IVAR_SUB_FOLDER}/'
+def load_algo_ivar_list(algo_name: str):
+    path = F'{settings.ALGO_FOLDER}{settings.IVAR_SUB_FOLDER}/{algo_name}/'
     # Get list of files that end with .csv
     ivar_list = [f for f in listdir(path) if isfile(join(path, f)) and f.endswith('.csv')]
     return ivar_list
@@ -989,6 +993,12 @@ def try_delete_file(filepath):
         return
     print(F'Delete file at {filepath}')
     os.remove(filepath)
+
+
+def try_delete_csv(filepath):
+    if not filepath.endswith('.csv'):
+        pass
+    pass
 
 
 # Hardware

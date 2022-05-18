@@ -1,11 +1,11 @@
 import pandas as pd
 from PyQt5.QtCore import Qt, pyqtSignal
-from PyQt5.QtWidgets import QTableWidget, QTableWidgetItem, QPlainTextEdit, QSlider
+from PyQt5.QtWidgets import QTableWidget, QTableWidgetItem, QPlainTextEdit, QSlider, QWidget, QVBoxLayout, QLabel, \
+    QHBoxLayout, QPushButton
 from util.langUtil import check_if_valid_timestr
 
 
 def get_datatable_sheet(table: QTableWidget):
-
     map = []
     for i in range(table.rowCount()):
         row = []
@@ -24,14 +24,13 @@ def get_datatable_sheet(table: QTableWidget):
         'symbol': [row[0] for row in map],
         'interval': [row[1] for row in map],
         'period': [row[2] for row in map],
-            }
+    }
     df = pd.DataFrame(data)
 
     return df
 
 
 def get_datatable_sheet_all(table: QTableWidget):
-
     map = []
     for i in range(table.rowCount()):
         row = []
@@ -49,14 +48,13 @@ def get_datatable_sheet_all(table: QTableWidget):
         'symbol': [row[0] for row in map],
         'interval': [row[1] for row in map],
         'period': [row[2] for row in map],
-            }
+    }
     df = pd.DataFrame(data)
 
     return df
 
 
 def get_datatable_sheet_col(table: QTableWidget, col: int):
-
     map = []
     for i in range(table.rowCount()):
         map.append(table.item(i, col).text())
@@ -67,7 +65,7 @@ def get_datatable_sheet_col(table: QTableWidget, col: int):
 
     data = {
         'data': [row[0] for row in map],
-            }
+    }
     df = pd.DataFrame(data)
 
     return df
@@ -91,7 +89,6 @@ def set_dataset_table(table: QTableWidget, ds_names):
 
 
 def get_dataset_table(table: QTableWidget):
-
     ds_names = []
     for i in range(table.rowCount()):
         if table.item(i, 0):
@@ -121,7 +118,6 @@ def clear_table(table: QTableWidget):
 
 
 def count_table(table: QTableWidget):
-
     rows = 0
     for i in range(table.rowCount()):
         empty = False
@@ -152,9 +148,9 @@ def full_only(map):
 # util GUI classes
 
 ALPHABETS = (Qt.Key_A, Qt.Key_B, Qt.Key_C, Qt.Key_D, Qt.Key_E, Qt.Key_F, Qt.Key_G, Qt.Key_H, Qt.Key_I
-                           , Qt.Key_J, Qt.Key_K, Qt.Key_L, Qt.Key_M, Qt.Key_N, Qt.Key_O, Qt.Key_Q, Qt.Key_R, Qt.Key_S
-                           , Qt.Key_T, Qt.Key_U, Qt.Key_V, Qt.Key_W, Qt.Key_X, Qt.Key_Y, Qt.Key_Z,)
-NUMERALS = (Qt.Key_1, Qt.Key_2, Qt.Key_3, Qt.Key_4, Qt.Key_5, Qt.Key_6, Qt.Key_7, Qt.Key_8, Qt.Key_9, Qt.Key_0, )
+             , Qt.Key_J, Qt.Key_K, Qt.Key_L, Qt.Key_M, Qt.Key_N, Qt.Key_O, Qt.Key_Q, Qt.Key_R, Qt.Key_S
+             , Qt.Key_T, Qt.Key_U, Qt.Key_V, Qt.Key_W, Qt.Key_X, Qt.Key_Y, Qt.Key_Z,)
+NUMERALS = (Qt.Key_1, Qt.Key_2, Qt.Key_3, Qt.Key_4, Qt.Key_5, Qt.Key_6, Qt.Key_7, Qt.Key_8, Qt.Key_9, Qt.Key_0,)
 ALPHANUMERICS = ALPHABETS + NUMERALS
 SPACE_KEYS = (Qt.Key_Return, Qt.Key_Enter, Qt.Key_Tab,)
 
@@ -217,11 +213,10 @@ class TextEditForm(QPlainTextEdit):
 
 
 class DoubleSlider(QSlider):
-
     doubleValueChanged = pyqtSignal(float)
 
     def __init__(self, *args, **kargs):
-        super(DoubleSlider, self).__init__( *args, **kargs)
+        super(DoubleSlider, self).__init__(*args, **kargs)
         self._min = 0
         self._max = 99
         self.interval = 1
@@ -265,3 +260,79 @@ class DoubleSlider(QSlider):
 
 class DoubleStepSlider(QSlider):
     pass
+
+
+# Window
+
+
+class ConfirmWindow(QWidget):
+    def __init__(self, text='Are you sure?', title='Confirmation Window',
+                 button_text_1='Confirm', button_text_2='Cancel'):
+        super().__init__()
+        # UI Widgets' text
+        self.text = text
+        self.title = title
+        self.button_text_1 = button_text_1
+        self.button_text_2 = button_text_2
+        # Button binded function
+        self.f = None
+        # Main
+        self.window()
+
+    def window(self):
+        layout = QVBoxLayout()
+        label = QLabel(self.text)
+        layout.addWidget(label)
+        self.setWindowTitle(self.title)
+
+        button_layout = QHBoxLayout()
+        confirm_button = QPushButton(self.button_text_1)
+        cancel_button = QPushButton(self.button_text_2)
+        button_layout.addWidget(confirm_button)
+        button_layout.addWidget(cancel_button)
+        layout.addLayout(button_layout)
+
+        cancel_button.clicked.connect(self.back)
+        confirm_button.clicked.connect(self.confirm)
+
+        self.setLayout(layout)
+
+    def bind_function(self, f):
+        self.f = f
+
+    def confirm(self):
+        self.f()
+
+    def back(self):
+        self.close()
+
+
+class QuickAlertWindow(QWidget):
+    # todo on "enter" close window!
+
+    def __init__(self, text="Alert!", title="Alert Window", button_text="OK"):
+        super().__init__()
+        # UI Widgets' text
+        self.text = text
+        self.title = title
+        self.button_text = button_text
+        # Main
+        self.window()
+
+    def window(self):
+        layout = QVBoxLayout()
+        label = QLabel(self.text)
+        layout.addWidget(label)
+        self.setWindowTitle(self.title)
+
+        # Buttons
+        button_layout = QHBoxLayout()
+        cancel_button = QPushButton(self.button_text)
+        button_layout.addWidget(cancel_button)
+        layout.addLayout(button_layout)
+        cancel_button.clicked.connect(self.back)
+
+        self.setLayout(layout)
+
+    def back(self):
+        self.close()
