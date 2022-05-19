@@ -28,7 +28,7 @@ from util.dataRetrievalUtil import load_trade_advisor_list, get_dataset_changes,
     load_ivar_as_list, translate_xvar_dict, load_flat_commission_suggestions, load_speed_suggestions, load_ivar_as_dict, \
     load_capital_suggestions, remove_all_df, remove_dataset_change, remove_dataset, delete_ivar, get_random_df, \
     load_optim_depth_suggestions, load_setting, remove_ds_df, load_algo_list, load_algo_ivar_list, \
-    load_optim_width_suggestions, rename_dataset, rename_ivar, insert_ivar
+    load_optim_width_suggestions, rename_dataset, rename_ivar, insert_ivar, load_algo_ivar_as_dict
 from util.dataTestingUtil import step_test_robot, DataTester, write_test_result, write_test_meta, load_test_result, \
     load_test_meta, get_tested_robot_list, get_tests_list, get_ivar_vars, delete_test, delete_algo_result, \
     delete_optimisation, get_optimised_robot_list, get_optimisations_list, get_algo_results_list, \
@@ -2345,20 +2345,7 @@ class TradeHunterApp:
             df_left_layout = QVBoxLayout()
             df_right_layout = QVBoxLayout()
 
-            # Robot or Algo Sim
-            type_combo = QComboBox()
-            types = ['Robot', 'Algo']
-            type_combo = QComboBox()
-            test_types = ['Single', 'Multi']
-            test_combo = QComboBox()
-
-            for type in types:
-                type_combo.insertItem(0, type)
-            type_combo.setCurrentIndex(0)
-            for type in test_types:
-                test_combo.insertItem(0, type)
-            test_combo.setCurrentIndex(0)
-
+            # Main options
             df_label = QLabel('Data')
             df_select = QComboBox()
             type_label = QLabel('Type')
@@ -2368,10 +2355,18 @@ class TradeHunterApp:
             ivar_label = QLabel('IVar')
             ivar_select = QComboBox()
 
+            # Robot or Algo Sim
+            default_type = 'Robot'
+            types = ['Robot', 'Algo']
+            type_select = QComboBox()
+            for type in types:
+                type_select.insertItem(0, type)
+            type_select.setCurrentIndex(type_select.findText(default_type))
+
             df_select.setFixedHeight(20)
             robot_select.setFixedHeight(20)
             ivar_select.setFixedHeight(20)
-            test_combo.setFixedHeight(20)
+            type_select.setFixedHeight(20)
 
             sim_label = QLabel('Speed')
             sim_speed = QComboBox()  # Sim Variables
@@ -2391,8 +2386,8 @@ class TradeHunterApp:
             df_paths.sort()
             for df_path in df_paths:
                 df_select.addItem(df_path)
-            for robot in load_trade_advisor_list():
-                robot_select.addItem(robot)
+            # for robot in load_trade_advisor_list():
+            #     robot_select.addItem(robot)
             for speed in load_speed_suggestions():
                 sim_speed.addItem(str(speed))
             df_select.setCurrentIndex(0)
@@ -2452,14 +2447,19 @@ class TradeHunterApp:
                     label.deleteLater()
                 self.labels = []
 
+                _type = type_select.currentText().lower()
                 ivar = self.ivar_select.currentText()
                 robot = self.robot_select.currentText()
-                if not ivar or robot:
+                if not ivar or not robot:
                     _1 = QLabel(F'There are no IVars.')
                     ivar_left_layout.addWidget(_1)
                     self.labels.append(_1)
                     return
-                ivar_df = load_ivar_as_dict(robot, ivar)
+
+                if _type == 'algo':
+                    ivar_df = load_algo_ivar_as_dict(robot, ivar)
+                elif _type == 'robot':
+                    ivar_df = load_ivar_as_dict(robot, ivar)
                 # self.ivar = load_ivar_as_list(robot, ivar)
                 self.ivar = load_ivar_as_dict(robot, ivar)
                 keys = self.ivar_label_dict.keys()
@@ -2487,9 +2487,11 @@ class TradeHunterApp:
                 """General method 'load_robot_list' calls this method"""
                 algos = load_algo_list()
                 algos.sort(reverse=True)
+                robot_select.clear()
                 for algo in algos:
                     robot_select.addItem(algo)
                 robot_select.setCurrentIndex(0)
+                robot_label.setText('Algorithm')
 
                 # Propagate changes
                 load_algo_ivar_label_list()
@@ -2503,11 +2505,13 @@ class TradeHunterApp:
                     pass
 
                 # If robot:
+                robot_select.clear()
                 robots = load_trade_advisor_list()
                 robots.sort(reverse=True)
-                for robot in robots():
-                    robot_select.addItem(robot)
+                for robot in robots:
+                    robot_select.insertItem(0, robot)
                 robot_select.setCurrentIndex(0)
+                robot_label.setText('Robot')
 
                 # Propagate changes
                 load_ivar_label_list()
@@ -2517,7 +2521,7 @@ class TradeHunterApp:
                 self.df = df_name
 
             def load_main_combo():
-                type = type_combo.currentText().lower()
+                type = type_select.currentText().lower()
                 robots = []
 
                 if type == 'algo':
@@ -2533,15 +2537,14 @@ class TradeHunterApp:
                     self.robot_select.insertItem(robot, 0)
                 self.robot_select.setCurrentIndex(0)
 
-            load_ivar_label_list()
-            load_ivar_labels()
-            load_df()
-
-            type_combo.activated.connect(load_main_combo)
+            # type_select.activated.connect(load_main_combo)
             ivar_select.activated.connect(load_ivar_labels)
             type_select.activated.connect(load_robot_combo)
             df_select.activated.connect(load_df)
             robot_select.activated.connect(load_ivar_label_list)
+            # Load all from type, then robot/algo, then ivar.
+            load_df()
+            load_robot_combo()
 
             ivar_layout.addLayout(ivar_left_layout)
             ivar_layout.addLayout(ivar_right_layout)
@@ -2561,13 +2564,13 @@ class TradeHunterApp:
             leverage_combo = QComboBox()
             instrument_label = QLabel('Instrument')
             instrument_combo = QComboBox()
-            sim_type_label = QLabel('Sim Type')  # Singular/Multi
-            sim_type_combo = QComboBox()
+            test_label = QLabel('Sim Type')  # Singular/Multi
+            test_combo = QComboBox()
             commission_label = QLabel('Commission')
             commission_combo = QComboBox()
             commission_combo.setFixedHeight(20)
 
-            test_types = ['SingleSim']
+            test_types = ['Single', 'Multi']
             lag_types = load_lag_suggestions()
             capital_types = load_capital_suggestions()
             leverage_types = load_leverage_suggestions()
@@ -2575,19 +2578,19 @@ class TradeHunterApp:
             commission_types = load_flat_commission_suggestions()
 
             # Fill in xvar combo options
-            for type in test_types:
-                type_combo.insertItem(0, type)
-            for type in lag_types:
-                lag_combo.insertItem(0, type)
-            for type in capital_types:
-                capital_combo.insertItem(0, str(type))
-            for type in leverage_types:
-                leverage_combo.insertItem(0, type)
-            for type in instrument_types:
-                instrument_combo.insertItem(0, type)
-            for type in commission_types:
-                commission_combo.insertItem(0, str(type))
-            type_combo.setCurrentIndex(0)
+            for test in test_types:
+                test_combo.insertItem(0, test)
+            for lag in lag_types:
+                lag_combo.insertItem(0, lag)
+            for capital in capital_types:
+                capital_combo.insertItem(0, str(capital))
+            for leverage in leverage_types:
+                leverage_combo.insertItem(0, leverage)
+            for instrument in instrument_types:
+                instrument_combo.insertItem(0, instrument)
+            for commission in commission_types:
+                commission_combo.insertItem(0, str(commission))
+            test_combo.setCurrentIndex(0)
             lag_combo.setCurrentIndex(0)
             capital_combo.setCurrentIndex(0)
             leverage_combo.setCurrentIndex(0)
@@ -2598,14 +2601,14 @@ class TradeHunterApp:
             xvar_left_layout.addWidget(capital_label, 1)
             xvar_left_layout.addWidget(leverage_label, 1)
             xvar_left_layout.addWidget(instrument_label, 1)
-            xvar_left_layout.addWidget(type_label, 1)
+            xvar_left_layout.addWidget(test_label, 1)
             xvar_left_layout.addWidget(commission_label, 1)
 
             xvar_right_layout.addWidget(lag_combo, 1.5)
             xvar_right_layout.addWidget(capital_combo, 1.5)
             xvar_right_layout.addWidget(leverage_combo, 1.5)
             xvar_right_layout.addWidget(instrument_combo, 1.5)
-            xvar_right_layout.addWidget(type_combo, 1.5)
+            xvar_right_layout.addWidget(test_combo, 1.5)
             xvar_right_layout.addWidget(commission_combo, 1.5)
 
             xvar_layout.addLayout(xvar_left_layout, 1)
@@ -2657,11 +2660,7 @@ class TradeHunterApp:
                 return True
 
             def sim_button_clicked():
-                program_type = type_combo.currentText().lower()
-                if program_type == 'algo':
-                    pass
-                elif program_type == 'robot':
-                    pass
+                program_type = type_select.currentText().lower()
 
                 # self.ivar = {}  # Saved on ivar selection
                 self.xvar = {'lag': lag_combo.currentText(),
@@ -2669,17 +2668,18 @@ class TradeHunterApp:
                              'leverage': leverage_combo.currentText(),
                              'instrument_type': instrument_combo.currentText(),
                              # test specific
-                             'test_type': type_combo.currentText()}
+                             'test_type': type_select.currentText()}
                 self.xvar = translate_xvar_dict(self.xvar)
                 self.svar = {
                     'speed': try_float(sim_speed.currentText()),
                     'scope': load_setting('sim_scope')[0],  # svar:Scope
+                    'type': test_combo.currentText()
                 }
-                sim_type = sim_type_combo.currentText()
+                _type = type_select.currentText().lower()
                 if check_input():
                     print("Simulating:", df_select.currentText(), robot_select.currentText())
                     self.test(self.xvar, self.ivar, self.svar, self.robot_select.currentText(),
-                              df_select.currentText(), type)
+                              df_select.currentText(), _type)
 
             # This window does not close upon plotting.
             back_button.clicked.connect(self.back)
@@ -2698,15 +2698,14 @@ class TradeHunterApp:
             self.setWindowTitle('Simulation Plot')
             self.show()
 
-        def test(self, xvar, ivar, svar, ta_name, df_name, type):
+        def test(self, xvar, ivar, svar, ta_name, df_name, _type):
             data_tester = DataTester(xvar)
 
-            if type.lower() == "robot":
-                pass
-            elif type.lower() == "algo":
-                pass
-
-            success, error = data_tester.simulate_single(ta_name, ivar, svar, df_name, self.canvas)
+            success, error = False, 'unknown error'
+            if _type.lower() == "robot":  # (Technically both cases handled in s_s(), but separated here
+                success, error = data_tester.simulate_single(ta_name, ivar, svar, df_name, self.canvas)
+            elif _type.lower() == "algo":  #  for clarity sake)
+                success, error = data_tester.simulate_single(ta_name, ivar, svar, df_name, self.canvas)
 
             self.plot = QWidget()
             self.plot.setWindowTitle(F'{ta_name} in {df_name}')

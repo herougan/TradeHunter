@@ -169,7 +169,7 @@ class FMACDRobot(robot):
 
         # == Main Args ==
         self.profit_loss_ratio = self.ivar['profit_loss_ratio']['default']
-        self.sma_period = self.ivar ['sma_period']['default']
+        self.sma_period = self.ivar['sma_period']['default']
         # (Demoted)
         self.fast_period = self.OTHER_ARGS_DICT['fast_period']['default']
         self.slow_period = self.OTHER_ARGS_DICT['slow_period']['default']
@@ -289,6 +289,13 @@ class FMACDRobot(robot):
             'MACD_DF': pd.DataFrame(),
         }
         self.df_test = pd.DataFrame()
+
+    def ivar_check(self, ivar):
+        fail = False
+        for key in self.ivar.keys():
+            arg = self.ivar[key]
+        if fail:
+            self.reset(self.ivar, self.xvar)
 
     def reset(self, ivar=ARGS_DICT, xvar={}):
         if not xvar:
@@ -513,12 +520,6 @@ class FMACDRobot(robot):
             self.next(self.df[self.test_idx: self.test_idx + 1])
             self.test_idx = i
 
-    def sim_start(self):
-        # self.test_mode = True
-        # # Since sim, test from 0.
-        # self.test_idx = 0
-        pass
-
     def sim_next(self, candlesticks: pd.DataFrame):
         self.next(candlesticks)
 
@@ -670,7 +671,7 @@ class FMACDRobot(robot):
         # parity = pd.DataFrame([self.indicators['MACD'][-rev_idx-1], self.indicators['MACD'][-rev_idx]]) > \
         #          pd.DataFrame([self.indicators['MACD_SIGNAL'][-rev_idx-1], self.indicators['MACD_SIGNAL'][-rev_idx]])
         parity = [self.indicators['MACD'][rev_idx] > self.indicators['MACD_SIGNAL'][rev_idx], \
-                 self.indicators['MACD'][rev_idx-1] > self.indicators['MACD_SIGNAL'][rev_idx-1]]
+                  self.indicators['MACD'][rev_idx - 1] > self.indicators['MACD_SIGNAL'][rev_idx - 1]]
         if parity[-1] != parity[-2]:
             if parity[-1]:
                 return 1
@@ -915,7 +916,7 @@ class FMACDRobot(robot):
     # Optimisation
 
     def step_ivar(self, idx, up=True):
-        if len(self.ivar_range) >= idx:   # todo doesnt work
+        if len(self.ivar_range) >= idx:  # todo doesnt work
             i = -1
             if up:
                 i = 1

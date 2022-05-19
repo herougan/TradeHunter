@@ -315,7 +315,6 @@ for candlestick in df:
     pass_data.append(candlestick)
     pass
 
-
 # ##### Method 3 #####
 
 # Method by Deviation

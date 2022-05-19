@@ -1,4 +1,5 @@
 # Stats Imports
+import importlib
 import platform
 import random
 from statistics import stdev
@@ -620,14 +621,6 @@ def load_ivar_as_list(ta_name: str, ivar_name: str):
 def load_ivar_list(ta_name: str):
     """Returns IVar names only"""
     idf = load_ivar_df(ta_name)
-    # folder = F'robot/ivar'
-    # ivar_file = F'{ta_name}_ivar'
-    # path = F'{folder}/{ivar_file}.csv'
-    #
-    # if not file_exists(path):
-    #     generate_ivar(ta_name)
-    #
-    # idf = pd.read_csv(path, index_col=0)
     return list(idf.index)
 
 
@@ -639,12 +632,18 @@ def load_ivar_file_list():
 
 
 def generate_ivar(ta_name: str):
-    folder = F'robot/ivar'
+    folder = F'{settings.ROBOT_FOLDER}{settings.IVAR_SUB_FOLDER}'
     ivar_file = F'{ta_name}_ivar'
     path = F'{folder}/{ivar_file}.csv'
     # args_str = eval(F'{ta_name}.{ta_name}.ARGS_STR')
     # args = eval(F'{ta_name}.{ta_name}.ARGS_DEFAULT')
-    args_dict = eval(F'{ta_name}.{ta_name}.ARGS_DICT')
+    module = importlib.import_module(F'robot.{ta_name}')
+    globals().update(
+        {n: getattr(module, n) for n in module.__all__} if hasattr(module, '__all__')
+        else
+        {k: v for (k, v) in module.__dict__.items() if not k.startswith('_')
+         })
+    args_dict = eval(F'{ta_name}.ARGS_DICT')
     data = {
         # meta
         'name': ['*Default'],
@@ -660,6 +659,14 @@ def generate_ivar(ta_name: str):
 
     df = pd.DataFrame.from_dict(data)
     df.to_csv(path, index=False)
+
+
+def generate_algo_ivar(algo_name: str):
+    folder = F'{settings.ALGO_FOLDER}{settings.IVAR_SUB_FOLDER}'
+    ivar_file = F'{algo_name}_ivar'
+    path = F'{folder}/{ivar_file}.csv'
+    # todo
+    pass
 
 
 def ivar_to_arr(idf: pd.DataFrame):
@@ -816,6 +823,9 @@ def rename_ivar(ta_name: str, ivar_name: str, new_name: str):
 
 def load_algo_ivar_list(algo_name: str):
     path = F'{settings.ALGO_FOLDER}{settings.IVAR_SUB_FOLDER}/{algo_name}/'
+    # Algo might not contain ivars.
+    if not os.path.exists(path):
+        return []
     # Get list of files that end with .csv
     ivar_list = [f for f in listdir(path) if isfile(join(path, f)) and f.endswith('.csv')]
     return ivar_list

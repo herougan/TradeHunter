@@ -390,7 +390,8 @@ def get_instrument_from_filename(s: str):
 
 
 def craft_test_filename(ta_name: str, ivar_name: str, ds_names: List[str]):
-    pass
+    """Test name can be set by user. This is an auto-generated filename"""
+    return F'{ta_name}-{ivar_name}'
 
 
 def get_size_bytes(bytes, suffix="B"):

@@ -1,4 +1,4 @@
-"""FMACD Robot"""
+"""TwinSMA Robot"""
 import math
 from typing import List
 
@@ -17,8 +17,7 @@ from datetime import datetime, timedelta
 # Signal - Dictionary, trade deal = { type, vol (amount), start, end, }
 
 
-# This FMACD algorithm uses MACD crossing as a trigger signal,
-# and MACD hist and SMA200 as secondary conditions.
+# This TwinSMA algorithm uses SMA crossing as a trigger signal,
 #
 #
 from settings import IVarType
@@ -46,9 +45,15 @@ class TwinSMA(robot):
         'sma_period': {
             'default': 200,
             'range': [100, 300],
-            'step_size': 10,
-            'type': IVarType.CONTINUOUS,
+            'step_size': 1,
+            'type': IVarType.DISCRETE,
         },
+        'sma_2_period': {
+            'default': 50,
+            'range': [10, 500],
+            'step_size': 1,
+            'type': IVarType.DISCRETE
+        }
     }
     OTHER_ARGS_DICT = {
         'fast_period': {
@@ -131,7 +136,7 @@ class TwinSMA(robot):
     PLOT_NO = [0, 0, 1]  # (Trailing)
 
     VERSION = '0.1'
-    NAME = 'FMACDRobot'
+    NAME = 'TwinSMA'
 
     def __init__(self, ivar=ARGS_DICT, xvar={}):
         """XVar variables should be numbers or strings.
@@ -144,8 +149,7 @@ class TwinSMA(robot):
         if len(ivar.keys()) >= len(self.ARGS_DICT.keys()):
             self.ivar = ivar
         else:
-            self.ivar = FMACDRobot.ARGS_DICT
-        # self.ivar_range = FMACDRobot.ARGS_RANGE
+            self.ivar = TwinSMA.ARGS_DICT
         self.ivar_range = {}
 
         # == Data Meta ==
@@ -232,7 +236,7 @@ class TwinSMA(robot):
         # }
         self.new_indicators = {}
         # == Signals ==
-        self.signals = []  # { Standard_Dict, FMACD_Specific_Dict }
+        self.signals = []  # { Standard_Dict, }
         self.open_signals = []  # Currently open signals
         self.new_closed_signals = []  # Deleted on each 'next'. For easy runtime analysis
         self.new_open_signals = []
@@ -275,7 +279,7 @@ class TwinSMA(robot):
         # == Robot Status ==
         self.test_mode = False
         self.test_idx = 0
-        self.market_active = False  # FMACDRobot is not aware of actual money
+        self.market_active = False
         self.started = False
 
         # == Testing Only ==

@@ -25,9 +25,14 @@ label - combo/slider+edit/edit
 5c) Graph embedded during optimisation
 5d) result analysis shows all datasets tested
 
+6) IVar input should stay as ivar (eg. no more "self.min_base = ivar['min_base']['default']")
+though it is more convenient to use self.min_base. check can just run __init__ again if it fails.
+adjusting ivar values. what about moving values? the ivar doesnt move but the main value moves.
+Only delete this (6) line after understanding this.
+
 8d) Block optimisation
 8e) Random optimisation
-
+#==============DATA TESTER===========
 9) Consider 1) Small ranges, Discrete, Array and Continuous types
 E.g. Small ranges are not processed in Block or Random runs, Discrete MUST move in steps,
 arrays can only move along array's list and continuous allows for any value, step size being
@@ -37,9 +42,10 @@ normalised over the whole hyperparameter sphere, the parameters can only descend
 Of course, if its only 1 but has N parameters, all the N parameters would move less than 1 step.
 Min. 1 step. (moving much further than dist = 1)
 9b) detect parallel attributes
-
+#================= SIM ================
 10) Algo plotter in sim plotter
 10b) share axes for convenience
+10c(HARD)) Sim plotter redraws only relevant parts/draws relevant parts
 
 11) full 'simulated' plot - candlesticks -> line, + profit line, buy/sell profit/loss lines
 

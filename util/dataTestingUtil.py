@@ -1,5 +1,6 @@
 import copy
 import datetime
+import importlib
 import os
 import random
 from datetime import datetime, timedelta
@@ -25,8 +26,9 @@ from util.langUtil import craft_instrument_filename, strtodatetime, try_key, rem
     try_mean, get_test_name, get_file_name, get_instrument_from_filename, \
     try_min, try_sgn, in_std_range
 
+
 #  Robot
-from robot import FMACDRobot
+# from robot import FMACDRobot, TwinSMA
 
 
 def step_test_robot(r: robot, step: int):
@@ -845,6 +847,23 @@ class DataTester:
     def bind_progress_bar_2(self, p_bar_2: QProgressBar):
         self.p_bar_2 = p_bar_2
 
+    # == Full run ==
+    def live_simulate(self, ta_name: str, ivar: dict, dfs: List[str], test_name: str):
+        """"""
+        # Pre-download data
+        # robot.start()
+        time_index = []
+        for df in dfs:
+            time_index.append(
+                {
+                    'last_index': 0, # some time
+                    'last_time': 0,
+                }
+            )
+
+        # Bundle all data since last time_index
+        pass
+
     # == Test ==
     def test(self, ta_name: str, ivar: dict, ds_names: List[str], test_name: str, store=True, meta_store=True):
         """Runs a test against a particular set of datasets. (Sets of sets of data) Depending on the robot, test() is
@@ -955,14 +974,27 @@ class DataTester:
 
     # == Visual ==
     def simulate_single(self, ta_name, ivar, svar, df_name, canvas):
+        """Simulate a robot on some single dataframe and draw
+        results on input canvas.
+        This method only works for robot and not algo!"""
 
         ta_name = remove_special_char(ta_name)
-        print('Starting visual simulation: ' + F'{ta_name}.{ta_name}({ivar}) with i:{ivar}, x:{self.xvar}')
+        print('Starting visual simulation: ' + F'{ta_name}({ivar}) with i:{ivar}, x:{self.xvar}, s:{svar}')
+        pre_path = 'robot'
 
-        self.robot = eval(F'{ta_name}.{ta_name}({ivar}, {self.xvar})')
+        # Import robot py
+        module = importlib.import_module(F'{pre_path}.{ta_name}')
+        globals().update(
+            {n: getattr(module, n) for n in module.__all__} if hasattr(module, '__all__')
+            else
+            {k: v for (k, v) in module.__dict__.items() if not k.startswith('_')
+             })
+
+        # Start robot
+        self.robot = eval(F'{ta_name}({ivar}, {self.xvar})')
         sym, interval_str, period = get_instrument_from_filename(df_name)
         df = load_df(df_name)
-        if len(df) < self.robot.PREPARE_PERIOD:
+        if len(df) < self.robot.PREPARE_PERIOD:  # Otherwise the robot will do nothing
             print(F"Not enough data! Minimum {self.robot.PREPARE_PERIOD} for {ta_name}")
             return False, F"Not enough data! Minimum {self.robot.PREPARE_PERIOD} for {ta_name}"
 
@@ -977,9 +1009,8 @@ class DataTester:
         main_ax = axes[0][0]  # row 0, col 0
         last_ax = axes[-1][-1]
 
-        self.robot.start(sym, interval_str, period, df[0: start])
         # Simulate and plot
-        self.robot.sim_start()
+        self.robot.start(sym, interval_str, period, df[0: start])
         starting_balance = self.xvar['capital']
         scope = svar['scope']
 
@@ -989,7 +1020,7 @@ class DataTester:
         for i in range(start, len(df)):
 
             # Clear figure # todo dont replot whole figure. although open_signals - signals ... need to find cheatcode!
-            # like baseline_date to start_date stop take, then start_date to end_date close deal!
+            # e.g. like baseline_date to start_date stop take, then start_date to end_date close deal!
             for ax_row in axes:
                 for ax in ax_row:
                     ax.clear()
@@ -1114,6 +1145,58 @@ class DataTester:
 
         plt.show()
         return True, 'No Error'
+
+    def simulate_algo_single(self, algo_name, ivar, svar, df_name, canvas):
+        """...
+        returns Success: bool, Error Message: str"""
+
+        ta_name = remove_special_char(algo_name)
+        print('Starting visual simulation: ' + F'{algo_name}({ivar}) with i:{ivar}, s:{svar}')
+        pre_path = 'robot'
+
+        # Import robot py
+        module = importlib.import_module(F'{pre_path}.{ta_name}')
+        globals().update(
+            {n: getattr(module, n) for n in module.__all__} if hasattr(module, '__all__')
+            else
+            {k: v for (k, v) in module.__dict__.items() if not k.startswith('_')
+             })
+
+        # Start algo
+        self.algo = eval(F'{algo_name}({ivar})')
+        sym, interval_str, period = get_instrument_from_filename(df_name)
+        df = load_df(df_name)
+        if len(df) < self.algo.PREPARE_PERIOD:  # Otherwise the robot will do nothing
+            print(F"Not enough data! Minimum {self.robot.PREPARE_PERIOD} for {ta_name}")
+            return False, F"Not enough data! Minimum {self.robot.PREPARE_PERIOD} for {ta_name}"
+
+        # Variables
+        sleep_time = 1 / svar['speed']  # seconds
+        start = 1  # index of dataframe to start at
+
+        # Plotting handles
+        signals = []
+        instructions = []
+        axes = canvas.axes
+        main_ax = axes[0][0]  # row 0, col 0
+        last_ax = axes[-1][-1]
+
+        self.algo.start(sym, interval_str, period, df[0: start])
+
+        # Drawing constants
+        margin = PLOTTING_SETTINGS['plot_margin'][1]
+
+        # Slowly feed data
+        for i in range(start, len(df)):
+
+            # Clear all
+            for ax_row in axes:
+                for ax in ax_row:
+                    ax.clear()
+
+            # Next
+
+        return True, 'NA'
 
     # == Optimise ==
     def optimise(self, ta_name: str, init_ivar: List[float], ds_names: List[str], optim_name: str, store=True,
