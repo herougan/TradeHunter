@@ -27,3 +27,10 @@ def moving_stddev(period, data):
 
 def adjusted_dev(period, data):
     pass
+
+
+def index_arr_to_date(date_index, index):
+    pass
+
+def date_to_index_arr(index, date):
+    pass

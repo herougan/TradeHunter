@@ -13,7 +13,7 @@ from pandas import to_datetime
 import matplotlib as mpl
 
 from settings import PLOTTING_SETTINGS
-from util.langUtil import timedeltatoyahootimestr, strtodatetime, is_datetime, strtotimedelta
+from util.langUtil import timedeltatoyahootimestr, strtodatetime, is_datetime, strtotimedelta, try_mean
 
 BAR_WIDTH = 5
 BAR_WIDTH_DICT = {
@@ -84,7 +84,7 @@ def candlestick_plot(ax, df: pd.DataFrame, xlim=None):
 
     if not xlim:
         xlim = [df.index[0], df.index[-1]]
-        
+
     # Do not plot things outside the scope
     df = df[df.index > xlim[0]]
     high = max(df.High)
@@ -109,14 +109,13 @@ def candlestick_plot(ax, df: pd.DataFrame, xlim=None):
     ax.set_xlim(left=xlim[0], right=xlim[1])
     ax.set_ylim(top=high + height,
                 bottom=max([0, low - height]))  # do not plot below 0
-    
-    
+
+
 def add_candlestick_plot(ax, df: pd.DataFrame):
     pass
 
 
 def macd_histogram_plot(ax, df: pd.DataFrame, xlim=None):
-
     # Check if there is data to be plotted
     has_data = len([d for d in df if not math.isnan(d)]) > 1
 
@@ -181,6 +180,22 @@ def line_plot(ax, df: pd.DataFrame, style={}, xlim=None):
         if not xlim:
             xlim = [df.index[0], df.index[-1]]
         ax.set_xlim(left=xlim[0], right=xlim[-1])
+
+
+def support_plot(ax, supports, style):  # support = {strength, height}
+    """Plots horizontal lines at heights given. Darkness of colour depends on lines' strength.
+    Default str. 1"""
+    _style = {
+        'colour': 'black',
+        'weaker_colour': 'grey',
+    }
+    _style.update(style)  # let style override this default
+    low_strength = try_mean([support['strength'] for support in supports]) * 0.2
+    for support in supports:
+        col = _style['colour']
+        if support['strength'] < low_strength:
+            col = _style['weaker_colour']
+        ax.axhline(y=support['height'], color=col, linestyle='-')
 
 
 def generic_style():
@@ -274,11 +289,10 @@ def load_signals(ax, sdf):
 
 
 def plot_optimisations(ax, ivar_results, style={}, **kwd):
-
     # Sort data by high, low and average
     x = []
     y = []
-    for i in range(len(ivar_results)): # {ivar, fitness, type}
+    for i in range(len(ivar_results)):  # {ivar, fitness, type}
         ivar_result = ivar_results[i]
         x.append(i)
         y.append(ivar_result[i])
@@ -304,26 +318,28 @@ def plot_robot_instructions(axes, instructions, xlim):
 
 
 def plot_robot_instruction(axes, instruction, xlim):
-    index = instruction['index']
-    data = instruction['data']
+    # index = instruction['index']
     type = instruction['type']
-    colour = instruction['colour']
+    # data = instruction['data']
+    # colour = instruction['colour']
 
-    ax = axes[index][0]  # row, column - in this case, assume only 0
+    ax = axes[instruction['index']][0]  # row, column - in this case, assume only 0
 
     # Plot based on the different types...
     if type == "null":
         pass
     elif type.lower() == "macd_hist":
-        macd_histogram_plot(ax, data, xlim)
+        macd_histogram_plot(ax, instruction['data'], xlim)
     elif type.lower() == "line":
-        line_plot(ax, data, {'colour': colour, 'transparency': 0.8}, xlim)
+        line_plot(ax, instruction['data'], {'colour': instruction['colour'], 'transparency': 0.8}, xlim)
     elif type.lower() == "hist":
         pass
     elif type.lower() == "area":
         pass
     elif type.lower() == "between":
         pass
+    elif type.lower() == "support":
+        support_plot(ax, instruction['data'])
     pass
 
 
@@ -466,10 +482,14 @@ def plot_stop_take(ax, signals, style={}, xlim=None):
     # loss_col = 'r'
 
     # note profit_width and loss_width etc vwidth all same
-    ax.bar(profit_index, profit_height, width=profit_width, color=style['profit_col'], alpha=style['transparency'], bottom=profit_base, align='edge')
-    ax.bar(loss_index, loss_height,  width=loss_width, color=style['loss_col'], alpha=style['transparency'], bottom=loss_base, align='edge')
-    ax.bar(vprofit_index, vprofit_height,  width=vprofit_width, color=style['profit_virtual'], alpha=style['transparency'], bottom=vprofit_base, align='edge')
-    ax.bar(vloss_index, vloss_height,  width=vloss_width, color=style['loss_virtual'], alpha=style['transparency'], bottom=vloss_base, align='edge')
+    ax.bar(profit_index, profit_height, width=profit_width, color=style['profit_col'], alpha=style['transparency'],
+           bottom=profit_base, align='edge')
+    ax.bar(loss_index, loss_height, width=loss_width, color=style['loss_col'], alpha=style['transparency'],
+           bottom=loss_base, align='edge')
+    ax.bar(vprofit_index, vprofit_height, width=vprofit_width, color=style['profit_virtual'],
+           alpha=style['transparency'], bottom=vprofit_base, align='edge')
+    ax.bar(vloss_index, vloss_height, width=vloss_width, color=style['loss_virtual'], alpha=style['transparency'],
+           bottom=vloss_base, align='edge')
 
 
 def plot_open_stop_take(ax, signals, style={}, xlim=None):
@@ -526,7 +546,6 @@ def plot_open_close_pos(ax: matplotlib.axes.Axes, signal, style={}, xlim=None):
 
 
 def plot_open_close_all_pos(ax: matplotlib.axes.Axes, signals, style={}, xlim=None):
-
     # Style options
     default_style = {
         'transparency': 0.8,

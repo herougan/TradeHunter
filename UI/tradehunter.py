@@ -921,6 +921,7 @@ class TradeHunterApp:
                 for ivar in ivar_list:
                     ivar_combo.insertItem(0, ivar)
                 ivar_combo.setCurrentIndex(0)
+
             load_ivar_combo()
             ivar_layout.addWidget(ivar_label)
             ivar_layout.addWidget(ivar_combo)
@@ -1887,7 +1888,7 @@ class TradeHunterApp:
                 label.deleteLater()
             for label in self.labels_2:
                 label.deleteLater()
-                
+
         def clear_labels(self):
             self.delete_labels()
             self.generate_empty_dict()
@@ -2450,20 +2451,32 @@ class TradeHunterApp:
                 _type = type_select.currentText().lower()
                 ivar = self.ivar_select.currentText()
                 robot = self.robot_select.currentText()
-                if not ivar or not robot:
-                    _1 = QLabel(F'There are no IVars.')
-                    ivar_left_layout.addWidget(_1)
-                    self.labels.append(_1)
-                    return
+                if _type == 'algo':
+                    if not robot:
+                        _1 = QLabel(F'No algo found.')
+                        ivar_left_layout.addWidget(_1)
+                        self.labels.append(_1)
+                        return
+                elif _type == 'robot':
+                    if not ivar or not robot:
+                        _1 = QLabel(F'There are no IVars.')
+                        ivar_left_layout.addWidget(_1)
+                        self.labels.append(_1)
+                        return
 
                 if _type == 'algo':
                     ivar_df = load_algo_ivar_as_dict(robot, ivar)
                 elif _type == 'robot':
                     ivar_df = load_ivar_as_dict(robot, ivar)
                 # self.ivar = load_ivar_as_list(robot, ivar)
-                self.ivar = load_ivar_as_dict(robot, ivar)
+                self.ivar = ivar_df
                 keys = self.ivar_label_dict.keys()
 
+                if not self.ivar:
+                    _1 = QLabel(F'There are no IVars.')
+                    ivar_left_layout.addWidget(_1)
+                    self.labels.append(_1)
+                    return
                 for _key in ivar_df.keys():
                     if _key.lower() == 'name':
                         continue
@@ -2704,8 +2717,8 @@ class TradeHunterApp:
             success, error = False, 'unknown error'
             if _type.lower() == "robot":  # (Technically both cases handled in s_s(), but separated here
                 success, error = data_tester.simulate_single(ta_name, ivar, svar, df_name, self.canvas)
-            elif _type.lower() == "algo":  #  for clarity sake)
-                success, error = data_tester.simulate_single(ta_name, ivar, svar, df_name, self.canvas)
+            elif _type.lower() == "algo":  # for clarity sake)
+                success, error = data_tester.simulate_algo_single(ta_name, ivar, svar, df_name, self.canvas)
 
             self.plot = QWidget()
             self.plot.setWindowTitle(F'{ta_name} in {df_name}')

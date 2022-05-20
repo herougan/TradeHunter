@@ -837,7 +837,7 @@ def load_algo_ivar_df(algo_name: str, meta=False):
     ivar_file = F'{algo_name}_ivar'
     path = F'{folder}/{ivar_file}.csv'
 
-    if not file_exists(path):
+    if not file_exists(path):  # return empty instead
         return pd.DataFrame()
 
     aidf = pd.read_csv(path, index_col='name')
@@ -862,8 +862,14 @@ def load_algo_ivar(algo_name: str, ivar_name: str):
 
 
 def load_algo_ivar_as_dict(algo_name: str, ivar_name: str):
+    """Note: This IVar is in flat format. e.g. name is a property of this ivar and not outside it!
+    In the datatester, name, fitness etc. are properties of 'ivar_dict' and the ivar itself is another property.
+    In optimisation, in additions to 'default', other attributes such as range are needed. These attributes
+    are stored in the algo itself. The ivar file only contains potential ivar values."""
     aidf = load_algo_ivar(algo_name, ivar_name)
     ivar_dict = {}
+    if not len(aidf):
+        return None
     for col in aidf.columns:
         ivar_dict.update({
             col: {

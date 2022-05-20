@@ -67,12 +67,18 @@ class ClassicSupportFinder:
     # Constants
     PEAK, TROUGH = 1, -1
     # Other args
-    PREPARE_PERIOD = 5
+    PREPARE_PERIOD = 0
 
     def __init__(self, ivar=ARGS_DICT):
 
         # == Main Args ==
-        self.ivar = ivar
+        self.time = None
+        self.started = None
+        self.df = None
+        if ivar:
+            self.ivar = ivar
+        else:
+            self.ivar = self.ARGS_DICT
 
         # ARGS_DICT
         self.distinguishing_constant = ivar['distinguishing_constant']['default']
@@ -89,22 +95,23 @@ class ClassicSupportFinder:
         self.ivar_check()
 
         # == Variables ==
-        # Variable arrays
-        self.decay = math.pow(math.exp(), - self.decay_constant)
-        self.bundles = []
-        self.delta_data = []
 
         # Stats
         self.n_supports = []
         self.avg_strength = []
 
-        # Continuing arrays
-        past_df = pd.DataFrame()
+        # Df
+        self.past_df = pd.DataFrame()
 
-        # Constants
-        last_peak, last_trough, new_peak, new_trough = 0, 0, 0, 0
-        last_lookback, last_support, last_delta, delta_flipped = 0, None, 0, False
-        idx = 0
+        # Variable arrays
+        self.decay = math.pow(math.e, - self.decay_constant)
+        self.bundles = []
+        self.delta_data = []  # -1: delta-descending, 0: within delta, 1: delta-ascending
+
+        # Tracking variables
+        self.last_peak, self.last_trough, self.new_peak, self.new_trough = 0, 0, 0, 0
+        self.last_lookback, self.last_support, self.last_delta, self.delta_flipped = 0, None, 0, False
+        self.idx = 0
 
         # == Testing ==
         self.test_mode = None
@@ -118,8 +125,8 @@ class ClassicSupportFinder:
         self.__init__(ivar)
 
     def start(self, meta_or_param, pre_data: pd.DataFrame, test_mode=False):
-        """"""
-        self.reset()
+        """?Start"""
+        self.reset(self.ivar)
         self.test_mode = test_mode
 
         # == Data Meta ==
@@ -127,7 +134,7 @@ class ClassicSupportFinder:
 
         # == Preparation ==
         self.df = pre_data
-        self.build_indicators()
+        self.idx += len(pre_data) - 1
 
         # == Statistical Data ==
         self.n_supports = []
@@ -140,6 +147,10 @@ class ClassicSupportFinder:
         self.started = True
         self.time = datetime.now()
 
+        # Setup consequences of pre_data
+        for datum in pre_data:
+            self.pre_next(datum)  # df.Close, Open, High, Low
+
     def support_find(self, data):
         """Find supports in data w.r.t current (latest) index"""
         pass
@@ -147,18 +158,123 @@ class ClassicSupportFinder:
     # ==== Algo ====
 
     def next(self, candlestick):
-        self.past_data.append(candlestick)
+
+        # Next
+        self.df.append(candlestick)
+        self.idx += 1
+
+        # Note: This algorithm is index agnostic
+        new_supports = []
+        _max, _min = 0, math.inf
+        if len(self.past_df) < 2:
+            return
+
+        # ===== Algorithm ======
+        # 1) Compare old[-1] and new candle
+        diff = self.past_df.Close[-2] - self.past_df.Close[-1]
+        delta_flipped = False
+        if abs(diff) < self.delta_constant:
+            self.delta_data.append(0)
+        else:
+            if diff > 0:  # Past candle is higher than latest candle
+                delta_val = -1
+            else:
+                delta_val = 1
+            self.delta_data.append(delta_val)
+            # 1 to -1 or -1 to 1. 0s break the chain
+            delta_flipped = (self.last_delta != delta_val)
+            self.last_delta = delta_val
+
+        # 2) Get next peak/trough, 3 modes: Find next trough, find next peak, find next any
+        if self.last_peak > self.last_trough:  # look for next trough
+            if delta_flipped:  # found
+                height = min(self.past_df.Close[self.supports[-1]['start'] + 1:self.idx])  # Value
+                peak = self.past_df[self.past_df.Close[self.supports[-1]['end']:self.idx] == height][-1] or 0  # Where
+                start = self.last_support[-1]['end']
+                end = self.idx
+                self.create_support(peak, start, end, height, self.TROUGH)
+            else:  # try extend last peak
+                if self.try_extend_peak(self.supports[-1], self.idx):
+                    pass
+                else:  # failed to extend, reset to no last_support status
+                    self.last_peak, self.last_trough = self.idx, self.idx
+                # supports[-1]['end'] += 1
+                # # if base too long, reset
+                # if supports[-1]['end'] - supports[-1]['start']:
+                #     last_peak, last_trough = idx, idx
+        elif self.last_peak < self.last_trough:  # look for next peak
+            if delta_flipped:  # found
+                height = max(self.past_df.Close[self.supports[-1]['start'] + 1:self.idx])
+                peak = self.past_df[self.past_df.Close[self.supports[-1]['end']:self.idx] == height][-1] or 0
+                start = self.last_support[-1]['end']
+                end = self.idx
+                self.create_support(peak, start, end, height, self.PEAK)
+            else:  # try extend last trough
+                if self.try_extend_peak(self.supports[-1], self.idx):
+                    pass
+                else:  # failed to extend, reset to no last_support status
+                    self.last_peak, self.last_trough = self.idx, self.idx
+        else:  # last_peak = last_trough (only possible if just started or reset)
+            if self.delta_data[-1] == -1:  # found potential trough
+                self.last_trough = self.idx
+            elif self.delta_data[-1] == 1:  # potential peak
+                self.last_peak = self.idx
+
+            # ===== Bundling =====
+
+            # Already done in algorithm part
+
+            # ===== Return function =====
+
+            # None in this case
+            print(self.bundles)
 
     def pre_next(self, candlestick):
-        # Go through pre-dataframe and construct supports, ignore data that is too old (no decay)
+        # Pre_data supports will be ignored! If that is not desired, do not include pre_data
         pass
 
     # ==============
 
+    def get_supports(self):
+        return self.bundles
+
+    def get_resistances(self):
+        """Only get support ceilings"""
+        last = self.past_df.Close[-1]
+        _bundles = []
+        for bundle in self.bundles:
+            if bundle['height'] > last:
+                _bundles.append(bundle)
+        return _bundles
+
+    def get_resistance_supports(self):
+        """Only get support floors"""
+        last = self.past_df.Close[-1]
+        _bundles = []
+        for bundle in self.bundles:
+            if bundle['height'] < last:
+                _bundles.append(bundle)
+        return _bundles
+
     def get_instructions(self):
-        return []
+        # Lines should get lighter the weaker they are
+        # Data should be pd.DataFrame format with index and 'height'/value
+        data = pd.DataFrame(index=[[self.get_idx_date(bundle['peak']) for bundle in self.bundles]], data={
+            'strength': [[bundle['strength'] for bundle in self.bundles]],
+            'height': [[bundle['height'] for bundle in self.bundles]],
+        })
+        print(self.bundles)  # todo
+        return [{
+            'index': 0,
+            'data': data,
+            'type': 'line',
+            'colour': 'black',
+        }]
 
     # Util functions
+
+    def get_idx_date(self, idx):
+        return self.df.index[idx]
 
     def calc_strength(self, support, idx):
         start = support['start']

@@ -29,6 +29,7 @@ from util.langUtil import craft_instrument_filename, strtodatetime, try_key, rem
 
 #  Robot
 # from robot import FMACDRobot, TwinSMA
+from util.mathUtil import date_to_index_arr
 
 
 def step_test_robot(r: robot, step: int):
@@ -835,7 +836,9 @@ class DataTester:
         self.p_bar_2 = None
         self.p_bar = None
 
-        # Robot
+        # Robot/Algo
+        self.algo = None
+        self.algo_ivar = None
         self.robot = None
         self.robot_ivar = None
         self.robot_fixed_ivar = None
@@ -1040,23 +1043,21 @@ class DataTester:
             _df.index = list(range(len(_df.index)))
             # Instructions
             for instruction in instructions:
+                # todo convert data.index to indices without assumption that indexes match up exactlys
+                date_to_index_arr(instruction['data'].index)  # assign this instead in future
+                if 'data' not in instruction:
+                    continue
                 instruction['data'].index = _df.index
             for signal in signals:
-                # if 'updated' in signal:
-                #     continue
                 signal['start'] = _df.index[_dates == signal['start']][0]
                 signal['end'] = _df.index[_dates == signal['end']][0]
                 if 'baseline' in signal:
                     signal['baseline'] = _df.index[_dates == signal['baseline']][0]
-                # signal['updated'] = True
             for signal in open_signals:
-                # if 'updated' in signal:
-                #     continue
                 signal['start'] = _df.index[_dates == signal['start']][0]
                 signal['end'] = signal['start'] + 1
                 if 'baseline' in signal:
                     signal['baseline'] = _df.index[_dates == signal['baseline']][0]
-                # signal['updated'] = True
 
             # Get xlim
             if len(_df.index) > scope:
@@ -1096,6 +1097,7 @@ class DataTester:
 
             # === Plot data ===
 
+            # Plot
             plot_robot_instructions(axes, instructions, xlim)
             if len(signals) > 0:
                 plot_signals(main_ax, signals, xlim)
@@ -1150,12 +1152,12 @@ class DataTester:
         """...
         returns Success: bool, Error Message: str"""
 
-        ta_name = remove_special_char(algo_name)
+        algo_name = remove_special_char(algo_name)
         print('Starting visual simulation: ' + F'{algo_name}({ivar}) with i:{ivar}, s:{svar}')
-        pre_path = 'robot'
+        pre_path = 'algo'
 
         # Import robot py
-        module = importlib.import_module(F'{pre_path}.{ta_name}')
+        module = importlib.import_module(F'{pre_path}.{algo_name}')
         globals().update(
             {n: getattr(module, n) for n in module.__all__} if hasattr(module, '__all__')
             else
@@ -1163,16 +1165,20 @@ class DataTester:
              })
 
         # Start algo
-        self.algo = eval(F'{algo_name}({ivar})')
+        if ivar:
+            self.algo = eval(F'{algo_name}({ivar})')
+        else:
+            self.algo = eval(F'{algo_name}()')
         sym, interval_str, period = get_instrument_from_filename(df_name)
         df = load_df(df_name)
         if len(df) < self.algo.PREPARE_PERIOD:  # Otherwise the robot will do nothing
-            print(F"Not enough data! Minimum {self.robot.PREPARE_PERIOD} for {ta_name}")
-            return False, F"Not enough data! Minimum {self.robot.PREPARE_PERIOD} for {ta_name}"
+            print(F"Not enough data! Minimum {self.algo.PREPARE_PERIOD} for {algo_name}")
+            return False, F"Not enough data! Minimum {self.algo.PREPARE_PERIOD} for {algo_name}"
 
         # Variables
         sleep_time = 1 / svar['speed']  # seconds
         start = 1  # index of dataframe to start at
+        scope = svar['scope']
 
         # Plotting handles
         signals = []
@@ -1181,20 +1187,56 @@ class DataTester:
         main_ax = axes[0][0]  # row 0, col 0
         last_ax = axes[-1][-1]
 
-        self.algo.start(sym, interval_str, period, df[0: start])
+        self.algo.start({
+            'sym': sym,
+            'interval_str': interval_str,
+            'period': period,
+        }, df[0: start])
 
         # Drawing constants
         margin = PLOTTING_SETTINGS['plot_margin'][1]
+        plot_stuffs = []
 
         # Slowly feed data
         for i in range(start, len(df)):
 
-            # Clear all
+            # Clear all  # todo do not clear the data. only the extra stuff
             for ax_row in axes:
                 for ax in ax_row:
                     ax.clear()
 
             # Next
+            self.algo.next(df[i:i + 1])
+            _df = df[:i+1]
+            instructions = self.algo.get_instructions()
+
+            # Convert dates to indices
+            _dates = _df.index
+            _df.index = list(range(len(_df.index)))
+            # instructions
+            for instruction in instructions:
+                instruction['data'].index = _df.index  # date_to_index_arr... (assumes date corresponds to some index from 0)
+
+            # Get xlim
+            if len(_df.index) > scope:
+                xlim = [_df.index[-scope - 1] - 1, _df.index[-1] + 1]
+            else:
+                xlim = [0, scope]
+
+            # Plot
+            plot_stuffs.append(plot_robot_instructions(axes, instructions, xlim))
+            candlestick_plot(main_ax, _df, xlim)
+
+            # Switch back to dates
+            x_tick_labels = []
+            for _date in _dates:
+                x_tick_labels.append(strtodatetime(_date).strftime(DATE_FORMAT_DICT[interval_str]))
+            for ax_row in axes:
+                for ax in ax_row:
+                    ax.set(xticklabels=x_tick_labels)
+                    for label in ax.get_xticklabels():
+                        label.set_ha("right")
+                        label.set_rotation(45)
 
         return True, 'NA'
 
