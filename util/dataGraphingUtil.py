@@ -167,7 +167,8 @@ def line_plot(ax, df: pd.DataFrame, style={}, xlim=None):
     _style = generic_style()
     _style.update(style)
 
-    has_data = len([d for d in df if not math.isnan(d)]) > 1
+    # has_data = len([d for d in df if not math.isnan(d)]) > 1
+    has_data = True
 
     if has_data:
         ax.plot(df, alpha=_style['alpha'], color=_style['colour'],
@@ -190,8 +191,8 @@ def support_plot(ax, supports, style):  # support = {strength, height}
         'weaker_colour': 'grey',
     }
     _style.update(style)  # let style override this default
-    low_strength = try_mean([support['strength'] for support in supports]) * 0.2
-    for support in supports:
+    low_strength = try_mean([support['strength'] for i, support in supports.iterrows()]) * 0.2
+    for i, support in supports.iterrows():
         col = _style['colour']
         if support['strength'] < low_strength:
             col = _style['weaker_colour']
@@ -339,7 +340,7 @@ def plot_robot_instruction(axes, instruction, xlim):
     elif type.lower() == "between":
         pass
     elif type.lower() == "support":
-        support_plot(ax, instruction['data'])
+        support_plot(ax, instruction['data'], {})
     pass
 
 

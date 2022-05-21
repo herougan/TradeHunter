@@ -107,6 +107,7 @@ class ClassicSupportFinder:
         self.decay = math.pow(math.e, - self.decay_constant)
         self.bundles = []
         self.delta_data = []  # -1: delta-descending, 0: within delta, 1: delta-ascending
+        self.delta_df = pd.DataFrame()
 
         # Tracking variables
         self.last_peak, self.last_trough, self.new_peak, self.new_trough = 0, 0, 0, 0
@@ -133,7 +134,7 @@ class ClassicSupportFinder:
         pass
 
         # == Preparation ==
-        self.df = pre_data
+        self.df = pd.DataFrame()
         self.idx += len(pre_data) - 1
 
         # == Statistical Data ==
@@ -148,8 +149,9 @@ class ClassicSupportFinder:
         self.time = datetime.now()
 
         # Setup consequences of pre_data
-        for datum in pre_data:
-            self.pre_next(datum)  # df.Close, Open, High, Low
+        for i in range(0, len(pre_data)):
+            self.pre_next(pre_data[i:i+1])  # df.Close, Open, High, Low
+        self.delta_df.index_name = 'date'
 
     def support_find(self, data):
         """Find supports in data w.r.t current (latest) index"""
@@ -160,7 +162,7 @@ class ClassicSupportFinder:
     def next(self, candlestick):
 
         # Next
-        self.df.append(candlestick)
+        self.df = self.df.append(candlestick)
         self.idx += 1
 
         # Note: This algorithm is index agnostic
@@ -184,6 +186,9 @@ class ClassicSupportFinder:
             # 1 to -1 or -1 to 1. 0s break the chain
             delta_flipped = (self.last_delta != delta_val)
             self.last_delta = delta_val
+        self.delta_df.append(pd.DataFrame({
+            'delta': self.delta_data[-1]
+        }, index=[self.df.index[-1]]))
 
         # 2) Get next peak/trough, 3 modes: Find next trough, find next peak, find next any
         if self.last_peak > self.last_trough:  # look for next trough
@@ -230,8 +235,12 @@ class ClassicSupportFinder:
             print(self.bundles)
 
     def pre_next(self, candlestick):
+        self.df = self.df.append(candlestick)
         # Pre_data supports will be ignored! If that is not desired, do not include pre_data
-        pass
+        self.delta_data.append(0)
+        self.delta_df = self.delta_df.append(pd.DataFrame({
+            'delta': 0
+        }, index=[self.df.index[-1]]))
 
     # ==============
 
@@ -263,10 +272,14 @@ class ClassicSupportFinder:
             'strength': [[bundle['strength'] for bundle in self.bundles]],
             'height': [[bundle['height'] for bundle in self.bundles]],
         })
-        print(self.bundles)  # todo
         return [{
             'index': 0,
             'data': data,
+            'type': 'support',
+            'colour': 'black',
+        }, {
+            'index': 1,
+            'data': self.delta_df,
             'type': 'line',
             'colour': 'black',
         }]

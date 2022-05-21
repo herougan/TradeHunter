@@ -48,6 +48,10 @@ Min. 1 step. (moving much further than dist = 1)
 10c(HARD)) Sim plotter redraws only relevant parts/draws relevant parts
 
 11) full 'simulated' plot - candlesticks -> line, + profit line, buy/sell profit/loss lines
+11a) Replot only new candlesticks
+11b) FMACDRobot plots new only. -> Shift replotting ONLY if instructions say replot.
+b* -> in that case, delete the handle.
+11c) headers instead of "Ivar:" in simplot. same for rest. Headers (mid align), IVar, XVar, SVar etc.
 
 12) Algo Analysis page
 12b) Move sliders around -> sim in real time, "preview_stat" (How many candlesticks to show)

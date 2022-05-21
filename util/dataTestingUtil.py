@@ -1044,7 +1044,7 @@ class DataTester:
             # Instructions
             for instruction in instructions:
                 # todo convert data.index to indices without assumption that indexes match up exactlys
-                date_to_index_arr(instruction['data'].index)  # assign this instead in future
+                # date_to_index_arr(instruction['data'].index)  # assign this instead in future
                 if 'data' not in instruction:
                     continue
                 instruction['data'].index = _df.index
@@ -1215,7 +1215,7 @@ class DataTester:
             _df.index = list(range(len(_df.index)))
             # instructions
             for instruction in instructions:
-                instruction['data'].index = _df.index  # date_to_index_arr... (assumes date corresponds to some index from 0)
+                instruction['data'].index = date_to_index_arr(_df.index, _dates, instruction['data'].index)
 
             # Get xlim
             if len(_df.index) > scope:
@@ -1238,7 +1238,10 @@ class DataTester:
                         label.set_ha("right")
                         label.set_rotation(45)
 
-        return True, 'NA'
+            canvas.draw()
+            PyQt5.QtWidgets.QApplication.processEvents()
+
+        return True, 'No Error'
 
     # == Optimise ==
     def optimise(self, ta_name: str, init_ivar: List[float], ds_names: List[str], optim_name: str, store=True,
