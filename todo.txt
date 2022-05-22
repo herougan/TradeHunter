@@ -65,7 +65,7 @@ New.
 lag update only in future. (with regards to changing ivar on the fly, whether in SIMPLE PLOTTER (plotted all at once)
 or SIMULATOR PLOT (plotted on the go) ----|
 12*f) Stats that update immediately for simple plotter. visuals also update whole of data
----|> 12h) when it is done, it resimlates. (Requires parallel computerization so that buttons can be pressed while
+---|> 12h) when it is done, it resimulates. (Requires parallel computerization so that buttons can be pressed while
 graph is being updated -> cancel this if too much)
 
 13) Multi mode/Run robot controller (Manages several robots)
@@ -75,7 +75,13 @@ graph is being updated -> cancel this if too much)
 15) Shapesetdef contains data specific to certain chart profiles. One can test their robot against these chart profiles
 to see which type of trends/shapes/market conditions it is better at trading in.
 
+
 16a) Robot idea: twin sma, simple
 16b) Robot idea: Martingale+Grid+Profit_Line
 
 17) Scroll page if create ivar has too many ivar lines
+17b) Stop function doesn't work - multithreaded?
+
+20) Multithreaded?
+20a) multi-threaded optimisation
+20b) multi-threaded testing

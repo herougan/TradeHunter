@@ -68,6 +68,7 @@ class ClassicSupportFinder:
     PEAK, TROUGH = 1, -1
     # Other args
     PREPARE_PERIOD = 0
+    GREATEST_AGE = 50
 
     def __init__(self, ivar=ARGS_DICT):
 
@@ -100,12 +101,10 @@ class ClassicSupportFinder:
         self.n_supports = []
         self.avg_strength = []
 
-        # Df
-        self.past_df = pd.DataFrame()
-
         # Variable arrays
         self.decay = math.pow(math.e, - self.decay_constant)
-        self.bundles = []
+        self.bundles = []  # supports build up into bundles
+        self.supports = []  # handles to the supports themselves
         self.delta_data = []  # -1: delta-descending, 0: within delta, 1: delta-ascending
         self.delta_df = pd.DataFrame()
 
@@ -127,7 +126,7 @@ class ClassicSupportFinder:
 
     def start(self, meta_or_param, pre_data: pd.DataFrame, test_mode=False):
         """?Start"""
-        self.reset(self.ivar)
+        self.reset(self.ivar)  # External codes should reset it instead.
         self.test_mode = test_mode
 
         # == Data Meta ==
@@ -155,7 +154,8 @@ class ClassicSupportFinder:
 
     def support_find(self, data):
         """Find supports in data w.r.t current (latest) index"""
-        pass
+        for i in range(len(data)-self.GREATEST_AGE, len(data)):
+            pass
 
     # ==== Algo ====
 
@@ -166,14 +166,14 @@ class ClassicSupportFinder:
         self.idx += 1
 
         # Note: This algorithm is index agnostic
-        new_supports = []
+        # self.supports = []  # temporary
         _max, _min = 0, math.inf
-        if len(self.past_df) < 2:
+        if len(self.df) < 2:
             return
 
         # ===== Algorithm ======
         # 1) Compare old[-1] and new candle
-        diff = self.past_df.Close[-2] - self.past_df.Close[-1]
+        diff = self.df.Close[-2] - self.df.Close[-1]
         delta_flipped = False
         if abs(diff) < self.delta_constant:
             self.delta_data.append(0)
@@ -186,15 +186,15 @@ class ClassicSupportFinder:
             # 1 to -1 or -1 to 1. 0s break the chain
             delta_flipped = (self.last_delta != delta_val)
             self.last_delta = delta_val
-        self.delta_df.append(pd.DataFrame({
+        self.delta_df = self.delta_df.append(pd.DataFrame({
             'delta': self.delta_data[-1]
         }, index=[self.df.index[-1]]))
 
         # 2) Get next peak/trough, 3 modes: Find next trough, find next peak, find next any
         if self.last_peak > self.last_trough:  # look for next trough
             if delta_flipped:  # found
-                height = min(self.past_df.Close[self.supports[-1]['start'] + 1:self.idx])  # Value
-                peak = self.past_df[self.past_df.Close[self.supports[-1]['end']:self.idx] == height][-1] or 0  # Where
+                height = min(self.df.Close[self.supports[-1]['start'] + 1:self.idx])  # Value
+                peak = self.df[self.df.Close[self.supports[-1]['end']:self.idx] == height][-1] or 0  # Where
                 start = self.last_support[-1]['end']
                 end = self.idx
                 self.create_support(peak, start, end, height, self.TROUGH)
@@ -209,8 +209,8 @@ class ClassicSupportFinder:
                 #     last_peak, last_trough = idx, idx
         elif self.last_peak < self.last_trough:  # look for next peak
             if delta_flipped:  # found
-                height = max(self.past_df.Close[self.supports[-1]['start'] + 1:self.idx])
-                peak = self.past_df[self.past_df.Close[self.supports[-1]['end']:self.idx] == height][-1] or 0
+                height = max(self.df.Close[self.supports[-1]['start'] + 1:self.idx])
+                peak = self.df[self.df.Close[self.supports[-1]['end']:self.idx] == height][-1] or 0
                 start = self.last_support[-1]['end']
                 end = self.idx
                 self.create_support(peak, start, end, height, self.PEAK)
@@ -221,10 +221,21 @@ class ClassicSupportFinder:
                     self.last_peak, self.last_trough = self.idx, self.idx
         else:  # last_peak = last_trough (only possible if just started or reset)
             if self.delta_data[-1] == -1:  # found potential trough
-                self.last_trough = self.idx
+                self.last_trough = self.idx  # todo not true!
+                # plus not support created
             elif self.delta_data[-1] == 1:  # potential peak
                 self.last_peak = self.idx
-
+        # todo at 0 -1 -1, we've found a potential trough - correct
+        # wait for -1 -1 (0 or -1...0) 1!
+        # Create temporary support
+        # if try_extend_peak failed, 1) check if peak wide enough to be considered,
+        #   reset to no-peak/trough - aka seek new peak/trough
+            # e.g. (too wide): -1 -1 -1 -1 .... -> cascading down, therefore past peaks dont matter -> correct
+            # e.g. (too thin): -1 1 -1 -1 1 -> minor 'peak' in the greater pattern
+        # if peak superceded - too bad!  (peak defined by -1 1 -1 (ignoring 0s))
+            #
+        # -1 -1 -1 -1 1 ! -> detected something (either register it now and wait or just wait
+        # either too long, too short, or OK! (then switch)
             # ===== Bundling =====
 
             # Already done in algorithm part
@@ -249,7 +260,7 @@ class ClassicSupportFinder:
 
     def get_resistances(self):
         """Only get support ceilings"""
-        last = self.past_df.Close[-1]
+        last = self.df.Close[-1]
         _bundles = []
         for bundle in self.bundles:
             if bundle['height'] > last:
@@ -258,7 +269,7 @@ class ClassicSupportFinder:
 
     def get_resistance_supports(self):
         """Only get support floors"""
-        last = self.past_df.Close[-1]
+        last = self.df.Close[-1]
         _bundles = []
         for bundle in self.bundles:
             if bundle['height'] < last:
@@ -279,7 +290,7 @@ class ClassicSupportFinder:
             'colour': 'black',
         }, {
             'index': 1,
-            'data': self.delta_df,
+            'data': self.delta_df.copy(),
             'type': 'line',
             'colour': 'black',
         }]
@@ -373,7 +384,7 @@ class ClassicSupportFinder:
         elif support['type'] == self.TROUGH and support['height'] > self.past_data.Low[idx]:  # base too low
             support['open'] = False
             return False
-        # Calculate decay effect
-        # todo
-        self.calculate_bundle_strength(self.get_bundle(support))
+
+        # Calculate new strength
+        self.calculate_bundle_strength(self.get_bundle(support))  # todo wrong method!
         return True
