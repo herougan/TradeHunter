@@ -6,7 +6,7 @@ DataTestingUtil tests based on data retrieved. Text File is used as reference (o
 
 Bug fixes:
 
-1) Ivar-choices - Optimise/Manual-set - Values (Init at default)
+1) Ivar-choices - Optimise/Manual-set - Values (Init at default) (locking ivars)
 2) Discrete sliders, if large number of possibilities -> discrete slider in steps only.
 (Continuous ignores steps)
 2a) TextEdit updates value if slider moved, Slider updates if textEdit editted (only on 'edit_complete')
@@ -71,6 +71,9 @@ graph is being updated -> cancel this if too much)
 13) Multi mode/Run robot controller (Manages several robots)
 
 14) Ticker mode. - may need internet connection - too much data. download swaths at a time (in mem only)
+14b) Algos too intensive if per-tick... need to learn how to 1) simplify or 2) calc or a certain time basis, not per data
+eg. for peak finding, if 6 new ticks have just come in, and delta_t = some_time, find/update supports not by reiterating algorithm
+over each new data point but scanning across the 6 data points once and deciding new supports
 
 15) Shapesetdef contains data specific to certain chart profiles. One can test their robot against these chart profiles
 to see which type of trends/shapes/market conditions it is better at trading in.
@@ -78,6 +81,7 @@ to see which type of trends/shapes/market conditions it is better at trading in.
 
 16a) Robot idea: twin sma, simple
 16b) Robot idea: Martingale+Grid+Profit_Line
+16e) # standard deviations away from sma = buy/sell
 
 17) Scroll page if create ivar has too many ivar lines
 17b) Stop function doesn't work - multithreaded?

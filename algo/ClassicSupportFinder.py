@@ -106,10 +106,12 @@ class ClassicSupportFinder:
         self.bundles = []  # supports build up into bundles
         self.supports = []  # handles to the supports themselves
         self.delta_data = []  # -1: delta-descending, 0: within delta, 1: delta-ascending
+        self.accum_df = pd.DataFrame()
         self.delta_df = pd.DataFrame()
 
         # Tracking variables
         self.last_peak, self.last_trough, self.new_peak, self.new_trough = 0, 0, 0, 0
+        self.peak, self.trough, self.has_new = 0, 0, False
         self.last_lookback, self.last_support, self.last_delta, self.delta_flipped = 0, None, 0, False
         self.idx = 0
 
@@ -172,7 +174,7 @@ class ClassicSupportFinder:
             return
 
         # ===== Algorithm ======
-        # 1) Compare old[-1] and new candle
+        # (1) Compare old[-1] and new candle
         diff = self.df.Close[-2] - self.df.Close[-1]
         delta_flipped = False
         if abs(diff) < self.delta_constant:
@@ -184,13 +186,23 @@ class ClassicSupportFinder:
                 delta_val = 1
             self.delta_data.append(delta_val)
             # 1 to -1 or -1 to 1. 0s break the chain
-            delta_flipped = (self.last_delta != delta_val)
+            if self.last_delta != 0:
+                delta_flipped = (self.last_delta != delta_val)
             self.last_delta = delta_val
+        # Update delta df
         self.delta_df = self.delta_df.append(pd.DataFrame({
             'delta': self.delta_data[-1]
         }, index=[self.df.index[-1]]))
+        if len(self.accum_df > 0):
+            self.accum_df = self.accum_df.append(pd.DataFrame({
+                'delta': self.delta_data[-1] + self.accum_df.delta[-1]
+            }, index=[self.df.index[-1]]))
+        else:
+            self.accum_df = self.accum_df.append(pd.DataFrame({
+                'delta': self.delta_data[-1]
+            }, index=[self.df.index[-1]]))
 
-        # 2) Get next peak/trough, 3 modes: Find next trough, find next peak, find next any
+        # (2) Get next peak/trough, 3 modes: Find next trough, find next peak, find next any
         if self.last_peak > self.last_trough:  # look for next trough
             if delta_flipped:  # found
                 height = min(self.df.Close[self.supports[-1]['start'] + 1:self.idx])  # Value
@@ -219,23 +231,133 @@ class ClassicSupportFinder:
                     pass
                 else:  # failed to extend, reset to no last_support status
                     self.last_peak, self.last_trough = self.idx, self.idx
-        else:  # last_peak = last_trough (only possible if just started or reset)
+        elif self.last_peak == self.last_trough:  # last_peak = last_trough (only possible if just started or reset)
             if self.delta_data[-1] == -1:  # found potential trough
                 self.last_trough = self.idx  # todo not true!
                 # plus not support created
             elif self.delta_data[-1] == 1:  # potential peak
                 self.last_peak = self.idx
-        # todo at 0 -1 -1, we've found a potential trough - correct
-        # wait for -1 -1 (0 or -1...0) 1!
-        # Create temporary support
-        # if try_extend_peak failed, 1) check if peak wide enough to be considered,
-        #   reset to no-peak/trough - aka seek new peak/trough
-            # e.g. (too wide): -1 -1 -1 -1 .... -> cascading down, therefore past peaks dont matter -> correct
-            # e.g. (too thin): -1 1 -1 -1 1 -> minor 'peak' in the greater pattern
-        # if peak superceded - too bad!  (peak defined by -1 1 -1 (ignoring 0s))
+        # rewrite thoughts here...
+            # if 1 or -1, peak or trough is the index behind it!
+            # additional condition: if last non-zero delta has value or not
+                # if starting from 0: nope,
+                    # trough = peak = 0
+                # if peak extended too long, (descending): delta will be -1
+                    # peak confirmed, (older) trough < peak -> seeking 1 for new trough
+                # if peak was too short (now is new_trough): delta will be the 1
+                    # peak deleted, peak marker stays. (newer) trough > peak -> seeking new peak -1
+                # peak is within limits
+                    # peak confirmed
+            # try_extend -> pass within -1
+            #            -> fail within 0, extend once, but return false so that no more extend
+            # When discovering a support & confirming,
+                # base might include alternative max/min point
+                # left_base can start at most at where last_trough/peak are:
+                    # in the case of neutral status, peak=trough=where peak/trough stops
+                # when moving through each alternative max/min point, check if 'base' condition
+                        # Objective height vs delta height
+                    # is fufilled. otherwise, move to next point!
+                    # NOTE: if original min/max point does not fulfill min_base (left) conditions
+                    # then other points will not work anyway (they will be more left)
+                    # If peak confirm created -> look for other valid min/max points
+                        # guaranteed to terminate
+            # if base destroyed (-1), ok for future (1) since (0) current base was created
+            # if base too extended (-1), there hasnt yet been a (0) current. so either
+                # part of the previous base is included in the new delta calculation
+                # the latest point which made the base extend too far (depends on if last point inc/not inc)
+                # or only from next point onwards:
+                # find some delta. if none non-zero, set as 0. delta_flipped cannot be anything. until 1, -1 or -1, 1
+                # if 1 or -1, define the last 1 or -1 as (cannot be 1 and -1) the new peak/trough depending
+                    # do not create a support for this.
+                    # do not try to extend. (if new_support:... support[-1]...)
+        # this may be too intensive if done on a per-tick basis
+
+        # (2) Get next peak/trough:
+        if self.trough == self.peak:  # Find any peak/trough
+            if self.last_delta == 0:
+                pass  # ignore and continue
+            # Do not create support, but create left base first
+            elif self.last_delta == 1:
+                self.trough = self.idx - 1
+            elif self.last_delta == -1:
+                self.peak = self.idx - 1
+        if self.trough > self.peak:  # Find new peak
+            if self.delta_flipped:  # Found!
+                # Peak properties
+                self.peak = self.idx - 1
+                left_base = self.peak - self.trough
+                # Handle left support
+                if self.has_new:  # If there is a support on the left
+                    if left_base < self.min_base//2:  # new left_base = prev old_base
+                        # Destroy support (self.supports, self.bundles)
+                        pass
+                    else:  # OK
+                        pass
+                # Register peak
+                self.create_support()  # todo
+                new_support = True
+            else:
+                if self.has_new:
+                    if self.try_extend(self.supports[-1]):
+                        pass
+                    else:
+                        # Reset status to 'neutral'
+                        self.has_new = False
+                        self.trough = self.peak = self.idx
+                else:  # No older support to extend
+                    pass
+        if self.peak > self.trough:  # Find new trough
+            self.has_new = True
+        # last_trough > last_peak: # find peak
+            # if delta_flipped: peak found
+            #   check old trough, if new_support:
+                #   if too short (right):
+                #       destroy support in supports AND bundles
+                #   elif OK:
+                #       do nothing
+            #   register new peak regardless (last_trough=old_trough):
+            #       peak = idx - 1
+            #       left_base = peak - trough
+            #       right_base = 1 (definitely, since we found a -1) - delta_flipped
+            #       add into some bundle (or it becomes its own bundle)
+            #       new_support = True
+            # else: no peak
+            #   if new_support:
+            #       try_extend(support[-1]):
+            #           if too long (left):
+            #               new_support = False
+            #               trough = peak = now. # todo something is wrong here! how to get new_support = True
+        # last_trough < last_peak: # find trough
+            #   same as above
+        # clean up bundles - if below some threshold, delete support
+
+
+        # last_peak last_trough new_peak new_trough:
+        #       found new peak!, cementing new trough ->
+            #           last_trough, last_peak, new_trough, new_peak
+            #                   (newest extreme point is always not a support yet)
+            #                   (consider making a subtle support -> delete if not,
+            #                   extend otherwise)
+            #           definitely solidify trough if not already made:
+            #               new_peak - last_peak = width of new_trough
+            #               (consider max constraints!)
+            #   latest_bundle -> most recent editted bundle.
+            #       latest_bundle.delete/try_extend(support) if support == _support...
+            #       or delete.
+        # last_peak=last_trough=new_peak=new_trough:
             #
-        # -1 -1 -1 -1 1 ! -> detected something (either register it now and wait or just wait
-        # either too long, too short, or OK! (then switch)
+            #
+            #
+            #
+        #
+            #
+            #
+            #
+            #
+            #
+        #   Note about decay. it gets abit confusing (ONLY WITH EXTENSION + DECAY)
+            #   so one possibility is keeping decay_count in support array.
+            #   and recalculating on every bundle calculate run
             # ===== Bundling =====
 
             # Already done in algorithm part
@@ -250,6 +372,9 @@ class ClassicSupportFinder:
         # Pre_data supports will be ignored! If that is not desired, do not include pre_data
         self.delta_data.append(0)
         self.delta_df = self.delta_df.append(pd.DataFrame({
+            'delta': 0
+        }, index=[self.df.index[-1]]))
+        self.accum_df = self.accum_df.append(pd.DataFrame({
             'delta': 0
         }, index=[self.df.index[-1]]))
 
@@ -291,6 +416,11 @@ class ClassicSupportFinder:
         }, {
             'index': 1,
             'data': self.delta_df.copy(),
+            'type': 'line',
+            'colour': 'black',
+        }, {
+            'index': 2,
+            'data': self.accum_df.copy(),
             'type': 'line',
             'colour': 'black',
         }]
@@ -388,3 +518,10 @@ class ClassicSupportFinder:
         # Calculate new strength
         self.calculate_bundle_strength(self.get_bundle(support))  # todo wrong method!
         return True
+
+    def delete_support(self, _support):
+        for bundle in self.bundles:
+            for support in bundle.supports:
+                if support == _support:
+                    bundle.supports.remove(support)
+        self.supports.remove(support)

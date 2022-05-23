@@ -852,7 +852,7 @@ class DataTester:
 
     # == Full run ==
     def live_simulate(self, ta_name: str, ivar: dict, dfs: List[str], test_name: str):
-        """"""
+        """Live simulate"""
         # Pre-download data
         # robot.start()
         time_index = []
