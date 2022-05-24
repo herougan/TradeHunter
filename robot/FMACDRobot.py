@@ -534,9 +534,6 @@ class FMACDRobot(robot):
     def get_profit(self):
         return self.profit, self.equity, self.balance, self.margin
 
-    def get_signals(self):
-        return self.signals
-
     # Temperature
 
     def get_signals(self):
@@ -594,11 +591,11 @@ class FMACDRobot(robot):
                                                         "macdhist": self.indicators['MACD_HIST'], })
 
     def rebuild_sma(self, period):
-        self.indicators['SMA5'] = talib.SMA(self.df.Close, timeperiod=2)
-        self.indicators['SMA50'] = talib.SMA(self.df.Close, timeperiod=50)
-        self.indicators['SMA200'] = talib.SMA(self.df.Close, timeperiod=200)
-        self.indicators['SMA200_HIGH'] = talib.SMA(self.df.High, timeperiod=200)
-        self.indicators['EMA200'] = talib.EMA(self.df.Close, timeperiod=200)
+        # self.indicators['SMA5'] = talib.SMA(self.df.Close, timeperiod=2)
+        # self.indicators['SMA50'] = talib.SMA(self.df.Close, timeperiod=50)
+        self.indicators['SMA200'] = talib.SMA(self.df.Close, timeperiod=int(self.sma_period))
+        # self.indicators['SMA200_HIGH'] = talib.SMA(self.df.High, timeperiod=200)
+        # self.indicators['EMA200'] = talib.EMA(self.df.Close, timeperiod=200)
 
     def build_indicators(self):
 

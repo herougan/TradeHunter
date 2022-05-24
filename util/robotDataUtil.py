@@ -1,3 +1,4 @@
+from settings import IVarType
 
 
 def create_signal_dict(check, **keyargs):
@@ -63,6 +64,29 @@ def generate_base_signal_dict():
         # MACD_Hist_weight: 0.5
     }
     return signal
+
+
+def get_default(arg):
+    type = arg['type']
+    if type == IVarType.ENUM:
+        pass
+    if type == IVarType.ENUM:
+        pass
+    if type == IVarType.ENUM:
+        pass
+    if type == IVarType.ENUM:
+        pass
+    if type == IVarType.ENUM:
+        pass
+    if type == IVarType.ENUM:
+        pass
+    if type == IVarType.ENUM:
+        pass
+    if type == IVarType.ENUM:
+        pass
+    if type == IVarType.ENUM:
+        pass
+    pass
 
 
 def get_ivar_val_by_percentage(args_dict, percentage, key):
