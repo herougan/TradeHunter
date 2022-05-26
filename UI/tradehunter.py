@@ -2417,6 +2417,20 @@ class TradeHunterApp:
             ivar_right_layout.addWidget(ivar_empty_label)
             self.ivar_label_dict = {}
 
+            # IVar option window
+
+            ivar_custom_layout = QVBoxLayout()
+
+            def load_ivar_custom_labels(args):
+                for arg in args:
+                    # Current value
+                    default = arg['default']
+                    # Default options
+                    d = 0
+                pass
+
+            # ===== Utility functions =====
+
             def load_ivar_label_list():
                 robot = self.robot_select.currentText()
                 self.ivar_select.clear()

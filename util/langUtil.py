@@ -292,7 +292,7 @@ def try_key(dict: {}, key: str):
 
 def try_divide(n1, n2):
     if n2 == 0:
-        return 0
+        return math.inf
     return n1 / n2
 
 

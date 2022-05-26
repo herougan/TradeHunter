@@ -4,38 +4,38 @@ from datetime import datetime
 import pandas as pd
 
 from settings import IVarType
+from util.langUtil import try_divide
 
 
 class ClassicSupportFinder:
-    # todo do decay first
-    # decaying all supports in bundle.
-    # however, when extending support, add 1 * decay^(idx-peak)
-    # todo apply constants now
     ARGS_DICT = {
         'distinguishing_constant': {
-            'default': 0.2,
-            'range': [0.1, 1],
+            'default': 5,
+            'range': [1, 25],
             'step': 0.05,
             'comment': 'Factor distinguishing between different bundles. The greater the number,'
                        'the more supports are bundled together. Adjacent distance for bundling '
-                       'is directly equal to d_c * stddev (500) (+ flat base of 1 pip)',
+                       'is directly equal to d_c * stddev (variability) e.g. stddev(200) (+ flat base of 1 pip)'
+                       'Acts as a multiplier to stddev. If stddev type is flat, distinguishing amount is'
+                       'd_c * 100 pips'
+                       'UPDATE: d_c * pips only.',
             'type': IVarType.CONTINUOUS,
         },
-        'decay_constant': {  # Done
-            'default': 0,
-            'range': [],
-            'step': 0,
+        'decay_constant': {
+            'default': 0.9,
+            'range': [0.1, 1],
+            'step': 0.05,
             'type': IVarType.CONTINUOUS,
         },
-        'width_strength_coefficient': {  # todo unused how much with contributes to strength
+        'width_coefficient': {
             'default': 1,  # a.k.a width decay
-            'range': [0.5, 2],
+            'range': [0, 2],
             'step': 0.01,
-            'comment': 'Default w=1: base strength contribution = base width * (w=1)^(base) = base. Otherwise, '
-                       'strength = base * w^(base)',
+            'comment': 'Strength = width_coefficient * base + 1. At 0, Strength = 1 at all times. At greater numbers,'
+                       'base width greatly increases strength.',
             'type': IVarType.CONTINUOUS,
         },
-        'clumping_strength_coefficient': {  # Done
+        'clumping_coefficient': {  # Done
             'default': 1,
             'range': [0.2, 2],
             'step': 0.01,
@@ -45,63 +45,104 @@ class ClassicSupportFinder:
                        'Sum(X_n)=(X_1+...X_N)/c^(N-1). Sum(X)=X/c^0=X, as expected.',
             'type': IVarType.CONTINUOUS,
         },
-        'variability_period': {  # todo unused
-            'default': 0,
-            'range': [],
-            'step': 0,
+        'variability_period': {
+            'default': 500,
+            'range': [200, 700],
+            'step': 50,
+            'comment': 'Used in determining bundling with distinguishing_constant. +-Stddev lines formed'
+                       'from stddev(variability_period) calculation.',
             'type': IVarType.CONTINUOUS,
         },
-        'strength_cutoff': {  # todo unused min strength, otherwise deleted
+        'symmetry_coefficient': {
+            'default': 0,
+            'range': [0, 1],
+            'step': 0.1,
+            'type': IVarType.CONTINUOUS,
+            'comment': 'This greater this coefficient, the more it demands the left and right bases'
+                       'of a support to be symmetrical. At 1, both sides can only be as wide'
+                       'as their shortest side. At 0, both sides are as wide as their longest'
+                       'side. Formula: min(min(l, r) * 1/c, max(l, r)) + max(l, r). Where the left'
+                       'term represents the shorter side, compensated, and the right side is the'
+                       'longer side. If c = 0, min(min, max) will be assumed to be max(l, r).',
+        },
+        'max_base': {
+            'default': 12,
+            'range': [5, 50],
+            'step': 1,
+            'type': IVarType.DISCRETE,
+        },
+        'min_base': {
+            'default': 3,
+            'range': [1, 5],
+            'step': 1,
+            'type': IVarType.DISCRETE,
+        },
+        'delta_constant': {
+            'default': 3,
+            'range': [1, 10],
+            'step': 1,
+            'type': IVarType.CONTINUOUS,
+            'comment': 'This is the main part of the algorithm that sets it apart from'
+                       'the strictly inc. dec. peak algorithm. It allows for a \'give\' of '
+                       'delta before considering it an increase or decrease. Peaks are defined not by'
+                       'strictly decreasing numbers on both sides but instead, a looser requirement of'
+                       'delta-decreasing numbers on both sides. If the values on the side increase but'
+                       'within delta, it does not count as breaking the peak.'
+                       'delta_constant is in units of pips.'
+        },
+        'smoothing_period': {
+            'default': 6,
+            'range': [3, 20],
+            'step': 1,
+            'type': IVarType.DISCRETE,
+            'comment': 'Conducting the same algorithm on a smoothed surface may generate supports missed'
+                       'when operating on the candlestick data. These supports, from here on forwards called'
+                       'smooth supports will corroborate the supports. Only when these supports cannot be'
+                       'bundled with any existing bundles will they form their own bundle. Note. Peaks and troughs'
+                       'are detected with delta=0, strict peaks/troughs. min_base will be of the same size as'
+                       'the normal min_base.'
+        },
+        # Unused
+        # 'value_type': {  # Not used at the moment
+        #     'default': 'close',  # index 0
+        #     'idx ': 0,
+        #     'range': ['close', 'open', 'high_low', 'average'],
+        #     'type': IVarType.ENUM
+        # },
+        # 'variability_type': {
+        #     'default': 'flat',
+        #     'idx': 1,
+        #     'range': ['stddev', 'flat'],
+        #     'type': IVarType.ENUM
+        # }
+    }
+    OTHER_ARGS_DICT = {
+        'lookback_period': {
+            'default': 20,
+        },
+        'strength_cutoff': {
             'default': 0,  # strength = log(base)
             'range': [],
             'step': 0,
             'type': IVarType.CONTINUOUS,
         },
-        'critical_symmetry': {  # todo unused max(min(l, r) * c, max(l, r))
-            'default': 0,
+        'date_cutoff': {
+            'default': 25,  # strength = log(base)
             'range': [],
             'step': 0,
             'type': IVarType.CONTINUOUS,
-        },
-        'max_base': {
-            'default': 0,
-            'range': [],
-            'step': 0,
-            'type': IVarType.CONTINUOUS,
-        },
-        'min_base': {
-            'default': 0,
-            'range': [],
-            'step': 0,
-            'type': IVarType.CONTINUOUS,
-        },
-        'delta_constant': {
-            'default': 0,
-            'range': [],
-            'step': 0,
-            'type': IVarType.CONTINUOUS,
-        },
-        'value_type': {
-            'default': 'close',  # index 0
-            'idx ': 0,  # todo change to default
-            'range': ['close', 'open', 'high_low', 'average'],
-            'type': IVarType.ENUM
-        }
-    }
-    OTHER_ARGS_DICT = {
-        'lookback_period': {
-            'default': 20,
         },
     }
     # Constants
     PEAK, TROUGH = 1, -1
     # Other args
     PREPARE_PERIOD = 0
-    GREATEST_AGE = 50
 
-    def __init__(self, ivar=ARGS_DICT):
+    def __init__(self, ivar=None):
 
         # == Main Args ==
+        if ivar is None:
+            ivar = self.ARGS_DICT
         self.time = None
         self.started = None
         self.df = None
@@ -114,17 +155,24 @@ class ClassicSupportFinder:
         self.distinguishing_constant = ivar['distinguishing_constant']['default']
         self.decay_constant = ivar['decay_constant']['default']
         self.variability_period = ivar['variability_period']['default']
-        self.strength_cutoff = ivar['strength_cutoff']['default']
-        self.critical_symmetry = ivar['critical_symmetry']['default']
+        self.symmetry_coefficient = ivar['symmetry_coefficient']['default']
         self.max_base = ivar['max_base']['default']
         self.min_base = ivar['min_base']['default']
         self.delta_constant = ivar['delta_constant']['default']
-        self.width_decay = ivar['width_decay']['default']
-        self.bundling_constant = ivar['bundling_constant']['default']
-        self.value_type = ivar['value_type']['default']
+        self.delta_value = self.delta_constant * 0.0001
+        self.width_coefficient = ivar['width_coefficient']['default']
+        self.clumping_strength = ivar['clumping_coefficient']['default']
+        # self.value_type = ivar['value_type']['default']
+        # self.variability_type = ivar['variability_type']['default']
         self.ivar_check()
         # OTHER ARGS
         self.lookback_period = self.OTHER_ARGS_DICT['lookback_period']['default']
+        self.strength_cutoff = self.OTHER_ARGS_DICT['strength_cutoff']['default']
+        self.date_cutoff = self.OTHER_ARGS_DICT['date_cutoff']['default']
+
+        # Constants
+        self.pip = 0.0001
+        self.min_left = self.min_base //2
 
         # == Variables ==
 
@@ -149,6 +197,9 @@ class ClassicSupportFinder:
         # Collecting data across time
         self.avg_strength = []
         self.n_bundles = []
+
+        # Indicators
+        self.stdev = []
 
         # == Testing ==
         self.test_mode = None
@@ -191,15 +242,19 @@ class ClassicSupportFinder:
 
     def support_find(self, data):
         """Find supports in data w.r.t current (latest) index"""
-        for i in range(len(data)-self.GREATEST_AGE, len(data)):
+        for i in range(len(data)-self.date_cutoff, len(data)):
             pass
+
+    def set_pip_value(self, pip):
+        self.pip = pip
 
     # ==== Algo ====
 
     def next(self, candlestick):
 
         # Next
-        self.df = self.df.append(candlestick)
+        # self.df = self.df.append(candlestick)
+        self.df = pd.concat([self.df, candlestick])
         self.idx += 1
 
         # Note: This algorithm is index agnostic
@@ -207,12 +262,13 @@ class ClassicSupportFinder:
         _max, _min = 0, math.inf
         if len(self.df) < 2:
             return
+        self.build_indicators()
 
         # ===== Algorithm ======
         # (1) Compare old[-1] and new candle
         diff = self.df.Close[-2] - self.df.Close[-1]
         self.delta_flipped = False
-        if abs(diff) < self.delta_constant:
+        if abs(diff) < self.delta_value:
             self.delta_data.append(0)
         else:
             if diff > 0:  # Past candle is higher than latest candle
@@ -225,13 +281,13 @@ class ClassicSupportFinder:
                 self.delta_flipped = (self.last_delta != delta_val)
             self.last_delta = delta_val
         # Update delta df
-        self.delta_df = self.delta_df.append(pd.DataFrame({
+        self.delta_df = pd.concat([self.delta_df, pd.DataFrame({
             'delta': self.delta_data[-1]
-        }, index=[self.df.index[-1]]))
+        }, index=[self.df.index[-1]])])
         if len(self.accum_df > 0):
-            self.accum_df = self.accum_df.append(pd.DataFrame({
+            self.accum_df = pd.concat([self.accum_df, pd.DataFrame({
                 'delta': self.delta_data[-1] + self.accum_df.delta[-1]
-            }, index=[self.df.index[-1]]))
+            }, index=[self.df.index[-1]])])
         else:
             self.accum_df = self.accum_df.append(pd.DataFrame({
                 'delta': self.delta_data[-1]
@@ -258,7 +314,8 @@ class ClassicSupportFinder:
                 # Check if supports (previous and current) have min_base
                 if left_base < self.min_base//2:  # new left base = old right base
                     # Destroy left support
-                    self.delete_support(self.supports[-1])
+                    if self.has_new:
+                        self.delete_support(self.supports[-1])
                     # Do not create new support, past support cannot be extended also
                     self.has_new = False
                 else:  # left base > min_base // 2, OK
@@ -269,11 +326,11 @@ class ClassicSupportFinder:
                     # If no alt. peaks, loop will terminate at df.Close == height
                     for i, peak in peaks.iterrows():
                         # Check if alt. left_base is of minimum length,
-                        _peak = self.df.index.get_loc(peak['index'])
+                        _peak = self.df.index.get_loc(i)
                         _left_base = _peak - self.trough
                         if _left_base >= self.min_base//2:  # Add as new peak
                             # Adjust previous support's base
-                            self.update_support(self.supports[-1], 'end', _peak)
+                            # self.update_support(self.supports[-1], 'end', _peak)  # no need to. auto extended!
                             # Register peak
                             height = peak['Close']
                             self.peak = _peak
@@ -290,20 +347,22 @@ class ClassicSupportFinder:
                         # Reset status to 'neutral'
                         self.has_new = False
                         # self.trough = self.peak = self.idx  # no need to reset completely
-                else:  # No older support to extend
-                    pass  # a.k.a do nothing, just continue
+                else:  # No older support to extend. Old trough and peak cannot be further than min_base/2 away
+                    # Last support was trough. Only reset trough.
+                    self.trough = max(self.trough, self.idx-self.min_left)  # reset
 
         elif self.peak > self.trough:  # Find new trough
             if self.delta_flipped:
                 self.trough = self.idx - 1
-                left_base = self.trough - self.trough
-                start = self.trough
+                left_base = self.trough - self.peak
+                start = self.peak
                 end = self.idx
-                depth = self.dc.Close[self.trough]
+                depth = self.df.Close[self.trough]
                 # Check if supports have min_base
                 if left_base < self.min_base // 2:
                     # Destroy left support
-                    self.delete_support(self.supports[-1])
+                    if self.has_new:
+                        self.delete_support(self.supports[-1])
                     # Past support cannot be extended
                     self.has_new = False
                 else:
@@ -312,11 +371,11 @@ class ClassicSupportFinder:
                                                                                                    ascending=True)
                     for i, trough in troughs.iterrows():
                         # Check if alt. trough has min_base
-                        _trough = self.df.index.get_loc(trough['index'])
+                        _trough = self.df.index.get_loc(i)
                         _left_base = _trough - self.peak
                         if _left_base >= self.min_base // 2:
                             # Adjust previous support's base
-                            self.update_support(self.supports[-1], 'end', _trough)
+                            # self.update_support(self.supports[-1], 'end', _trough)
                             # Register trough
                             depth = trough['Close']
                             self.trough = _trough
@@ -331,8 +390,8 @@ class ClassicSupportFinder:
                         pass
                     else:
                         self.has_new = False
-                else:
-                    pass
+                else:  # Reset peak only (Searching for trough)
+                    self.peak = max(self.peak, self.idx-self.min_left)
 
         # ===== Bundling =====
 
@@ -344,7 +403,7 @@ class ClassicSupportFinder:
         # ===== Return function =====
 
         # None in this case
-        print(self.bundles)
+        # print(self.bundles)
 
     def pre_next(self, candlestick):
         self.df = self.df.append(candlestick)
@@ -412,16 +471,28 @@ class ClassicSupportFinder:
     def get_instructions(self):
         # Lines should get lighter the weaker they are
         # Data should be pd.DataFrame format with index and 'height'/value
-        data = pd.DataFrame(index=[[self.get_idx_date(bundle['peak']) for bundle in self.bundles]], data={
-            'strength': [[bundle['strength'] for bundle in self.bundles]],
-            'height': [[bundle['height'] for bundle in self.bundles]],
+        data = pd.DataFrame(index=[self.get_idx_date(bundle['peak']) for bundle in self.bundles], data={
+            'strength': [bundle['strength'] for bundle in self.bundles],
+            'height': [bundle['height'] for bundle in self.bundles],
+            'peak': [bundle['peak'] for bundle in self.bundles],
         })
+        # data = pd.DataFrame(index=[[self.df.index.get_loc(bundle['peak']) for bundle in self.bundles]], data={
+        #     'strength': [[bundle['strength'] for bundle in self.bundles]],
+        #     'height': [[bundle['height'] for bundle in self.bundles]],
+        # })
         return [{
             'index': 0,
             'data': data,
             'type': 'support',
             'colour': 'black',
-        }, {
+        },
+        #     {
+        #     'index': 0,
+        #     'data': smooth_data,
+        #     'type': 'support',
+        #     'colour': 'red',
+        # },
+            {
             'index': 1,
             'data': self.delta_df.copy(),
             'type': 'line',
@@ -433,43 +504,70 @@ class ClassicSupportFinder:
             'colour': 'black',
         }]
 
-    # Util functions
-
-    def bundle_add(self, bundle, support):
+    def build_indicators(self):
+        # self.stdev = talib.STDDEV(self.df, self.variability_period)
         pass
 
-    def bundle_decay(self, bundle):
-        for support in bundle['supports']:
-            self.decay_support(support)
-        self.calculate_bundle_strength(bundle)
+    # Util functions
 
-    def calc_strength(self, support, idx):
-        start = support['start']
-        end = support['end']
-        peak = support['peak']
-        dist = idx - peak
-        length = end - start
-        return math.pow(self.ARGS_DICT['decay'], dist) * math.log(length, 2)
+    def bundle_add(self, _bundle, support):
+        for bundle in self.bundles:
+            if bundle == _bundle:
+                bundle['supports'].append(support)
 
-    def calculate_bundle_strength(self, bundle):
+    def calc_strength(self, support):
+        """Takes width and time decay into account. Recalculates the current strength value of a support."""
+        strength = self.calc_raw_strength(support)
+        dist = self.idx - support['peak']
+        support['strength'] = math.pow(self.decay_constant, dist) * strength
+        return support['strength']
+
+    def calc_raw_strength(self, support):
+        left = support['end'] - support['peak']
+        right = support['peak'] - support['start']
+        # Symmetry considerations
+        base = min(min(left, right) * try_divide(1, self.symmetry_coefficient), max(left, right))\
+               + max(left, right)
+        if math.isnan(base):  # Occurs only on 0 * inf
+            base = min(left, right)
+        # Max base consideration
+        base = min(base, self.max_base)
+        # Width contribution consideration
+        return base * self.width_coefficient + 1
+
+    def calculate_bundle(self, bundle):
         strength = 0
+        peak = 0  # (position)
+        height = 0
         for support in bundle['supports']:
             # strength += self.calc_strength(support, idx)
             strength += support['strength']
-        bundle['strength'] = strength / math.pow(self.clumping_strength, len(bundle['supports'])-1)
-        return strength
+            # peak += support['strength'] * support['peak']
+            height += support['strength'] * support['height']
+            peak = support['peak']
 
-    def create_bundle(self, support):
-        """Create new bundle around support."""
-        bundle = {
-            'supports': [support]
-        }
-        self.bundles.append(bundle)
-        return bundle
+        bundle['strength'] = try_divide(strength, math.pow(self.clumping_strength, len(bundle['supports'])-1))
+        # bundle['peak'] = try_divide(bundle['peak'], len(bundle['supports']) * strength)
+        bundle['peak'] = peak  # Last added peak
+        bundle['height'] = try_divide(height, len(bundle['supports']) * strength)
+
+        return strength
 
     def combine_bundles(self):
         """Use closeness/2 metric. Combine from top to bottom."""
         pass
+
+    def create_bundle(self, support):
+        """Create new bundle around support."""
+        bundle = {
+            'strength': 0,
+            'peak': 0,
+            'height': 0,
+            'supports': [support]
+        }
+        self.bundles.append(bundle)
+        # print(F'Creating {bundle}')
+        return bundle
 
     def create_support(self, peak, start, end, height, type):
         """Create support within bounds end and start, at peak, with value of height.
@@ -484,40 +582,58 @@ class ClassicSupportFinder:
             'type': type,
             'open': True,
         }
+        support.update({
+            'strength': self.calc_raw_strength(support)
+        })
 
         # Add into some bundle
         added = False
-        for bundle in self.bundles:
+        for bundle in self.bundles:  # todo created with NaN strength
             if self.within_bundle(bundle, support):
                 self.bundle_add(bundle, support)
+                # print(F'Creating {support} in {bundle}')
+                self.calculate_bundle(bundle)
                 added = True
                 break
-
         if not added:
-            self.create_bundle(support)
+            bundle = self.create_bundle(support)
+            # print(F'Creating {support} in new {bundle}')
+            self.calculate_bundle(bundle)
 
         self.supports.append(support)
         return support
 
-    def decay(self, strength):
-        return strength * self.ARGS_DICT['decay']
-
     def decay_all(self):
         for bundle in self.bundles:
-            self.bundle_decay(bundle)
+            self.decay_bundle(bundle)
+        self.delete_decayed()
+
+    def decay_bundle(self, bundle):
+        for support in bundle['supports']:
+            self.decay_support(support)
+        self.calculate_bundle(bundle)
 
     def decay_by(self, strength, length):
         return strength * math.pow(self.ARGS_DICT['decay'], length)
 
     def decay_support(self, support):
-        support['strength'] = self.decay(support['strength'])
+        support['strength'] = support['strength'] * self.decay_constant
 
     def delete_support(self, _support):
         for bundle in self.bundles:
-            for support in bundle.supports:
+            for support in bundle['supports']:
                 if support == _support:
-                    bundle.supports.remove(support)
-        self.supports.remove(support)
+                    # print(F'Deleting {_support} from {bundle}')
+                    bundle['supports'].remove(support)
+                    # If bundle has no supports, remove it
+                    if len(bundle['supports']) == 0:
+                        self.bundles.remove(bundle)
+                    self.supports.remove(support)
+
+    def delete_decayed(self):
+        for bundle in self.bundles:
+            if bundle['strength'] < self.strength_cutoff:
+                self.bundles.remove(bundle)
 
     def get_bundle(self, support):
         for bundle in self.bundles:
@@ -526,32 +642,33 @@ class ClassicSupportFinder:
         return None
 
     def get_idx_date(self, idx):
+        if idx < 0 or idx > self.idx:
+            idx = 0
         return self.df.index[idx]
 
     def try_extend(self, support):
         """Extend length of peak. This affects its strength. Upon extension, recalculate
         decay effects."""
-        if support['end'] - support['start']:  # base too long, reset
-            support['open'] = False
+        if support['end'] - support['start'] > self.max_base:  # base too long, reset
             return False
-        elif support['type'] == self.PEAK and support['height'] < self.past_data.High[self.idx]:  # base too high
-            support['open'] = False
+        elif support['type'] == self.PEAK and support['height'] < self.df.High[self.idx]:  # new base too high
             return False
-        elif support['type'] == self.TROUGH and support['height'] > self.past_data.Low[self.idx]:  # base too low
-            support['open'] = False
+        elif support['type'] == self.TROUGH and support['height'] > self.df.Low[self.idx]:  # new base too low
             return False
 
         # Calculate new strength
         support['end'] += 1
-        support['strength'] += 1 * math.pow(self.decay, self.idx - support['peak'])
-        self.calculate_bundle_strength(self.get_bundle(support))
+        # support['strength'] += 1 * math.pow(self.decay, self.idx - support['peak']) * self.width_coefficient
+        support['strength'] = self.calc_strength(support)
+        # Recalculate bundle strength
+        self.calculate_bundle(self.get_bundle(support))
         return True
 
     def update_support(self, support, arg, val):
         support[arg] = val
-        self.calculate_bundle_strength(self.get_bundle(support))
+        self.calculate_bundle(self.get_bundle(support))
 
     def within_bundle(self, bundle, support):
-        if abs(bundle['height'] - support['height']) < self.distinguishing_constant:
+        if abs(bundle['height'] - support['height']) < self.distinguishing_constant * self.pip:
             return True
         return False

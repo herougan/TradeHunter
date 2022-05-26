@@ -191,8 +191,10 @@ def support_plot(ax, supports, style):  # support = {strength, height}
         'weaker_colour': 'grey',
     }
     _style.update(style)  # let style override this default
-    low_strength = try_mean([support['strength'] for i, support in supports.iterrows()]) * 0.2
+    mean_strength = try_mean([support['strength'] for i, support in supports.iterrows()])
+    low_strength = mean_strength * 0.5
     for i, support in supports.iterrows():
+        # support['peak'] unused
         col = _style['colour']
         if support['strength'] < low_strength:
             col = _style['weaker_colour']
