@@ -6,6 +6,8 @@ DataTestingUtil tests based on data retrieved. Text File is used as reference (o
 
 Bug fixes:
 
+0) Create Optim-data -> Successive scores over optimisation
+
 1) Ivar-choices - Optimise/Manual-set - Values (Init at default) (locking ivars)
 2) Discrete sliders, if large number of possibilities -> discrete slider in steps only.
 (Continuous ignores steps)
@@ -15,6 +17,7 @@ wait 1s? On fail a.k.a out or range - go to range[0] or range[1]
 label - combo/slider+edit/edit
 2c) text->slider, slider->text event functions - not stack against each other
 2d) Create Ivar function, does it work?
+2f) Mentioned somewhere else: Different ivar scoring methods. default 'growth'
 2-3e) set title in simulation and plot
 
 *3) Put stuff up on TradeHunter trello

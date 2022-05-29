@@ -581,6 +581,25 @@ def create_optim_result(optim_name, result_dict, robot_name: str):
     return result_df
 
 
+def create_optim_series(optim_name, fitness_collection, ivar_collection):
+    # todo create 'index'-series of ivar scores - create optim_series file
+    # Fetch keys
+    if len(ivar_collection) < 1:
+        return pd.DataFrame()
+    eg_args_dict = ivar_collection[0]['ivar']
+
+    # Build data
+    optim_series_data = {
+        'fitness': fitness_collection,
+    }
+    for key in eg_args_dict.keys():  # For each key, collect their values through
+        optim_series_data.update({
+            key: [ivar[key]['default'] for ivar in ivar_collection]
+        })
+    optim_series = pd.DataFrame(index=[list(range(len(fitness_collection)))], data=optim_series_data)
+    return optim_series
+
+
 # Forex type
 
 def get_optimised_robot_list():
@@ -698,6 +717,12 @@ def write_optim_meta(optim_name: str, meta_dict, robot_name: str):
     meta.to_csv(meta_path)
     print(F'Writing test meta at {meta_path}')
     return meta
+
+
+def write_optim_series(optim_name: str, optim_sdf, robot_name: str):
+    folder = F'{OPTIMISATION_FOLDER}/{robot_name}'
+    meta_path = F'{folder}/{optim_name}__series.csv'
+    pass
 
 
 def load_test_result(test_name: str, robot_name: str):
@@ -1287,6 +1312,15 @@ class DataTester:
         step_size = OPTIMISATION_SETTINGS['arg_step_size']  # alpha
         approach_size = OPTIMISATION_SETTINGS['approach_step_size']
 
+        # Vector field setup
+        optim_field = []  # [{
+        # val_1,...val_i...,val_n
+        # arg_1,...arg_i...,arg_n
+        # },...{}]
+        fitness_collection = []
+        ivar_collection = []
+        final_ivar_results = []  # {ivar, fitness}
+
         # Get ax
         if canvas:
             axes = canvas.axes
@@ -1496,7 +1530,11 @@ class DataTester:
 
         def get_test_result(_ivar):
             _result, _meta = self.test(ta_name, _ivar, ds_names, '', False, False)
-            return _result[-1]  # final only
+            # On any test, add it to fitness and ivar collection
+            _score = get_fitness_score(_result)
+            fitness_collection.append(_score)
+            ivar_collection.append(_ivar)
+            return _result[-1], _score  # final only
 
         def get_ivar_distance(ivar, ivar2):
             """Distance between ivar and ivar 2."""
@@ -1559,15 +1597,6 @@ class DataTester:
             m = m1
             return True, m
 
-        # Vector field setup
-        optim_field = []  # [{
-        # val_1,...val_i...,val_n
-        # arg_1,...arg_i...,arg_n
-        # },...{}]
-        fitness_collection = []
-        ivar_collection = []
-        final_ivar_results = []  # {ivar, fitness}
-
         for i in range(runs):
 
             # Random starting point
@@ -1575,11 +1604,7 @@ class DataTester:
                 pass  # ivar = init_ivar
             else:
                 ivar_dict = random_ivar(i)
-            test_result = get_test_result(ivar_dict['ivar'])
-            fitness = get_fitness_score(test_result)
-            # Full store all ivars and their results
-            fitness_collection.append(fitness)
-            ivar_collection.append(ivar_dict)
+            test_result, fitness = get_test_result(ivar_dict['ivar'])
 
             # run counter
             u = 0
@@ -1601,24 +1626,16 @@ class DataTester:
 
                     ivar = ivar_tuples_to_test[key]['ivar']
                     ivar_dict = ivar_tuples_to_test[key]
-                    test_result = get_test_result(ivar)
-                    _fitness = get_fitness_score(test_result)
+                    test_result, _fitness = get_test_result(ivar)
 
                     ivar_dict.update({
                         'fitness': _fitness,
                     })
                     ivar_result_tuples[key] = ivar_dict
-                    # Store
-                    fitness_collection.append(_fitness)
-                    ivar_collection.append(ivar_dict)
 
                 # Determine next move based on deltas
                 new_ivar_dict = suggest_ivar(ivar_result_tuples, i, u)
-                new_test_result = get_test_result(new_ivar_dict['ivar'])
-                new_fitness = get_fitness_score(new_test_result)
-                # Store new ivar
-                fitness_collection.append(new_fitness)
-                ivar_collection.append(new_ivar_dict)
+                new_test_result, new_fitness = get_test_result(new_ivar_dict['ivar'])
 
                 # Compare new ivar to old ivar
                 diff = new_fitness - fitness
@@ -1762,6 +1779,9 @@ class DataTester:
         for ivar_result in trimmed_ivar_results:
             ivar_result['name'] = optim_name + '_' + ivar_result['name']
         insert_ivars(ta_name, trimmed_ivar_results)
+
+        optim_series = create_optim_series(optim_name, fitness_collection, ivar_collection)
+        write_optim_series(optim_name, optim_series, meta['name'])
 
         # Save optimisation file
         if store:

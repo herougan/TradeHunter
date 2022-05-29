@@ -2214,6 +2214,86 @@ class TradeHunterApp:
 
             body = QVBoxLayout()
 
+            # === Shape ===
+            # Settings layout, IVar layout
+            # Graph
+            # =============
+
+            settings_layout = QVBoxLayout()
+            # Type
+            type_layout = QHBoxLayout()
+            type_label = QLabel('Type')
+            type_combo = QComboBox()
+            for type in ['Robot', 'Optim.', 'Test.', 'Datafile', 'Algo']:
+                type_combo.insertItem(type, 0)
+            type_combo.setCurrentIndex(0)
+            type_layout.addWidget(type_label)
+            type_layout.addWidget(type_combo)
+            # Object
+            object_layout = QHBoxLayout()  # Robot, Datafile, Algo, Optim Result, ?Test? Result
+            object_label = QLabel('Object')
+            object_combo = QComboBox()
+            object_layout.addWidget(object_label)
+            object_layout.addWidget(object_combo)
+            # Dataset
+            data_layout = QHBoxLayout()  # Null for Datafile and Optim Graph
+            data_label = QLabel('Data')
+            data_combo = QComboBox()
+            data_layout.addWidget(data_label)
+            data_layout.addWidget(data_combo)
+            # Final
+            settings_layout.addLayout(type_layout)
+            settings_layout.addLayout(object_layout)
+            settings_layout.addLayout(data_layout)
+
+            def type_selected():
+                type = type_combo.currentText().lower()
+                object_selected()
+                reset_labels()
+                load_object_options()
+
+            def object_selected():
+                type = type_combo.currentText().lower()
+                object = object_combo.currentText().lower()
+                pass
+                data_selected()
+                load_data_options()  # todo continue
+
+            def data_selected():
+                object = object_combo.currentText().lower()
+                data = data_combo.currentText().lower()
+                pass
+
+            def reset_labels():
+                type = type_combo.currentText().lower()
+                if type == 'robot':
+                    pass
+                elif type == 'algo':
+                    pass
+                elif type == 'data':
+                    pass
+                elif type == 'optim.':
+                    pass
+                elif type == 'test.':
+                    pass
+
+            def load_object_options():
+                pass
+
+            def load_data_options():
+                pass
+
+            type_combo.activated.connect(type_selected)
+            object_combo.activated.connect(object_selected)
+            data_combo.activated.connect(data_selected)
+
+            ivar_main_layout = QVBoxLayout()
+            ivar_select_layout = QHBoxLayout()
+            ivar_combo = QComboBox()
+
+            def create_ivar_options():
+                pass
+
             df_layout = QHBoxLayout()
             df_select = QComboBox()
             df_select.setFixedHeight(20)
@@ -2225,6 +2305,7 @@ class TradeHunterApp:
             df_layout.addWidget(df_select)
 
             body.addLayout(df_layout)
+            body.addLayout(settings_layout)
 
             tail = QVBoxLayout()
             button_layout = QHBoxLayout()

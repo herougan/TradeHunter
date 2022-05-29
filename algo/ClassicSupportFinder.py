@@ -10,8 +10,8 @@ from util.langUtil import try_divide
 class ClassicSupportFinder:
     ARGS_DICT = {
         'distinguishing_constant': {
-            'default': 5,
-            'range': [1, 25],
+            'default': 10,
+            'range': [1, 30],
             'step': 0.05,
             'comment': 'Factor distinguishing between different bundles. The greater the number,'
                        'the more supports are bundled together. Adjacent distance for bundling '
@@ -22,9 +22,9 @@ class ClassicSupportFinder:
             'type': IVarType.CONTINUOUS,
         },
         'decay_constant': {
-            'default': 0.9,
+            'default': 0.95,
             'range': [0.1, 1],
-            'step': 0.05,
+            'step': 0.01,
             'type': IVarType.CONTINUOUS,
         },
         'width_coefficient': {
@@ -121,9 +121,9 @@ class ClassicSupportFinder:
             'default': 20,
         },
         'strength_cutoff': {
-            'default': 0,  # strength = log(base)
-            'range': [],
-            'step': 0,
+            'default': 0.01,  # strength = log(base)
+            'range': [0.001, 0.1],
+            'step': 0.001,
             'type': IVarType.CONTINUOUS,
         },
         'date_cutoff': {
@@ -172,13 +172,9 @@ class ClassicSupportFinder:
 
         # Constants
         self.pip = 0.0001
-        self.min_left = self.min_base //2
+        self.min_left = self.min_base // 2
 
         # == Variables ==
-
-        # Stats
-        self.n_supports = []
-        self.avg_strength = []
 
         # Variable arrays
         self.decay = math.pow(math.e, - self.decay_constant)
@@ -196,7 +192,8 @@ class ClassicSupportFinder:
 
         # Collecting data across time
         self.avg_strength = []
-        self.n_bundles = []
+        self.n_supports = []
+        self.avg_strength = []
 
         # Indicators
         self.stdev = []
@@ -227,22 +224,21 @@ class ClassicSupportFinder:
         # == Statistical Data ==
         self.n_supports = []
         self.avg_strength = []
-        for i in range(len(pre_data)):
-            self.n_supports.append(0)
-            self.avg_strength.append(0)
 
         # == Status ==
         self.started = True
         self.time = datetime.now()
 
         # Setup consequences of pre_data
-        for i in range(max(0, len(pre_data)-self.lookback_period), len(pre_data)):
-            self.pre_next(pre_data[i:i+1])  # df.Close, Open, High, Low
+        for i in range(max(0, len(pre_data) - self.lookback_period), len(pre_data)):
+            self.pre_next(pre_data[i:i + 1])  # df.Close, Open, High, Low
+            self.n_supports.append(0)
+            self.avg_strength.append(0)
         self.delta_df.index_name = 'date'
 
     def support_find(self, data):
         """Find supports in data w.r.t current (latest) index"""
-        for i in range(len(data)-self.date_cutoff, len(data)):
+        for i in range(len(data) - self.date_cutoff, len(data)):
             pass
 
     def set_pip_value(self, pip):
@@ -312,7 +308,7 @@ class ClassicSupportFinder:
                 end = self.idx
                 height = self.df.Close[self.peak]
                 # Check if supports (previous and current) have min_base
-                if left_base < self.min_base//2:  # new left base = old right base
+                if left_base < self.min_base // 2:  # new left base = old right base
                     # Destroy left support
                     if self.has_new:
                         self.delete_support(self.supports[-1])
@@ -321,14 +317,14 @@ class ClassicSupportFinder:
                 else:  # left base > min_base // 2, OK
                     # Try to find true peak (a.k.a delta=0 peak)
                     # todo: 1) check if sorting works 2) check if df.index.get_loc works
-                    peaks = self.df[self.trough:self.peak+1][self.df.Close >= height].sort_values(by=['Close'],
-                                                                                                  ascending=False)
+                    peaks = self.df[self.trough:self.peak + 1][self.df.Close >= height].sort_values(by=['Close'],
+                                                                                                    ascending=False)
                     # If no alt. peaks, loop will terminate at df.Close == height
                     for i, peak in peaks.iterrows():
                         # Check if alt. left_base is of minimum length,
                         _peak = self.df.index.get_loc(i)
                         _left_base = _peak - self.trough
-                        if _left_base >= self.min_base//2:  # Add as new peak
+                        if _left_base >= self.min_base // 2:  # Add as new peak
                             # Adjust previous support's base
                             # self.update_support(self.supports[-1], 'end', _peak)  # no need to. auto extended!
                             # Register peak
@@ -349,7 +345,7 @@ class ClassicSupportFinder:
                         # self.trough = self.peak = self.idx  # no need to reset completely
                 else:  # No older support to extend. Old trough and peak cannot be further than min_base/2 away
                     # Last support was trough. Only reset trough.
-                    self.trough = max(self.trough, self.idx-self.min_left)  # reset
+                    self.trough = max(self.trough, self.idx - self.min_left)  # reset
 
         elif self.peak > self.trough:  # Find new trough
             if self.delta_flipped:
@@ -367,8 +363,8 @@ class ClassicSupportFinder:
                     self.has_new = False
                 else:
                     # Try to find true trough
-                    troughs = self.df[self.peak:self.trough+1][self.df.Close <= depth].sort_values(by=['Close'],
-                                                                                                   ascending=True)
+                    troughs = self.df[self.peak:self.trough + 1][self.df.Close <= depth].sort_values(by=['Close'],
+                                                                                                     ascending=True)
                     for i, trough in troughs.iterrows():
                         # Check if alt. trough has min_base
                         _trough = self.df.index.get_loc(i)
@@ -391,7 +387,7 @@ class ClassicSupportFinder:
                     else:
                         self.has_new = False
                 else:  # Reset peak only (Searching for trough)
-                    self.peak = max(self.peak, self.idx-self.min_left)
+                    self.peak = max(self.peak, self.idx - self.min_left)
 
         # ===== Bundling =====
 
@@ -399,6 +395,10 @@ class ClassicSupportFinder:
 
         # Decay bundles
         self.decay_all()
+
+        # ===== Stats =====
+        self.n_supports.append(len(self.bundles))
+        # self.avg_strength.append(try_mean([bundle['strength'] for bundle in self.bundles]))
 
         # ===== Return function =====
 
@@ -432,7 +432,7 @@ class ClassicSupportFinder:
         if self.value_type == 'open':
             return self.df.Open[idx]
         if self.value_type == 'average':
-            return self.df.Close[idx]  #?
+            return self.df.Close[idx]  # ?
         return None
 
     def get_sort_height(self, idx, peak_type=TROUGH):
@@ -447,7 +447,7 @@ class ClassicSupportFinder:
         if self.value_type == 'open':
             return self.df.Open[idx]
         if self.value_type == 'average':
-            return self.df.Close[idx]  #?
+            return self.df.Close[idx]  # ?
         pass
 
     def get_resistances(self):
@@ -486,23 +486,23 @@ class ClassicSupportFinder:
             'type': 'support',
             'colour': 'black',
         },
-        #     {
-        #     'index': 0,
-        #     'data': smooth_data,
-        #     'type': 'support',
-        #     'colour': 'red',
-        # },
+            #     {
+            #     'index': 0,
+            #     'data': smooth_data,
+            #     'type': 'support',
+            #     'colour': 'red',
+            # },
             {
-            'index': 1,
-            'data': self.delta_df.copy(),
-            'type': 'line',
-            'colour': 'black',
-        }, {
-            'index': 2,
-            'data': self.accum_df.copy(),
-            'type': 'line',
-            'colour': 'black',
-        }]
+                'index': 1,
+                'data': self.delta_df.copy(),
+                'type': 'line',
+                'colour': 'black',
+            }, {
+                'index': 2,
+                'data': self.accum_df.copy(),
+                'type': 'line',
+                'colour': 'black',
+            }]
 
     def build_indicators(self):
         # self.stdev = talib.STDDEV(self.df, self.variability_period)
@@ -526,7 +526,7 @@ class ClassicSupportFinder:
         left = support['end'] - support['peak']
         right = support['peak'] - support['start']
         # Symmetry considerations
-        base = min(min(left, right) * try_divide(1, self.symmetry_coefficient), max(left, right))\
+        base = min(min(left, right) * try_divide(1, self.symmetry_coefficient), max(left, right)) \
                + max(left, right)
         if math.isnan(base):  # Occurs only on 0 * inf
             base = min(left, right)
@@ -546,7 +546,7 @@ class ClassicSupportFinder:
             height += support['strength'] * support['height']
             peak = support['peak']
 
-        bundle['strength'] = try_divide(strength, math.pow(self.clumping_strength, len(bundle['supports'])-1))
+        bundle['strength'] = try_divide(strength, math.pow(self.clumping_strength, len(bundle['supports']) - 1))
         # bundle['peak'] = try_divide(bundle['peak'], len(bundle['supports']) * strength)
         bundle['peak'] = peak  # Last added peak
         bundle['height'] = try_divide(height, len(bundle['supports']) * strength)
@@ -588,7 +588,7 @@ class ClassicSupportFinder:
 
         # Add into some bundle
         added = False
-        for bundle in self.bundles:  # todo created with NaN strength
+        for bundle in self.bundles:
             if self.within_bundle(bundle, support):
                 self.bundle_add(bundle, support)
                 # print(F'Creating {support} in {bundle}')
