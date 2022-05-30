@@ -1,8 +1,10 @@
+import math
 from datetime import datetime
 
 import pandas as pd
 
 from settings import IVarType
+from util.langUtil import try_divide
 
 
 class AverageSupportFinder:
@@ -27,6 +29,11 @@ class AverageSupportFinder:
             'type': IVarType.DISCRETE,
         },
     }
+    OTHER_ARGS_DICT = {
+        'distinguishing_constant': {
+            'default': 5,
+        }
+    }
     PREPARE_PERIOD = 10
 
     def __init__(self, ivar=None):
@@ -45,10 +52,15 @@ class AverageSupportFinder:
         self.min_left, self.min_right = self.min_base // 2, self.min_base // 2  # No difference at the moment
 
         # Variable arrays
-        self.bundles = []
+        self.bundles, self.supports = [], []  # supports make up bundles
         self.last_idx, idx = 0, 0
         self.df = pd.DataFrame()
         self.smooth_df, self.delta_df = pd.DataFrame(), pd.DataFrame()
+
+        # Constants
+        self.pip = 0.0001
+        self.distinguishing_constant = self.OTHER_ARGS_DICT['distinguishing_constant']['default']
+        self.distinguishing_value = self.distinguishing_constant * self.pip
 
         # Collecting data across time
         self.n_bundles = []
@@ -96,18 +108,20 @@ class AverageSupportFinder:
     def next(self, candlestick):
 
         self.df = pd.concat([self.df, candlestick])
+        self.build_indicators()
         self.idx += 1
 
         # ===== (1) ======
         # Search through data
         increasing, decreasing = 0, 0
+        past_increasing, past_decreasing = 0, 0
         condition = 0  # -2 (Trough), -1, 0, 1, 2 (Peak)
         for i in range(self.last_idx, len(self.smooth_df)):
             if self.smooth_df.Delta[i] > 0:
                 increasing += 1
-                decreasing = 0
+                past_decreasing, decreasing = decreasing, 0
             else:
-                increasing = 0
+                past_increasing, increasing = increasing, 0
                 decreasing += 1
             # If has been increasing for some time:
             if increasing >= self.min_left:
@@ -123,70 +137,115 @@ class AverageSupportFinder:
             # If condition hit, go from next
             if condition <= -2:
                 # Add trough
-                self.bundles.append()
+                self.create_support_at(self.idx, increasing, past_decreasing)  # *Is increasing, was decreasing
                 self.last_idx = i + 1
             elif condition >= 2:
                 # Add peak
-                self.bundles.append()
+                self.create_support_at(self.idx, past_increasing, decreasing)
                 self.last_idx = i + 1
-
-        self.last_idx = 1  # todo
 
         # ===== (2) ======
         # Record peaks and troughs
 
     def build_indicators(self):
         """Builds smooth_df according to data. Does not stop at $self.idx"""
-        if len(self.df) < self.smoothing_period:
-            smooth_values, delta_values = [], []
-            # Average values up to smoothing period
-            for i in range(len(self.smooth_df), len(self.df)):
-                # Start at len - period, len = speriod
-                start = i - self.smoothing_period
-                value, l = 0, self.smoothing_period
-                if start < 0:  # If len is too short, start is negative, so:
-                    start, l = 0, i  # Set start to 0 and $stop at i (len = i also)
-                for u in range(start, i):
-                    value += self.df.Close[u]
-                smooth_values.append(value/l)
-                delta_values.append(smooth_values[-1] > smooth_values[-2])  # todo [-1] does not exist until 2nd loop
-            return pd.DataFrame()  # -------------------------------- consider concat-ing every loop
-        # Continue/Start building self.smooth_df
-        else:
-            smooth_data, delta_data, index = [], [], []
-            for i in range(len(self.smooth_df), len(self.df)):
-                # Assuming there is at least $smoothing_period length of data # todo
-                smooth_data.append(self.smooth_df.Close[-1] +
-                                   (self.df[i] - self.df[i-self.smoothing_period]) / self.smoothing_period)
-                index.append(self.df.index[-1])
-                delta_data.append(self.smooth_data[-1] > self.smooth_data[-2])  # todo
-            # Append new data
-            data = pd.DataFrame(index=index, data={
-                'Close': smooth_data,
-                'Delta': delta_data
-            })
-            pd.concat([self.smooth_data, data])
 
+        for i in range(len(self.smooth_df), len(self.df)):
+            if i < self.smoothing_period + 1:  # At i = self.sm_p, recalculate at len = sm_p; up to i, avg up to #i
+                smooth = sum([self.smooth_df.Close[max(0, i-self.smoothing_period):i], self.df.Close[i]])\
+                         / min(len(self.smooth_df) + 1, self.smoothing_period)
+            else:  # Calculate from previous value
+                smooth = self.smooth_df + (self.df.Close[i] - self.df.Close[i - self.smoothing_period])\
+                         / self.smoothing_period
+            data = pd.DataFrame(
+                index=[self.df.index[i]],
+                data={
+                    'Smooth': [smooth],
+                    'Delta': [smooth > self.smooth_df.Smooth[-1]],
+                }
+            )
+            # Concat to sdf every loop
+            pd.concat([self.smooth_df, data])
+
+    def get_instructions(self):
+        # Lines should get lighter the weaker they are
+        # Data should be pd.DataFrame format with index and 'height'/value
+        data = pd.DataFrame(index=[self.get_idx_date(bundle['peak']) for bundle in self.bundles], data={
+            'strength': [bundle['strength'] for bundle in self.bundles],
+            'height': [bundle['height'] for bundle in self.bundles],
+            'peak': [bundle['peak'] for bundle in self.bundles],
+        })
+        # data = pd.DataFrame(index=[[self.df.index.get_loc(bundle['peak']) for bundle in self.bundles]], data={
+        #     'strength': [[bundle['strength'] for bundle in self.bundles]],
+        #     'height': [[bundle['height'] for bundle in self.bundles]],
+        # })
+        return [{
+            'index': 0,
+            'data': data,
+            'type': 'support',
+            'colour': 'black',
+        },]
+
+    # Util functions
+
+    def add_into_bundle(self, bundle, support):
+        bundle['supports'].append(bundle)
+
+    def create_bundle(self, support):
+        bundle = {
+            'strength': support['strength'],
+            'pos': support['pos'],
+            'height': support['height'],
+        }
+        self.bundles.append(bundle)
+
+    def create_support(self, data):
+        support = data
+        self.supports.append(support)
+        # Try to bundle
+        added = False
+        for bundle in self.bundles:
+            if self.within_bundle(bundle, support):
+                bundle.append(support)
+                added = True
+
+        # Make new bundle
+        if not added:
+            self.create_bundle(support)
+            # self.calculate_bundle(bundle)  # calculated on construct
+
+        self.supports.append(support)
+        return support
+
+    def create_support_at(self, idx, left, right):
+        self.create_support({
+            'strength': left + right,
+            'pos': idx,
+            'height': self.df.Close[idx]
+        })
+
+    def calculate_bundle(self, bundle):
+        strength = sum([support['strength'] for support in bundle['supports']])
+        height = sum([support['height'] for support in bundle['supports']])
+        bundle['strength'] = try_divide(strength, math.sqrt(len(bundle['supports'])))
+        bundle['pos'] = bundle['supports'][-1]['pos']
+        bundle['height'] = try_divide(strength, math.sqrt(len(bundle['supports'])))
+
+    def get_bundle(self, support):
+        pass
+
+    def get_idx_date(self, idx):
+        if idx < 0 or idx > self.idx:
+            idx = 0
+        return self.df.index[idx]
+
+    def within_bundle(self, bundle, support):
+        if abs(bundle['height'] - support['height']) < self.distinguishing_value:
+            return True
+        return False
 
     # ===== Comments ======
     # Differences with 'ClassicSupportFinder'
     # Delta-ism
     # Late
     # Strength
-
-    def add_into_bundle(self, bundle, support):
-        bundle['supports'].append(bundle)
-
-    def create_bundle(self, support):
-        self.bundles.append()
-        pass
-
-    def create_support(self, data):
-        support = data
-        self.supports.append(support)
-        # Try to bundle
-        if True:
-            self.add_into_bundle(None, support)
-        else:
-            self.create_bundle(support)
-        pass

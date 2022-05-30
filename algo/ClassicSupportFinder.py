@@ -514,6 +514,7 @@ class ClassicSupportFinder:
         for bundle in self.bundles:
             if bundle == _bundle:
                 bundle['supports'].append(support)
+                self.calculate_bundle(bundle)
 
     def calc_strength(self, support):
         """Takes width and time decay into account. Recalculates the current strength value of a support."""
@@ -592,9 +593,9 @@ class ClassicSupportFinder:
             if self.within_bundle(bundle, support):
                 self.bundle_add(bundle, support)
                 # print(F'Creating {support} in {bundle}')
-                self.calculate_bundle(bundle)
                 added = True
                 break
+        # Make new bundle
         if not added:
             bundle = self.create_bundle(support)
             # print(F'Creating {support} in new {bundle}')

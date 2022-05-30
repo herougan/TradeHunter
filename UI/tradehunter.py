@@ -2514,8 +2514,14 @@ class TradeHunterApp:
 
             def load_ivar_label_list():
                 robot = self.robot_select.currentText()
+                type = self.type_select.currentText().lower()
                 self.ivar_select.clear()
-                ivars = load_ivar_list(robot)
+                if type == 'robot':
+                    ivars = load_ivar_list(robot)
+                elif type == 'algo':
+                    ivars = load_algo_ivar_list(robot)
+                else:
+                    ivars = []
                 ivars.sort(reverse=True)
                 for ivar in ivars:
                     self.ivar_select.addItem(ivar)
