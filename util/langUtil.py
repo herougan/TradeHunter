@@ -243,6 +243,10 @@ def is_datetime(v):
     return isinstance(v, datetime)
 
 
+def is_datetimestring(s):
+    return False  # todo
+
+
 # Names/File Names
 
 

@@ -29,6 +29,9 @@ from util.robotDataUtil import generate_base_signal_dict
 class FMACDRobot(robot):
     """A simple robot to test the TradingHunter suite."""
 
+    VERSION = '0.1'
+    NAME = 'FMACDRobot'
+
     # N_ARGS = 2
     # ARGS_STR = ['stop_loss', 'take_profit', 'fast_period', 'slow_period', 'signal_period', 'sma_period']
     # ARGS_DEFAULT = [1, 1.5, 12, 26, 9, 200]
@@ -130,9 +133,6 @@ class FMACDRobot(robot):
     # Plotting variables
     PLOT_NO = [0, 0, 1]  # (Trailing)
 
-    VERSION = '0.1'
-    NAME = 'FMACDRobot'
-
     def __init__(self, ivar=ARGS_DICT, xvar={}):
         """XVar variables should be numbers or strings.
         e.g. leverage must be a number (100), not '1:100'.
@@ -231,15 +231,12 @@ class FMACDRobot(robot):
         #     # Use length differences instead. If length = 0, indicator has no start
         # }
         self.new_indicators = {}
+
         # == Signals ==
         self.signals = []  # { Standard_Dict, FMACD_Specific_Dict }
         self.open_signals = []  # Currently open signals
         self.new_closed_signals = []  # Deleted on each 'next'. For easy runtime analysis
         self.new_open_signals = []
-        # self.failed_signals = []  # So that the robot doesn't waste time on failed signals;
-        # failure saved for analysis. Add failed signals directly to signals...
-        # Failed signals should still calculate stop-loss and take-profit for hindsight
-        # analysis.
 
         # == Statistical Data ==
         self.balance = []  # Previous Balance OR Starting capital, + Realised P/L OR Equity - Unrealised P/L OR
@@ -269,8 +266,8 @@ class FMACDRobot(robot):
         # == Data ==
         self.df = pd.DataFrame()
         self.last = pd.DataFrame()
-        self.last_date = None
         # self.con_df = pd.DataFrame()  # df w.r.t to data (old data to build indicators not included)
+        self.last_date = None
 
         # == Robot Status ==
         self.test_mode = False
@@ -279,15 +276,6 @@ class FMACDRobot(robot):
         self.started = False
 
         # == Testing Only ==
-        self.indicators_test = {
-            'SMA200': pd.DataFrame(),
-            'SMA5': pd.DataFrame(),
-            'EMA': pd.DataFrame(),
-            'MACD': pd.DataFrame(),
-            'MACD_SIGNAL': pd.DataFrame(),
-            'MACD_HIST': pd.DataFrame(),
-            'MACD_DF': pd.DataFrame(),
-        }
         self.df_test = pd.DataFrame()
 
     def ivar_check(self, ivar):

@@ -13,7 +13,8 @@ from pandas import to_datetime
 import matplotlib as mpl
 
 from settings import PLOTTING_SETTINGS
-from util.langUtil import timedeltatoyahootimestr, strtodatetime, is_datetime, strtotimedelta, try_mean
+from util.langUtil import timedeltatoyahootimestr, strtodatetime, is_datetime, strtotimedelta, try_mean, try_max
+from util.mathUtil import get_scale_grey
 
 BAR_WIDTH = 5
 BAR_WIDTH_DICT = {
@@ -49,7 +50,6 @@ DATE_FORMAT_DICT = {  # Use parser for parsing slow, use dict for axis format
 FIGSIZE = (24, 12)
 PLOTSTYLE = "seaborn"
 PLOTENGINE = "TkAgg"
-
 
 # Base Plot functions
 
@@ -164,6 +164,7 @@ def macd_histogram_plot(ax, df: pd.DataFrame, xlim=None):
 
 
 def line_plot(ax, df: pd.DataFrame, style={}, xlim=None):
+    """Does nothing at the moment"""
     _style = generic_style()
     _style.update(style)
 
@@ -175,9 +176,9 @@ def line_plot(ax, df: pd.DataFrame, style={}, xlim=None):
                 linewidth=_style['linewidth'], marker=_style['marker'])
         # style = default_style.update(style)
         #
-        # x = [open_value, close_value]
-        # y = [start_date, end_date]
-        # ax.plot(x, y, color=colour, marker=marker)
+        # x = df.values
+        # y = df.index
+        # ax.plot(x, y, color=_style['colour'], marker=_style['marker'])
         if not xlim:
             xlim = [df.index[0], df.index[-1]]
         ax.set_xlim(left=xlim[0], right=xlim[-1])
@@ -191,13 +192,15 @@ def support_plot(ax, supports, style):  # support = {strength, height}
         'weaker_colour': 'grey',
     }
     _style.update(style)  # let style override this default
-    mean_strength = try_mean([support['strength'] for i, support in supports.iterrows()])
-    low_strength = mean_strength * 0.5
+    # mean_strength = try_mean([support['strength'] for i, support in supports.iterrows()])
+    max_strength = try_max([support['strength'] for i, support in supports.iterrows()])
+    if max_strength < 1:
+        max_strength = 1
+
     for i, support in supports.iterrows():
         # support['peak'] unused
-        col = _style['colour']
-        if support['strength'] < low_strength:
-            col = _style['weaker_colour']
+        # col = get_scale_grey(support['strength']/mean_strength)
+        col = str(1 - support['strength']/max_strength)
         ax.axhline(y=support['height'], color=col, linestyle='-')
 
 

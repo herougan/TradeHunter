@@ -24,8 +24,7 @@ from util.dataRetrievalUtil import load_dataset, load_df, get_computer_specs, nu
     insert_ivars, file_exists, try_delete_file
 from util.langUtil import craft_instrument_filename, strtodatetime, try_key, remove_special_char, try_divide, try_max, \
     try_mean, get_test_name, get_file_name, get_instrument_from_filename, \
-    try_min, try_sgn, in_std_range
-
+    try_min, try_sgn, in_std_range, is_datetimestring
 
 #  Robot
 # from robot import FMACDRobot, TwinSMA
@@ -1202,7 +1201,7 @@ class DataTester:
 
         # Variables
         sleep_time = 1 / svar['speed']  # seconds
-        start = 1  # index of dataframe to start at
+        start = self.algo.PREPARE_PERIOD or 1  # index of dataframe to start at
         scope = svar['scope']
 
         # Plotting handles
@@ -1240,6 +1239,9 @@ class DataTester:
             _df.index = list(range(len(_df.index)))
             # instructions
             for instruction in instructions:
+                # todo check. if already in date form...
+                if len(instruction['data']) and is_datetimestring(instruction['data'].index[-1]):
+                    pass
                 instruction['data'].index = date_to_index_arr(_df.index, _dates, instruction['data'].index)
 
             # Get xlim

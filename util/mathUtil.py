@@ -1,3 +1,5 @@
+from math import floor
+
 import talib
 
 from util.dataRetrievalUtil import try_stdev
@@ -62,3 +64,60 @@ def is_integer(x):
     if not y or y - x != 0:
         return False
     return True
+
+
+def get_scale_colour(col1, col2, val):
+    """Takes in two colours and the val (between 1 and 0) to decide
+    the colour value in the continuum from col1 to col2.
+    col1 and col2 must be named colours."""
+    pass
+
+
+def get_scale_grey(val):
+
+    hexa = 15*16+15 * val
+    first_digit = hexa//16
+    second_digit = hexa - first_digit * 16
+    hexa = F'{to_single_hex(first_digit)}{to_single_hex(second_digit)}'
+
+    return F'#{hexa}{hexa}{hexa}'
+
+
+def get_inverse_single_hex(val):
+    val = try_int(val)
+    _val = val % 16
+    _val = 16 - _val
+    if _val < 10:
+        return str(_val)
+    elif 10 <= _val < 11:
+        return 'A'
+    elif 11 <= _val < 12:
+        return 'B'
+    elif 12 <= _val < 13:
+        return 'C'
+    elif 13 <= _val < 14:
+        return 'D'
+    elif 14 <= _val < 15:
+        return 'E'
+    elif 15 <= _val < 16:
+        return 'F'
+    return None
+
+def to_single_hex(val):
+    val = try_int(val)
+    _val = val % 16
+    if _val < 10:
+        return str(_val)
+    elif 10 <= _val < 11:
+        return 'A'
+    elif 11 <= _val < 12:
+        return 'B'
+    elif 12 <= _val < 13:
+        return 'C'
+    elif 13 <= _val < 14:
+        return 'D'
+    elif 14 <= _val < 15:
+        return 'E'
+    elif 15 <= _val < 16:
+        return 'F'
+    return None

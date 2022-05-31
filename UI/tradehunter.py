@@ -2514,7 +2514,7 @@ class TradeHunterApp:
 
             def load_ivar_label_list():
                 robot = self.robot_select.currentText()
-                type = self.type_select.currentText().lower()
+                type = type_select.currentText().lower()
                 self.ivar_select.clear()
                 if type == 'robot':
                     ivars = load_ivar_list(robot)
@@ -2600,7 +2600,7 @@ class TradeHunterApp:
             def load_algo_combo():
                 """General method 'load_robot_list' calls this method"""
                 algos = load_algo_list()
-                algos.sort(reverse=True)
+                algos.sort(reverse=False)
                 robot_select.clear()
                 for algo in algos:
                     robot_select.addItem(algo)

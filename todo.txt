@@ -7,6 +7,7 @@ DataTestingUtil tests based on data retrieved. Text File is used as reference (o
 Bug fixes:
 
 0) Create Optim-data -> Successive scores over optimisation
+0*) Can't stop sim once started...
 
 1) Ivar-choices - Optimise/Manual-set - Values (Init at default) (locking ivars)
 2) Discrete sliders, if large number of possibilities -> discrete slider in steps only.

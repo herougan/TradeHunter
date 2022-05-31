@@ -72,7 +72,7 @@ class ClassicSupportFinder:
             'type': IVarType.DISCRETE,
         },
         'min_base': {
-            'default': 3,
+            'default': 2,
             'range': [1, 5],
             'step': 1,
             'type': IVarType.DISCRETE,
