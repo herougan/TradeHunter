@@ -321,6 +321,19 @@ def try_mean(list):
     return i / len(list)
 
 
+def try_width(list):
+    if len(list) < 1:
+        return 0
+    max, min = 0, math.inf
+    # Get max and min
+    for x in list:
+        if x > max:
+            max = x
+        if x < min:
+            min = x
+    return max-min
+
+
 def try_sgn(n1):
     n1 = try_float(n1)
     if n1:

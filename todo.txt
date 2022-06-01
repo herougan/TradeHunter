@@ -6,6 +6,8 @@ DataTestingUtil tests based on data retrieved. Text File is used as reference (o
 
 Bug fixes:
 
+-) Move try_X to math_util
+
 0) Create Optim-data -> Successive scores over optimisation
 0*) Can't stop sim once started...
 
@@ -29,6 +31,7 @@ label - combo/slider+edit/edit
 5b) Testing and optimisation: Progress bar embedded
 5c) Graph embedded during optimisation
 5d) result analysis shows all datasets tested
+5e) Analysis page first has a combobox for robot then a combobox for results
 
 6) IVar input should stay as ivar (eg. no more "self.min_base = ivar['min_base']['default']")
 though it is more convenient to use self.min_base. check can just run __init__ again if it fails.

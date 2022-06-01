@@ -73,6 +73,10 @@ def get_scale_colour(col1, col2, val):
     pass
 
 
+def to_candlestick(ticker_data, interval: str, inc=False):
+    pass
+
+
 def get_scale_grey(val):
 
     hexa = 15*16+15 * val
@@ -102,6 +106,7 @@ def get_inverse_single_hex(val):
     elif 15 <= _val < 16:
         return 'F'
     return None
+
 
 def to_single_hex(val):
     val = try_int(val)

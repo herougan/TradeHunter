@@ -3,10 +3,12 @@ import math
 from datetime import timedelta
 
 import pandas as pd
+from dateutil import parser
 
 from robot.abstract.robot import robot
 from settings import IVarType
-from util.langUtil import get_instrument_type, strtotimedelta, strtodatetime
+from util.langUtil import get_instrument_type, strtotimedelta, strtodatetime, try_mean, try_int, try_width
+from util.robotDataUtil import generate_base_signal_dict
 
 
 class DistSMA(robot):
@@ -63,7 +65,7 @@ class DistSMA(robot):
             'type': IVarType.DISCRETE,
         },
         # Variability parameters
-        'variability_constant_1': {
+        'variability_constant': {
             'default': 1,
             'range': [1, 10],
             'step_size': 1,
@@ -181,9 +183,6 @@ class DistSMA(robot):
         self.sma_coeff_step = self.ivar['sma_coeff_step']['default']
         # SMA arrays
         self.sma_periods, self.sma_coeffs = [], []
-        for i in range(self.sma_count):
-            self.sma_periods.append(self.sma_base_period * math.pow(self.sma_period_step, i))
-            self.sma_coeffs.append(self.sma_base_coeff * math.pow(self.sma_coeff_step, i))
         self.variability_constant = self.ivar['variability_constant']['default']
         # == Other Args ==
         self.look_back = self.OTHER_ARGS_DICT['look_back']['default']
@@ -199,7 +198,13 @@ class DistSMA(robot):
 
         # == Indicators ==
         self.sma_indicators = []
-        self.sma_variability_indicator = pd.DataFrame()
+        for i in range(self.sma_count):
+            self.sma_indicators.append(pd.DataFrame(index=[], data={'Value': []}))
+            self.sma_periods.append(int(self.sma_base_period * math.pow(self.sma_period_step, i)))
+            self.sma_coeffs.append(int(self.sma_base_coeff * math.pow(self.sma_coeff_step, i)))
+        # Auxillary indicators
+        self.sma_variability_indicator, self.sma_variability_trend = pd.DataFrame(), pd.DataFrame()
+        self.sma_trend_predictor, self.sma_average = pd.DataFrame(), pd.DataFrame()  # ~of the largest period SMA used
 
         # == Signals ==
         self.signals = []  # { Standard_Dict, FMACD_Specific_Dict }
@@ -227,7 +232,7 @@ class DistSMA(robot):
         self.margin_level = []  # Equity / Margin * 100%, Otherwise 0%
         self.stat_datetime = []
 
-        self.variability_scores = []
+        self.variability_scores = []  # See self.sma_variability_indicator
         self.pullback_scores = []
 
         # == Data ==
@@ -296,15 +301,186 @@ class DistSMA(robot):
         else:  # todo dont do this
             self.stat_datetime.append(None)
 
+        # pre-Setup indicators
+        for i in range(len(pre_data)):
+            for i in range(len(self.sma_indicators)):
+                _index = pre_data.index[i]
+                self.sma_indicators[i] = pd.concat([self.sma_indicators[i], {
+                    index=_index, data={
+                        'Value': [0]
+                    }
+                }])
+            self.sma_average = pd.concat([self.sma_variability_trend, pd.DataFrame(
+                index=_index,
+                data=[0],
+            )])
+            self.sma_variability_indicator = pd.concat([self.sma_variability_indicator, pd.DataFrame(
+                index=_index,
+                data=[0],
+            )])
+            self.sma_variability_trend = pd.concat([self.sma_variability_trend, pd.DataFrame(
+                index=_index,
+                data=[0],
+            )])
+            self.sma_trend_predictor = pd.concat([self.sma_variability_trend, pd.DataFrame(
+                index=_index,
+                data=[0],  # Use where the trend is pointing to. maybe test without this first.
+            )])
+
         # == Robot Status ==
         self.started = True
 
+    def apply_xvar(self, xvar):
 
-    def next(self):
+        self.lag = xvar['lag']
+        self.starting_capital = xvar['capital']
+        self.leverage = xvar['leverage']
+        self.instrument_type = xvar['instrument_type']
+        # self.currency = xvar['currency']  # from symbol
+        self.commission = xvar['commission']
+        self.contract_size = xvar['contract_size']
+        if 'lot_size' in xvar:
+            self.lot_size = xvar['lot_size']
+        if 'pip_size' in xvar:
+            self.pip_size = xvar['pip_size']
+
+    def next(self, candlesticks: pd.DataFrame()):
+
+        # == Step 1: Update data ==
+        if not self.test_mode:
+            self.df = self.df.append(candlesticks)
+            self.build_indicators()
+        self.last = candlesticks.iloc[-1]
+        self.last_date = candlesticks.index[-1]
+
+        # == Step 2: Update stats ==
+        for i in range(len(candlesticks)):
+            self.next_statistics(candlesticks.iloc[i])
+
+        # == Step 3: Analyse ==
+
+        # == Step 4: Signals ==
         pass
+
+    # Simulation
+
+    def test(self):
+        pass
+
+    def sim_next(self, candlesticks: pd.DataFrame()):
+        """Full run once to prevent repetitive computation during testing."""
+        self.next(candlesticks)
+
+    def generate_signal(self):
+        signal = generate_base_signal_dict()
+        # Assign dict values
+        signal['type'] = 1
+        signal['start'] = self.last_date
+        signal['vol'] = 0
+        sgn = math.copysign(1, signal['vol'])
+        signal['leverage'] = self.xvar['leverage']
+        # Action *= Leverage; Margin /= Leverage
+        signal['margin'] = 0
+        signal['open_price'] = self.last.Close
+        # Generate stop loss and take profit
+        signal['stop_loss'], signal['baseline'] = 0
+        signal['take_profit'] = 0
+        return signal
+
+    # Temperature
+
+    def get_signals(self):
+        return self.signals, self.open_signals
+
+    def get_profit(self):
+        return self.profit, self.equity, self.balance, self.margin
+
+    def get_instructions(self):
+        SMA = []
+        for indicator in self.sma_indicators:
+            SMA.append({
+                'index': 0,
+                'data': indicator,
+                'type': 'line',
+                'colour': 'blue',
+            })
+
+        return SMA + [
+            {
+                'index': 0,
+                'data': self.sma_variability_indicator,
+                'type': 'line',
+                'colour': 'blue',
+                # Placeholder, for multi-data plotting
+                'other_data': None
+            },
+            {
+                'index': 1,
+                'data': self.sma_variability_trend,
+                'type': 'line',
+                'colour': 'blue',
+                # Placeholder, for multi-data plotting
+                'other_data': None
+            },
+            {
+                'index': 1,
+                'data': self.sma_trend_predictor,
+                'type': 'line',
+                'colour': 'red',
+                # Placeholder, for multi-data plotting
+                'other_data': None
+            },
+            {
+                'index': 0,
+                'data': self.sma_average,
+                'type': 'line',
+                'colour': 'navyblue',
+                # Placeholder, for multi-data plotting
+                'other_data': None
+            },
+        ]
+
+    # Indicator
+    #     self.sma_indicators = []
+    #     self.sma_variability_indicator = pd.DataFrame()
 
     def build_indicators(self):
-        pass
+        # i-th self.sma_indicators is the i-th SMA
+        for i in range(len(self.sma_indicators)):
+            _period = self.sma_periods[i]
+            _data, _index = [], []
+            # len(sma)+period is the next index, sum to just before u+1 from u+1-period
+            for u in range(len(self.sma_indicators[i]) + _period, len(self.df)):
+                _data.append(try_mean(self.df.Close[u + 1 - _period:u + 1].values))
+                _index.append(self.df.index[u])
+            # Extend SMA
+            _indicator = pd.DataFrame(index=_index, data={'Value': _data})
+            self.sma_indicators[i] = pd.concat([self.sma_indicators[i], _indicator])
+        # Auxillary indicators: Update sma_variability
+        v_data, avg_data, t_data, p_data, _index = [], [], [], [], []
+        for i in range(len(self.sma_variability_indicator), len(self.sma_indicators[-1])):
+            _index.append(self.sma_indicators[-1].index[i])
+            _values = [indicator.Value[-1] for indicator in self.sma_indicators]
+            v_data.append(try_width(_values))
+            avg_data.append(try_mean(_values))
+            p_data.append(0)
+            t_data.append(0)
+        self.sma_average = pd.concat([self.sma_variability_trend, pd.DataFrame(
+            index=_index,
+            data=avg_data,
+        )])
+        self.sma_variability_indicator = pd.concat([self.sma_variability_indicator, pd.DataFrame(
+            index=_index,
+            data=v_data
+        )])
+        self.sma_variability_trend = pd.concat([self.sma_variability_trend, pd.DataFrame(
+            index=_index,
+            data=t_data
+        )])
+        self.sma_trend_predictor = pd.concat([self.sma_variability_trend, pd.DataFrame(
+            index=_index,
+            data=p_data,  # Use where the trend is pointing to. maybe test without this first.
+        )])
 
     def get_pullback_score(self):
 
@@ -319,22 +495,90 @@ class DistSMA(robot):
         # later
 
         # (4) Determine variability trend (advanced)
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+        return 0
 
     def finish(self):
+        pass
+
+    # Technical
+
+    def next_statistics(self, candlestick):
+        self.balance.append(self.balance[-1])
+        self.free_balance.append(self.balance[-1])
+
+        self.profit.append(self.profit[-1])
+        self.unrealised_profit.append(0)
+        self.gross_profit.append(self.gross_profit[-1])
+        self.gross_loss.append(self.gross_loss[-1])
+        self.virtual_profit.append(self.virtual_profit[-1])
+
+        self.short_margin.append(0)
+        self.long_margin.append(0)
+        self.asset.append(self.asset[-1])
+        self.liability.append(self.liability[-1])
+        for signal in self.open_signals:
+            if signal['virtual']:
+                continue
+            if signal['type'] == 'short':
+                # Calculate margin
+                self.short_margin[-1] += signal['margin']
+            else:  # == 'long'
+                self.long_margin[-1] += signal['margin']
+            # Calculate unrealised P/L
+            self.unrealised_profit[-1] += (candlestick.Close - signal['open_price']) * signal['vol'] * self.lot_size
+            # math.copysign(
+            # (candlestick.Close - signal['open_price']) * signal['vol'] * self.lot_size, signal['vol'])
+
+        self.margin.append(max([self.short_margin[-1], self.long_margin[-1]]))
+        self.free_balance[-1] -= self.margin[-1]
+        self.free_margin.append(self.balance[-1] - self.margin[-1] + self.unrealised_profit[-1])
+
+        # self.equity.append(self.asset[-1] - self.liability[-1])
+        self.equity.append(self.free_margin[-1] + self.margin[-1])
+        if self.margin[-1] == 0:
+            self.margin_level.append(0)
+        else:
+            self.margin_level.append(self.equity[-1] / self.margin[-1] * 100)  # %
+        self.stat_datetime.append(parser.parse(self.last_date))
+
+        self.pullback_scores.append(self.get_pullback_score())
+        # self.variability_scores.append(self.sma_variability_indicator.data[-1])
+        if len(self.sma_variability_indicator) > 0:
+            self.variability_scores.append(self.sma_variability_indicator.data[-1])
+        else:
+            self.variability_scores.append(0)
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+    def te_mp(self):
         pass
