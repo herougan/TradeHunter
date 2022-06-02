@@ -1044,6 +1044,9 @@ class DataTester:
         # Drawing constants
         margin = PLOTTING_SETTINGS['plot_margin'][1]
 
+        # todo use pd.concat(_df, df[:i+1])
+        # self.__df = 0
+
         for i in range(start, len(df)):
 
             # Clear figure # todo dont replot whole figure. although open_signals - signals ... need to find cheatcode!
@@ -1067,7 +1070,7 @@ class DataTester:
             _df.index = list(range(len(_df.index)))
             # Instructions
             for instruction in instructions:
-                # todo convert data.index to indices without assumption that indexes match up exactlys
+                # todo convert data.index to indices without assumption that indexes match up exactly
                 # date_to_index_arr(instruction['data'].index)  # assign this instead in future
                 if 'data' not in instruction:
                     continue

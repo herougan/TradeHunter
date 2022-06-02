@@ -275,6 +275,8 @@ def to_camel_case(s: str):
 
 def try_int(s: str) -> int:
     try:
+        if s is None:
+            return 0
         return int(s)
     except ValueError:
         return 0
@@ -282,6 +284,8 @@ def try_int(s: str) -> int:
 
 def try_float(s: str) -> float:
     try:
+        if s is None:
+            return 0
         return float(s)
     except ValueError:
         return 0
@@ -315,10 +319,14 @@ def try_min(list):
 def try_mean(list):
     if len(list) < 1:
         return 0
-    t = 0
+    t, l = 0, len(list)
     for i in list:
+        if i is None:
+            t += 0
+            l -= 0
+            continue
         t += i
-    return i / len(list)
+    return try_divide(t, l)
 
 
 def try_width(list):
@@ -327,10 +335,14 @@ def try_width(list):
     max, min = 0, math.inf
     # Get max and min
     for x in list:
+        if x is None:
+            continue
         if x > max:
             max = x
         if x < min:
             min = x
+    if min == math.inf:
+        return math.inf
     return max-min
 
 

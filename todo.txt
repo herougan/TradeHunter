@@ -4,6 +4,11 @@ Separate logic into the different util files
 DataRetrievalUtil downloads data from many files into static. What it downloads is based on a text file.
 DataTestingUtil tests based on data retrieved. Text File is used as reference (or just use every file in folder)
 
+Nows:
+
+SimplePlotter does not load
+DistSMA does nothing
+
 Bug fixes:
 
 -) Move try_X to math_util
@@ -56,6 +61,9 @@ Min. 1 step. (moving much further than dist = 1)
 as attributes get tested, if they have relatively low impact, their average impact 'score' will be low.
 As more and more tests are done, the more confidence the algo will have on that. At some point,
 we will decide not to optimise that attribute until the end, by itself.
+ENUM cannot be optimised through the usual method. Need to detect general effectiveness or select
+every single possible selection of ENUMS (e.g. if there are 5 enum-like attributes) and do random-descend to
+the other attributes.
 #================= SIM ================
 10) Algo plotter in sim plotter
 10b) share axes for convenience
@@ -89,6 +97,8 @@ graph is being updated -> cancel this if too much)
 14b) Algos too intensive if per-tick... need to learn how to 1) simplify or 2) calc or a certain time basis, not per data
 eg. for peak finding, if 6 new ticks have just come in, and delta_t = some_time, find/update supports not by reiterating algorithm
 over each new data point but scanning across the 6 data points once and deciding new supports
+14c) Ability to simulate ticker mode for non-tickermode robots and non-tickermode for tickermode robots e.g.
+ticker sim = give Close, Close, Close.... in random intervals. non-ticker sim = receive ticker data and package into candlesticks
 
 15) Shapesetdef contains data specific to certain chart profiles. One can test their robot against these chart profiles
 to see which type of trends/shapes/market conditions it is better at trading in.
@@ -108,3 +118,5 @@ negative if too far. negative if too many
 20) Multithreaded?
 20a) multi-threaded optimisation
 20b) multi-threaded testing
+
+21) Dark mode - prefably website version only. or maybe just graph.

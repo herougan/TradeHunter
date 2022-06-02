@@ -7,7 +7,8 @@ from dateutil import parser
 
 from robot.abstract.robot import robot
 from settings import IVarType
-from util.langUtil import get_instrument_type, strtotimedelta, strtodatetime, try_mean, try_int, try_width
+from util.langUtil import get_instrument_type, strtotimedelta, strtodatetime, try_mean, try_int, try_width, try_min, \
+    try_max, try_sgn
 from util.robotDataUtil import generate_base_signal_dict
 
 
@@ -29,8 +30,8 @@ class DistSMA(robot):
             'type': IVarType.CONTINUOUS,
         },
         'sma_base_period': {
-            'default': 10,
-            'range': [3, 50],
+            'default': 20,
+            'range': [3, 60],
             'step_size': 1,
             'type': IVarType.DISCRETE,
             'comment': 'Base SMA represents the fastest moving average. All following SMAs'
@@ -39,7 +40,7 @@ class DistSMA(robot):
                        ', if pass some criterion, returns a pullback signal.',
         },
         'sma_period_step': {
-            'default': 1.5,
+            'default': 2,
             'range': [1.1, 5],
             'step_size': 0.1,
             'type': IVarType.CONTINUOUS,
@@ -59,7 +60,7 @@ class DistSMA(robot):
             'comment': 'Multiplier, for which following SMA prediction weights will be calculated'
         },
         'sma_count': {
-            'default': 5,
+            'default': 10,
             'range': [3, 20],
             'step_size': 1,
             'type': IVarType.DISCRETE,
@@ -70,7 +71,24 @@ class DistSMA(robot):
             'range': [1, 10],
             'step_size': 1,
             'type': IVarType.CONTINUOUS,
-        }
+        },
+        'variability_requirement': {
+            'default': 2,
+            'range': [1, 5],
+            'step_size': 0.01,
+            'type': IVarType.CONTINUOUS,
+        },
+        'ma_type': {
+            'default': 0,
+            'range': ['Simple', 'Exponential', 'Static'],
+            'type': IVarType.ENUM,
+        },
+        #
+        'grid_length': {
+            'default': 10,
+            'range': [5, 20],
+            'type': IVarType.CONTINUOUS,
+        },
     }
     OTHER_ARGS_DICT = {
         'fast_period': {
@@ -153,6 +171,8 @@ class DistSMA(robot):
             self.ivar = ivar
         else:
             self.ivar = self.ARGS_DICT
+        self.last = None
+        self.last_date = None
 
         # == Meta ==
         self.symbol = ""
@@ -184,6 +204,8 @@ class DistSMA(robot):
         # SMA arrays
         self.sma_periods, self.sma_coeffs = [], []
         self.variability_constant = self.ivar['variability_constant']['default']
+        self.variability_requirement = self.ivar['variability_requirement']['default']
+        self.ma_type = self.ivar['ma_type']['default']
         # == Other Args ==
         self.look_back = self.OTHER_ARGS_DICT['look_back']['default']
         self.left_peak = self.OTHER_ARGS_DICT['left_peak']['default']
@@ -191,6 +213,9 @@ class DistSMA(robot):
         self.lot_per_k = self.OTHER_ARGS_DICT['lots_per_k']['default']
         self.stop_loss_amp = self.OTHER_ARGS_DICT['stop_loss_amp']['default']
         self.stop_loss_flat_amp = self.OTHER_ARGS_DICT['stop_loss_flat_amp']['default']
+        # todo arbritrary stop loss
+        self.stop_loss_test = 100 * self.pip_size  # in pips
+        self.profit_loss_ratio_test = 1.5
 
         # == Preparation ==
         self.prepare_period = self.PREPARE_PERIOD  # Because of SMA200
@@ -199,12 +224,14 @@ class DistSMA(robot):
         # == Indicators ==
         self.sma_indicators = []
         for i in range(self.sma_count):
-            self.sma_indicators.append(pd.DataFrame(index=[], data={'Value': []}))
+            self.sma_indicators.append(pd.DataFrame())
             self.sma_periods.append(int(self.sma_base_period * math.pow(self.sma_period_step, i)))
             self.sma_coeffs.append(int(self.sma_base_coeff * math.pow(self.sma_coeff_step, i)))
         # Auxillary indicators
         self.sma_variability_indicator, self.sma_variability_trend = pd.DataFrame(), pd.DataFrame()
         self.sma_trend_predictor, self.sma_average = pd.DataFrame(), pd.DataFrame()  # ~of the largest period SMA used
+        self.sma_average_up_1, self.sma_average_up_2, self.sma_average_down_1, self.sma_average_down_2 \
+            = pd.DataFrame(), pd.DataFrame(), pd.DataFrame(), pd.DataFrame()
 
         # == Signals ==
         self.signals = []  # { Standard_Dict, FMACD_Specific_Dict }
@@ -271,7 +298,7 @@ class DistSMA(robot):
 
         # == Prepare ==
         self.df = pre_data
-        # Set up Indicators
+        # Set up Indicators for pre_data
         self.build_indicators()
 
         # == Stats Setup ==
@@ -296,36 +323,10 @@ class DistSMA(robot):
 
         self.variability_scores.append(0)
         self.pullback_scores.append(0)
-        if len(pre_data) > 0 and not self.test_mode:
-            self.stat_datetime.append(strtodatetime(pre_data.index[-1]))
-        else:  # todo dont do this
-            self.stat_datetime.append(None)
 
         # pre-Setup indicators
-        for i in range(len(pre_data)):
-            for i in range(len(self.sma_indicators)):
-                _index = pre_data.index[i]
-                self.sma_indicators[i] = pd.concat([self.sma_indicators[i], {
-                    index=_index, data={
-                        'Value': [0]
-                    }
-                }])
-            self.sma_average = pd.concat([self.sma_variability_trend, pd.DataFrame(
-                index=_index,
-                data=[0],
-            )])
-            self.sma_variability_indicator = pd.concat([self.sma_variability_indicator, pd.DataFrame(
-                index=_index,
-                data=[0],
-            )])
-            self.sma_variability_trend = pd.concat([self.sma_variability_trend, pd.DataFrame(
-                index=_index,
-                data=[0],
-            )])
-            self.sma_trend_predictor = pd.concat([self.sma_variability_trend, pd.DataFrame(
-                index=_index,
-                data=[0],  # Use where the trend is pointing to. maybe test without this first.
-            )])
+        _index = list(pre_data.index)
+        self.stat_datetime = _index
 
         # == Robot Status ==
         self.started = True
@@ -348,7 +349,7 @@ class DistSMA(robot):
 
         # == Step 1: Update data ==
         if not self.test_mode:
-            self.df = self.df.append(candlesticks)
+            self.df = pd.concat([self.df, candlesticks])
             self.build_indicators()
         self.last = candlesticks.iloc[-1]
         self.last_date = candlesticks.index[-1]
@@ -360,6 +361,24 @@ class DistSMA(robot):
         # == Step 3: Analyse ==
 
         # == Step 4: Signals ==
+
+        # 4a - Check current signals
+        for signal in self.open_signals:
+            pass
+            # check stop_loss and take_profit
+        # 4b - Insure signals
+
+        # 4c - Create new signals
+        sign = self.check_indicators()
+        if sign:  # returns potential signal sign 0: No,
+            # 1: Long, 2: Short, 3: Long Virtual, 4: Short Virtual (Only for testing)
+            signal = self.generate_signal(sign)
+            if signal is not None:
+                self.open_signals.append(signal)
+
+        # todo work on: handling open signals
+
+    def finish(self):
         pass
 
     # Simulation
@@ -371,22 +390,6 @@ class DistSMA(robot):
         """Full run once to prevent repetitive computation during testing."""
         self.next(candlesticks)
 
-    def generate_signal(self):
-        signal = generate_base_signal_dict()
-        # Assign dict values
-        signal['type'] = 1
-        signal['start'] = self.last_date
-        signal['vol'] = 0
-        sgn = math.copysign(1, signal['vol'])
-        signal['leverage'] = self.xvar['leverage']
-        # Action *= Leverage; Margin /= Leverage
-        signal['margin'] = 0
-        signal['open_price'] = self.last.Close
-        # Generate stop loss and take profit
-        signal['stop_loss'], signal['baseline'] = 0
-        signal['take_profit'] = 0
-        return signal
-
     # Temperature
 
     def get_signals(self):
@@ -397,78 +400,119 @@ class DistSMA(robot):
 
     def get_instructions(self):
         SMA = []
+        i = 0
         for indicator in self.sma_indicators:
+            ratio = i / len(self.sma_indicators)
+            red, green, blue = 1 - ratio, 1 - ratio, ratio
+            i += 1
+            _col = (red, green, blue)
             SMA.append({
                 'index': 0,
                 'data': indicator,
                 'type': 'line',
-                'colour': 'blue',
+                'colour': _col,
+                'name': 'SMA',
             })
 
         return SMA + [
-            {
-                'index': 0,
-                'data': self.sma_variability_indicator,
-                'type': 'line',
-                'colour': 'blue',
-                # Placeholder, for multi-data plotting
-                'other_data': None
-            },
+            # {
+            #     'index': 0,
+            #     'data': self.sma_variability_indicator,  # .copy(deep=True)
+            #     'type': 'line',
+            #     'colour': 'blue',
+            #     'name': 'SMA_v',
+            # },
             {
                 'index': 1,
                 'data': self.sma_variability_trend,
                 'type': 'line',
                 'colour': 'blue',
-                # Placeholder, for multi-data plotting
-                'other_data': None
+                'name': 'SMA_t',
             },
             {
                 'index': 1,
                 'data': self.sma_trend_predictor,
                 'type': 'line',
                 'colour': 'red',
-                # Placeholder, for multi-data plotting
-                'other_data': None
+                'name': 'SMA_p',
             },
+            # Average lines and sma-width deviation
             {
                 'index': 0,
                 'data': self.sma_average,
                 'type': 'line',
-                'colour': 'navyblue',
-                # Placeholder, for multi-data plotting
-                'other_data': None
+                'colour': 'darkturquoise',
+                'linestyle': 'dashed',
+                'name': 'SMA_mean',
+            },
+            {
+                'index': 0,
+                'data': self.sma_average_up_1,
+                'type': 'line',
+                'colour': 'darkcyan',
+                'linestyle': 'dashed',
+                'name': 'SMA_mean',
+            },
+            {
+                'index': 0,
+                'data': self.sma_average_up_2,
+                'type': 'line',
+                'colour': 'darkslategrey',
+                'linestyle': 'dashed',
+                'name': 'SMA_mean',
+            },
+            {
+                'index': 0,
+                'data': self.sma_average_down_1,
+                'type': 'line',
+                'colour': 'darkcyan',
+                'linestyle': 'dashed',
+                'name': 'SMA_mean',
+            },
+            {
+                'index': 0,
+                'data': self.sma_average_down_2,
+                'type': 'line',
+                'colour': 'darkslategrey',
+                'linestyle': 'dashed',
+                'name': 'SMA_mean',
             },
         ]
 
     # Indicator
-    #     self.sma_indicators = []
-    #     self.sma_variability_indicator = pd.DataFrame()
 
     def build_indicators(self):
+        """Appends data starting from """
         # i-th self.sma_indicators is the i-th SMA
         for i in range(len(self.sma_indicators)):
             _period = self.sma_periods[i]
             _data, _index = [], []
             # len(sma)+period is the next index, sum to just before u+1 from u+1-period
-            for u in range(len(self.sma_indicators[i]) + _period, len(self.df)):
-                _data.append(try_mean(self.df.Close[u + 1 - _period:u + 1].values))
+            for u in range(len(self.sma_indicators[i]), len(self.df)):
                 _index.append(self.df.index[u])
+                if u + 1 >= _period:
+                    _data.append(try_mean(self.df.Close[u + 1 - _period: u + 1].values))
+                else:  # Not enough datapoints for given SMA period
+                    _data.append(None)
             # Extend SMA
             _indicator = pd.DataFrame(index=_index, data={'Value': _data})
             self.sma_indicators[i] = pd.concat([self.sma_indicators[i], _indicator])
         # Auxillary indicators: Update sma_variability
         v_data, avg_data, t_data, p_data, _index = [], [], [], [], []
+        avg_up_1, avg_up_2, avg_down_1, avg_down_2 = [], [], [], []
         for i in range(len(self.sma_variability_indicator), len(self.sma_indicators[-1])):
+            # Length of sma variability indicator is the same as the other sma stats
             _index.append(self.sma_indicators[-1].index[i])
-            _values = [indicator.Value[-1] for indicator in self.sma_indicators]
+            _values = [indicator.Value.iloc[-1] for indicator in self.sma_indicators]
+            p_data.append(5000)
+            t_data.append(5000)
+            # Avg and var values
             v_data.append(try_width(_values))
             avg_data.append(try_mean(_values))
-            p_data.append(0)
-            t_data.append(0)
-        self.sma_average = pd.concat([self.sma_variability_trend, pd.DataFrame(
-            index=_index,
-            data=avg_data,
-        )])
+            avg_up_1.append(avg_data[-1] + v_data[-1])
+            avg_up_2.append(avg_data[-1] + 2 * v_data[-1])
+            avg_down_1.append(avg_data[-1] - v_data[-1])
+            avg_down_2.append(avg_data[-1] - 2 * v_data[-1])
         self.sma_variability_indicator = pd.concat([self.sma_variability_indicator, pd.DataFrame(
             index=_index,
             data=v_data
@@ -477,28 +521,122 @@ class DistSMA(robot):
             index=_index,
             data=t_data
         )])
-        self.sma_trend_predictor = pd.concat([self.sma_variability_trend, pd.DataFrame(
+        self.sma_trend_predictor = pd.concat([self.sma_trend_predictor, pd.DataFrame(
             index=_index,
             data=p_data,  # Use where the trend is pointing to. maybe test without this first.
+        )])
+        # Avg indicators
+        self.sma_average = pd.concat([self.sma_average, pd.DataFrame(
+            index=_index,
+            data=avg_data,
+        )])
+        self.sma_average_up_1 = pd.concat([self.sma_average_up_1, pd.DataFrame(
+            index=_index,
+            data=avg_up_1,
+        )])
+        self.sma_average_up_2 = pd.concat([self.sma_average_up_2, pd.DataFrame(
+            index=_index,
+            data=avg_up_2,
+        )])
+        self.sma_average_down_1 = pd.concat([self.sma_average_down_1, pd.DataFrame(
+            index=_index,
+            data=avg_down_1,
+        )])
+        self.sma_average_down_2 = pd.concat([self.sma_average_down_2, pd.DataFrame(
+            index=_index,
+            data=avg_down_2,
         )])
 
     def get_pullback_score(self):
 
         # (1) Determine Variability
-        sma_values = 0
+        var = self.sma_variability_indicator[-1]
 
         # (2) Determine Pullback chance
-        for sma in self.sma_indicators:
-            pass
+        avg = self.sma_average.values.iloc[-1]
+        dist = self.last.Close - avg
+        # How many 'sma_width' deviations away?
+        dev = dist/var
+        # todo is using var smart? higher var means sudden jumps with periods captured within the sma periods
+        # var does not capture consistency in variability. if variability is high,
+        # buying low on a down swing is more likely to sell high eg.
+        # there is that intuition that variability SUPPORTS swing trading.
+        # need to study shoulder cup etc methods in the future
+
+        return dev
+
+    def check_indicators(self):
+        score = self.get_pullback_score()
+        sgn = try_sgn(score)
 
         # (*3) Compare criterion
-        # later
+        var_req = self.variability_requirement
+        var_req_sub = var_req * 0.75
+        if score > var_req:
+            if sgn > 0:
+                return 1
+            else:
+                return 2
+        elif score > var_req_sub:
+            if sgn > 0:
+                return 3
+            else:
+                return 4
 
         # (4) Determine variability trend (advanced)
+        # -
         return 0
 
-    def finish(self):
+    # Analysis
+
+    def get_supports(self):
         pass
+
+    # Signal
+
+    def create_signal(self, signal, check):
+        pass
+
+    def generate_signal(self, sign):
+        signal = generate_base_signal_dict()
+        # Assign dict values
+        type = 0
+        virtual = False
+        if sign == '1':
+            type = 1
+        elif sign == '2':
+            type = 2
+        elif sign == '3':
+            type = 1
+            virtual = True
+        elif sign == '4':
+            type = 2
+            virtual = True
+        else:
+            return None
+        signal['type'] = type
+        signal['start'] = self.last_date
+        signal['vol'] = self.assign_lots(type)  # -ve lots = selling
+        sgn = math.copysign(1, signal['vol'])
+        signal['leverage'] = self.xvar['leverage']
+        # Action *= Leverage; Margin /= Leverage
+        signal['margin'] = sgn * signal['vol'] / self.xvar['leverage'] * self.lot_size
+        signal['open_price'] = self.last.Close
+        # Generate stop loss and take profit
+        signal['stop_loss'], signal['baseline'] = self.get_stop_loss(type)
+        signal['take_profit'] = self.get_take_profit(signal['stop_loss'])
+        signal['virtual'] = virtual
+        return signal
+
+    def get_stop_loss(self, type):
+        if type == 1:  # Buy
+            return self.stop_loss_test + self.last.Close, self.last_date
+        else:  # Sell
+            return - self.stop_loss_test + self.last.Close, self.last_date
+
+    def get_take_profit(self, stop_loss):
+        diff = self.last.Close - stop_loss
+        return self.last.Close + diff * self.profit_loss_ratio
 
     # Technical
 
@@ -544,41 +682,18 @@ class DistSMA(robot):
         self.pullback_scores.append(self.get_pullback_score())
         # self.variability_scores.append(self.sma_variability_indicator.data[-1])
         if len(self.sma_variability_indicator) > 0:
-            self.variability_scores.append(self.sma_variability_indicator.data[-1])
+            self.variability_scores.append(self.sma_variability_indicator.iloc[-1, 0])
         else:
             self.variability_scores.append(0)
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+    def assign_lots(self, type):
+        sgn = 1
+        if type == 2:
+            sgn = -1
+        vol = sgn * self.lot_per_k * self.free_margin[-1] / 1000  # vol
+        if sgn * vol < 0.01:
+            vol = sgn * 0.01  # Min 0.01 lot
+        return vol
 
     def te_mp(self):
         pass

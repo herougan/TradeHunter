@@ -864,6 +864,7 @@ class FMACDRobot(robot):
         if len(self.df) < length:
             length = self.df
 
+        # Naiive peak finding
         turn = self.last.Close
         date = self.last_date
         max_loops = 3

@@ -173,7 +173,7 @@ def line_plot(ax, df: pd.DataFrame, style={}, xlim=None):
 
     if has_data:
         ax.plot(df, alpha=_style['alpha'], color=_style['colour'],
-                linewidth=_style['linewidth'], marker=_style['marker'])
+                linewidth=_style['linewidth'], marker=_style['marker'], linestyle=_style['linestyle'])
         # style = default_style.update(style)
         #
         # x = df.values
@@ -210,6 +210,7 @@ def generic_style():
         'colour': 'r',
         'linewidth': 0.6,
         'marker': '',
+        'linestyle': 'solid',
     }
 
 
@@ -337,7 +338,16 @@ def plot_robot_instruction(axes, instruction, xlim):
     elif type.lower() == "macd_hist":
         macd_histogram_plot(ax, instruction['data'], xlim)
     elif type.lower() == "line":
-        line_plot(ax, instruction['data'], {'colour': instruction['colour'], 'transparency': 0.8}, xlim)
+        style = {'colour': instruction['colour'], 'transparency': 0.8}
+        if 'colour' in instruction:
+            style.update({'colour': instruction['colour']})
+        if 'transparency' in instruction:
+            style.update({'transparency': instruction['transparency']})
+        if 'linestyle' in instruction:
+            style.update({'linestyle': instruction['linestyle']})
+        if 'marker' in instruction:
+            style.update({'marker': instruction['marker']})
+        line_plot(ax, instruction['data'], style, xlim)
     elif type.lower() == "hist":
         pass
     elif type.lower() == "area":
