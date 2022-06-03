@@ -89,6 +89,16 @@ class DistSMA(robot):
             'range': [5, 20],
             'type': IVarType.CONTINUOUS,
         },
+        'split_count': {
+            'default': 3,
+            'range': [1, 10],
+            'type': IVarType.DISCRETE,
+        },
+        'split_step': {
+            'default': 1.1,
+            'range': [0.5, 2],
+            'type': IVarType.CONTINUOUS,
+        },
     }
     OTHER_ARGS_DICT = {
         'fast_period': {
@@ -173,6 +183,9 @@ class DistSMA(robot):
             self.ivar = self.ARGS_DICT
         self.last = None
         self.last_date = None
+        self.last_var = None
+        # signal management
+        self.bought = []
 
         # == Meta ==
         self.symbol = ""
@@ -213,9 +226,6 @@ class DistSMA(robot):
         self.lot_per_k = self.OTHER_ARGS_DICT['lots_per_k']['default']
         self.stop_loss_amp = self.OTHER_ARGS_DICT['stop_loss_amp']['default']
         self.stop_loss_flat_amp = self.OTHER_ARGS_DICT['stop_loss_flat_amp']['default']
-        # todo arbritrary stop loss
-        self.stop_loss_test = 100 * self.pip_size  # in pips
-        self.profit_loss_ratio_test = 1.5
 
         # == Preparation ==
         self.prepare_period = self.PREPARE_PERIOD  # Because of SMA200
@@ -364,12 +374,12 @@ class DistSMA(robot):
 
         # 4a - Check current signals
         for signal in self.open_signals:
-            pass
-            # check stop_loss and take_profit
-        # 4b - Insure signals
+            self.adjust_stop_take(signal)
+            self.close_signal(signal)  # Try to close signal
+        # 4b - Insure signals  #  Triple buys with diff risk
 
         # 4c - Create new signals
-        sign = self.check_indicators()
+        sign = self.check_indicators()  # todo suspect will buy at every point above... no regulator or intelligence
         if sign:  # returns potential signal sign 0: No,
             # 1: Long, 2: Short, 3: Long Virtual, 4: Short Virtual (Only for testing)
             signal = self.generate_signal(sign)
@@ -546,11 +556,12 @@ class DistSMA(robot):
             index=_index,
             data=avg_down_2,
         )])
+        self.last_var = v_data[-1]
 
     def get_pullback_score(self):
 
         # (1) Determine Variability
-        var = self.sma_variability_indicator[-1]
+        var = self.sma_variability_indicator.values.iloc[-1]
 
         # (2) Determine Pullback chance
         avg = self.sma_average.values.iloc[-1]
@@ -628,18 +639,86 @@ class DistSMA(robot):
         signal['virtual'] = virtual
         return signal
 
+    def close_signal(self, signal):
+        # Checking algorithm here
+        sgn = math.copysign(1, signal['vol'])  # +ve for long, -ve for short
+        stop, take = signal['stop_loss'], signal['take_profit']
+        # Stop-loss OR Take-profit
+        if sgn * self.last.Close <= sgn * stop or sgn * self.last.Close >= sgn * take:  # Go-ahead
+            # Realise Profit/Loss
+            action = (self.last.Close - signal['open_price'])
+            profit = action * signal['vol'] * self.leverage * self.lot_size
+            # self.xvar['contract_size']
+            signal['end'] = self.last_date
+            signal['close_price'] = self.last.Close
+            sgn = math.copysign(1, signal['vol'])
+            signal['net'] = profit
+
+            if not signal['virtual']:
+                # Release margin, release unrealised P/L
+                self.add_profit(profit)
+                self.add_margin(sgn, signal['margin'])
+                self.calc_equity()
+            else:
+                self.add_virtual_profit(profit)
+
+            # Add signal to signals, remove from open signals
+            self.open_signals.remove(signal)
+            self.signals.append(signal)
+
+    # Statistic update
+
+    def add_profit(self, profit):
+        # self.unrealised_profit[-1] -= profit
+        self.balance[-1] += profit
+        self.margin[-1] += profit
+        self.profit[-1] += profit
+        if profit > 0:
+            self.gross_profit[-1] += profit
+        else:
+            self.gross_loss[-1] -= profit
+
+    def add_virtual_profit(self, profit):
+        self.virtual_profit[-1] += profit
+
+    def add_margin(self, vol, margin):
+        """Adding margins reduce free margin. sgn is the sign of signal volume"""
+        if vol > 0:
+            self.long_margin[-1] += margin
+        else:
+            self.short_margin[-1] += margin
+        self.margin[-1] = max([self.short_margin[-1], self.long_margin[-1]])
+
+    def calc_equity(self):
+        self.free_balance[-1] = self.balance[-1] - self.margin[-1]
+        # Note, unrealised_profit not updated yet -
+        self.free_margin[-1] = self.free_balance[-1] + self.unrealised_profit[-1]
+        self.equity[-1] = self.free_margin[-1] + self.margin[-1]
+        # Assets and Liabilities untouched
+        if self.margin[-1]:
+            self.margin_level[-1] = self.equity[-1] / self.margin[-1] * 100
+        else:
+            self.margin_level[-1] = 0
+
+    def adjust_stop_take(self, signal):
+        pass
+
+    def split_signal(self, signal, _signal):
+        """Creates new signal which takes volume defined by _signal away from original
+        signal."""
+        pass
+
     def get_stop_loss(self, type):
         if type == 1:  # Buy
-            return self.stop_loss_test + self.last.Close, self.last_date
+            return self.last_var * self.variability_constant + self.last.Close, self.last_date
         else:  # Sell
-            return - self.stop_loss_test + self.last.Close, self.last_date
+            return - self.last_var * self.variability_constant + self.last.Close, self.last_date
 
     def get_take_profit(self, stop_loss):
         diff = self.last.Close - stop_loss
         return self.last.Close + diff * self.profit_loss_ratio
 
     # Technical
-
     def next_statistics(self, candlestick):
         self.balance.append(self.balance[-1])
         self.free_balance.append(self.balance[-1])
@@ -694,6 +773,33 @@ class DistSMA(robot):
         if sgn * vol < 0.01:
             vol = sgn * 0.01  # Min 0.01 lot
         return vol
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
     def te_mp(self):
         pass
