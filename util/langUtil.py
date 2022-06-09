@@ -330,7 +330,7 @@ def try_mean(list):
 
 
 def try_width(list):
-    if len(list) < 1:
+    if len([l for l in list if l is not None]) < 1:
         return 0
     max, min = 0, math.inf
     # Get max and min

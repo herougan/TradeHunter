@@ -8,7 +8,7 @@ from dateutil import parser
 from robot.abstract.robot import robot
 from settings import IVarType
 from util.langUtil import get_instrument_type, strtotimedelta, strtodatetime, try_mean, try_int, try_width, try_min, \
-    try_max, try_sgn
+    try_max, try_sgn, try_divide
 from util.robotDataUtil import generate_base_signal_dict
 
 
@@ -40,8 +40,8 @@ class DistSMA(robot):
                        ', if pass some criterion, returns a pullback signal.',
         },
         'sma_period_step': {
-            'default': 2,
-            'range': [1.1, 5],
+            'default': 1.2,
+            'range': [0.5, 3],
             'step_size': 0.1,
             'type': IVarType.CONTINUOUS,
             'comment': 'Multiplier, for which following SMA periods will be calculated'
@@ -60,7 +60,7 @@ class DistSMA(robot):
             'comment': 'Multiplier, for which following SMA prediction weights will be calculated'
         },
         'sma_count': {
-            'default': 10,
+            'default': 5,
             'range': [3, 20],
             'step_size': 1,
             'type': IVarType.DISCRETE,
@@ -252,28 +252,31 @@ class DistSMA(robot):
         # == Statistical Data ==
         self.balance = []
         self.free_balance = []
-
+        #
         self.profit = []  # Realised P/L
         self.unrealised_profit = []  # Unrealised P/L
         self.gross_profit = []  # Cumulative Realised Gross Profit
         self.gross_loss = []  # Cumulative Realised Gross Loss
         self.virtual_profit = []
-
+        #
         self.asset = []  # Open Long Position price
         self.liability = []  # Open Short Position Price
         self.short_margin, self.long_margin = [], []  # Total Short/Long Margins
         self.margin = []  # Margin (Max(Long_Margin), Max(Short_Margin))
         self.free_margin = []  # Balance - Margin + Unrealised P/L
-
+        #
         self.equity = []  # Free_Balance + Asset (Long) - Liabilities (Short) OR Forex Free_Margin + Margin
         self.margin_level = []  # Equity / Margin * 100%, Otherwise 0%
         self.stat_datetime = []
-
+        #
         self.variability_scores = []  # See self.sma_variability_indicator
         self.pullback_scores = []
 
         # == Data ==
         self.df = pd.DataFrame()
+
+        # == Logical ==
+        self.last_bought = 0
 
         # == Testing ==
         self.test_mode = False
@@ -373,18 +376,19 @@ class DistSMA(robot):
         # == Step 4: Signals ==
 
         # 4a - Check current signals
-        for signal in self.open_signals:
-            self.adjust_stop_take(signal)
-            self.close_signal(signal)  # Try to close signal
+        if len(self.df) > self.sma_periods[-1]:  # Wait until all SMAs summoned
+            for signal in self.open_signals:
+                self.adjust_stop_take(signal)
+                self.close_signal(signal)  # Try to close signal
         # 4b - Insure signals  #  Triple buys with diff risk
 
         # 4c - Create new signals
-        sign = self.check_indicators()  # todo suspect will buy at every point above... no regulator or intelligence
-        if sign:  # returns potential signal sign 0: No,
-            # 1: Long, 2: Short, 3: Long Virtual, 4: Short Virtual (Only for testing)
-            signal = self.generate_signal(sign)
-            if signal is not None:
-                self.open_signals.append(signal)
+            sign = self.check_indicators()  # todo suspect will buy at every point above... no regulator or intelligence
+            if sign:  # returns potential signal sign 0: No,
+                # 1: Long, 2: Short, 3: Long Virtual, 4: Short Virtual (Only for testing)
+                signal = self.generate_signal(sign)
+                if signal is not None:
+                    self.open_signals.append(signal)
 
         # todo work on: handling open signals
 
@@ -561,13 +565,16 @@ class DistSMA(robot):
     def get_pullback_score(self):
 
         # (1) Determine Variability
-        var = self.sma_variability_indicator.values.iloc[-1]
+        var = self.sma_variability_indicator.iloc[-1, 0]
 
-        # (2) Determine Pullback chance
-        avg = self.sma_average.values.iloc[-1]
+        # (2) Determine Pullback distance in terms of the variability indicator
+        avg = self.sma_average.iloc[-1, 0]
         dist = self.last.Close - avg
         # How many 'sma_width' deviations away?
-        dev = dist/var
+        if var is None or avg is None:
+            dev = None
+        else:
+            dev = try_divide(dist, var)
         # todo is using var smart? higher var means sudden jumps with periods captured within the sma periods
         # var does not capture consistency in variability. if variability is high,
         # buying low on a down swing is more likely to sell high eg.
@@ -578,17 +585,19 @@ class DistSMA(robot):
 
     def check_indicators(self):
         score = self.get_pullback_score()
+        if score is None:
+            return 0
         sgn = try_sgn(score)
 
         # (*3) Compare criterion
         var_req = self.variability_requirement
         var_req_sub = var_req * 0.75
-        if score > var_req:
+        if abs(score) > var_req:
             if sgn > 0:
                 return 1
             else:
                 return 2
-        elif score > var_req_sub:
+        elif abs(score) > var_req_sub:
             if sgn > 0:
                 return 3
             else:

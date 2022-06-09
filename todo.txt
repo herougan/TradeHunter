@@ -120,3 +120,43 @@ negative if too far. negative if too many
 20b) multi-threaded testing
 
 21) Dark mode - prefably website version only. or maybe just graph.
+
+=================================
+
+
+[Test bot, make website (watch tutorial)]
+Big Millicaps
+
+Make robots
+    Test current robots
+    Between every robot, UI fix
+Make simple github website
+    Personal website, up to some standard, angular
+Make TradeHunter website
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+===============
