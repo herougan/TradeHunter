@@ -40,7 +40,7 @@ class DistSMA(robot):
                        ', if pass some criterion, returns a pullback signal.',
         },
         'sma_period_step': {
-            'default': 1.2,
+            'default': 1.3,
             'range': [0.5, 3],
             'step_size': 0.1,
             'type': IVarType.CONTINUOUS,
@@ -60,7 +60,7 @@ class DistSMA(robot):
             'comment': 'Multiplier, for which following SMA prediction weights will be calculated'
         },
         'sma_count': {
-            'default': 5,
+            'default': 6,
             'range': [3, 20],
             'step_size': 1,
             'type': IVarType.DISCRETE,
@@ -73,8 +73,14 @@ class DistSMA(robot):
             'type': IVarType.CONTINUOUS,
         },
         'variability_requirement': {
-            'default': 2,
+            'default': 3,
             'range': [1, 5],
+            'step_size': 0.01,
+            'type': IVarType.CONTINUOUS,
+        },
+        'stop_loss_variability': {
+            'default': 1.5,
+            'range': [0.5, 5],
             'step_size': 0.01,
             'type': IVarType.CONTINUOUS,
         },
@@ -137,8 +143,8 @@ class DistSMA(robot):
             'step_size': 1,
         },
         'lots_per_k': {
-            'default': 0.001,
-            'range': [0.0005, 0.1],
+            'default': 0.0005,
+            'range': [0.0001, 0.01],
             'step_size': 0.0001,
         },
         'stop_loss_amp': {
@@ -218,6 +224,7 @@ class DistSMA(robot):
         self.sma_periods, self.sma_coeffs = [], []
         self.variability_constant = self.ivar['variability_constant']['default']
         self.variability_requirement = self.ivar['variability_requirement']['default']
+        self.stop_loss_variability = self.ivar['stop_loss_variability']['default']
         self.ma_type = self.ivar['ma_type']['default']
         # == Other Args ==
         self.look_back = self.OTHER_ARGS_DICT['look_back']['default']
@@ -383,10 +390,22 @@ class DistSMA(robot):
         # 4b - Insure signals  #  Triple buys with diff risk
 
         # 4c - Create new signals
-            sign = self.check_indicators()  # todo suspect will buy at every point above... no regulator or intelligence
+            sign = self.check_indicators()
             if sign:  # returns potential signal sign 0: No,
                 # 1: Long, 2: Short, 3: Long Virtual, 4: Short Virtual (Only for testing)
                 signal = self.generate_signal(sign)
+                # todo 1) cooldown (n/or)
+                # 2) ONLY if even better deal (n/o)
+                # 3) Increase volume based on probability
+                # 4) Saving old trades, martingale OR pushing profit line
+                # 5) Moving stop-take
+                #- ---- -- -- --
+                # 5) Pullback score on PROJECTED* direction. if market trending downwards,
+                # being 3-score below is not enough (var + trend_score), while being above only 1-2-score
+                # could be
+                # 6) Let go old trades... if super old, close asap, if old, find next best moment
+                # run the reversal alg to find next best time to sell. if projected time is too far,
+                # close immediately.
                 if signal is not None:
                     self.open_signals.append(signal)
 
@@ -416,10 +435,12 @@ class DistSMA(robot):
         SMA = []
         i = 0
         for indicator in self.sma_indicators:
-            ratio = i / len(self.sma_indicators)
-            red, green, blue = 1 - ratio, 1 - ratio, ratio
-            i += 1
-            _col = (red, green, blue)
+            # ratio = i / len(self.sma_indicators)
+            # red, green, blue = 1 - ratio, 1 - ratio, ratio
+            # i += 1
+            # _col = (red, green, blue)
+            # # cancelled
+            _col = 'darkred'
             SMA.append({
                 'index': 0,
                 'data': indicator,
@@ -523,6 +544,7 @@ class DistSMA(robot):
             # Avg and var values
             v_data.append(try_width(_values))
             avg_data.append(try_mean(_values))
+            # + 1* variability, + 2*, -1*, -2*
             avg_up_1.append(avg_data[-1] + v_data[-1])
             avg_up_2.append(avg_data[-1] + 2 * v_data[-1])
             avg_down_1.append(avg_data[-1] - v_data[-1])
@@ -565,7 +587,7 @@ class DistSMA(robot):
     def get_pullback_score(self):
 
         # (1) Determine Variability
-        var = self.sma_variability_indicator.iloc[-1, 0]
+        var = self.sma_variability_indicator.iloc[-1, 0]  # todo dev too high number
 
         # (2) Determine Pullback distance in terms of the variability indicator
         avg = self.sma_average.iloc[-1, 0]
@@ -594,14 +616,14 @@ class DistSMA(robot):
         var_req_sub = var_req * 0.75
         if abs(score) > var_req:
             if sgn > 0:
-                return 1
-            else:
                 return 2
+            else:
+                return 1
         elif abs(score) > var_req_sub:
             if sgn > 0:
-                return 3
-            else:
                 return 4
+            else:
+                return 3
 
         # (4) Determine variability trend (advanced)
         # -
@@ -620,16 +642,15 @@ class DistSMA(robot):
     def generate_signal(self, sign):
         signal = generate_base_signal_dict()
         # Assign dict values
-        type = 0
         virtual = False
-        if sign == '1':
+        if sign == 1:
             type = 1
-        elif sign == '2':
+        elif sign == 2:
             type = 2
-        elif sign == '3':
+        elif sign == 3:
             type = 1
             virtual = True
-        elif sign == '4':
+        elif sign == 4:
             type = 2
             virtual = True
         else:
@@ -653,6 +674,7 @@ class DistSMA(robot):
         sgn = math.copysign(1, signal['vol'])  # +ve for long, -ve for short
         stop, take = signal['stop_loss'], signal['take_profit']
         # Stop-loss OR Take-profit
+        # todo closing wrongly
         if sgn * self.last.Close <= sgn * stop or sgn * self.last.Close >= sgn * take:  # Go-ahead
             # Realise Profit/Loss
             action = (self.last.Close - signal['open_price'])
@@ -719,9 +741,9 @@ class DistSMA(robot):
 
     def get_stop_loss(self, type):
         if type == 1:  # Buy
-            return self.last_var * self.variability_constant + self.last.Close, self.last_date
+            return - self.last_var * self.stop_loss_variability + self.last.Close, self.last_date
         else:  # Sell
-            return - self.last_var * self.variability_constant + self.last.Close, self.last_date
+            return self.last_var * self.stop_loss_variability + self.last.Close, self.last_date
 
     def get_take_profit(self, stop_loss):
         diff = self.last.Close - stop_loss
@@ -774,11 +796,12 @@ class DistSMA(robot):
         else:
             self.variability_scores.append(0)
 
-    def assign_lots(self, type):
+    def assign_lots(self, _type, catalyst=1):
         sgn = 1
-        if type == 2:
+        if _type == 2:
             sgn = -1
         vol = sgn * self.lot_per_k * self.free_margin[-1] / 1000  # vol
+        vol *= catalyst
         if sgn * vol < 0.01:
             vol = sgn * 0.01  # Min 0.01 lot
         return vol
