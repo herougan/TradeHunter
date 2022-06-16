@@ -2,7 +2,6 @@
 import importlib
 import platform
 import random
-from statistics import stdev
 
 import GPUtil
 
@@ -21,7 +20,8 @@ from os.path import isfile, join
 # Custom Utils
 import settings
 from util.langUtil import strtotimedelta, timedeltatosigstr, normify_name, yahoolimitperiod_leftover, \
-    get_size_bytes, try_int, craft_instrument_filename, strtoyahootimestr, get_yahoo_intervals
+    get_size_bytes, craft_instrument_filename, strtoyahootimestr, get_yahoo_intervals
+from util.mathUtil import try_int
 
 
 #   DataFrame
@@ -1054,11 +1054,6 @@ def get_computer_specs():
 
 
 # Stats
-
-def try_stdev(list):
-    if len(list) < 2:
-        return 0
-    return stdev(list)
 
 # https://www.thepythoncode.com/article/get-hardware-system-information-python
 # ======================================== System Information ========================================

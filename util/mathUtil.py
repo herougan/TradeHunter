@@ -1,9 +1,8 @@
+import math
 from math import floor
+from statistics import stdev
 
 import talib
-
-from util.dataRetrievalUtil import try_stdev
-from util.langUtil import try_mean, try_int
 
 
 def quartile_out(quartile, data):
@@ -59,6 +58,176 @@ def date_to_index_arr(index, dates_index, dates):
         return [0 for date in dates]
 
 
+# Try
+
+
+def try_int(s: str) -> int:
+    try:
+        if s is None:
+            return 0
+        return int(s)
+    except ValueError:
+        return 0
+
+
+def try_float(s: str) -> float:
+    try:
+        if s is None:
+            return 0
+        return float(s)
+    except ValueError:
+        return 0
+
+
+def try_key(dict: {}, key: str):
+    if key in dict:
+        return dict['key']
+    else:
+        return "-"
+
+
+def try_divide(n1, n2):
+    if n2 == 0:
+        return math.inf
+    return n1 / n2
+
+
+def try_normalise(list):
+    i, t = 0, 0
+    for l in list:
+        i += 1
+        t += math.pow(l, 2)
+    return math.pow(t, 0.5)
+
+
+def try_limit(n1, n):
+    if n1 > n[1]:
+        return n[1]
+    elif n1 < n[0]:
+        return n[0]
+    return n1
+
+
+def try_max(list):
+    if len(list) < 1:
+        return 0
+    return max(list)
+
+
+def try_min(list):
+    if len(list) < 1:
+        return 0
+    return min(list)
+
+
+def try_mean(list):
+    if len(list) < 1:
+        return 0
+    t, l = 0, len(list)
+    for i in list:
+        if i is None:
+            t += 0
+            l -= 0
+            continue
+        t += i
+    return try_divide(t, l)
+
+
+def try_width(list):
+    """1D only"""
+    if len([l for l in list if l is not None]) < 1:
+        return 0
+    max, min = 0, math.inf
+    # Get max and min
+    for x in list:
+        if x is None:
+            continue
+        if x > max:
+            max = x
+        if x < min:
+            min = x
+    if min == math.inf:
+        return math.inf
+    return max - min
+
+
+def try_stdev(list):
+    if len(list) < 2:
+        return 0
+    return stdev(list)
+
+
+def try_radius(list):
+    """1D only"""
+    pass
+
+
+def try_diameter(list):
+    """1D only"""
+    pass
+
+
+def try_centre(list):
+    """1D only"""
+    pass
+
+
+def try_avg_eccentricity(list):
+    """1D only"""
+    pass
+
+
+def try_packing_dist(list):
+    """1D only. Returns minimum distance such that all vertices..."""
+    pass
+
+
+def try_dominating_dist(list):
+    """1D only"""
+    pass
+
+
+def try_sgn(n1):
+    n1 = try_float(n1)
+    if n1:
+        sgn = math.copysign(1, n1)
+        return sgn
+    return 0
+
+
+def get_dist(n1, n2):
+    _t = 0
+    for i in range(len(n1)):
+        _d = n1[i] - n2[i]
+        _t += _d * _d
+    return math.sqrt(_t)
+
+
+# If/In
+
+def in_range(n1, n2=[0, 1]):
+    n1 = try_float(n1)
+    if n1 and len(n2) >= 2:
+        if n2[0] < n1 < n2[-1]:
+            return True
+    return False
+
+
+def on_range(n1, n2=[0, 1]):
+    n1 = try_float(n1)
+    if n1 and len(n2) >= 2:
+        if n2[0] == n1 or n1 == n2[-1]:
+            return True
+    return False
+
+
+def in_std_range(n1, avg, stdev, order=1):
+    return in_range(n1, [avg - order * stdev, avg + order * stdev])
+
+
+# Is
+
+
 def is_integer(x):
     y = try_int(x)
     if not y or y - x != 0:
@@ -78,9 +247,8 @@ def to_candlestick(ticker_data, interval: str, inc=False):
 
 
 def get_scale_grey(val):
-
-    hexa = 15*16+15 * val
-    first_digit = hexa//16
+    hexa = 15 * 16 + 15 * val
+    first_digit = hexa // 16
     second_digit = hexa - first_digit * 16
     hexa = F'{to_single_hex(first_digit)}{to_single_hex(second_digit)}'
 

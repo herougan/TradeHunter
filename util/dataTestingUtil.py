@@ -17,14 +17,16 @@ from matplotlib import pyplot as plt
 
 from robot.abstract.robot import robot
 from settings import EVALUATION_FOLDER, OPTIMISATION_FOLDER, PLOTTING_SETTINGS, TESTING_SETTINGS, OPTIMISATION_SETTINGS, \
-    ALGO_ANALYSIS_FOLDER
+    ALGO_ANALYSIS_FOLDER, IVarType
 from util.dataGraphingUtil import plot_robot_instructions, plot_signals, plot_open_signals, candlestick_plot, \
     get_interval, DATE_FORMAT_DICT, plot_line, plot_optimisations
-from util.dataRetrievalUtil import load_dataset, load_df, get_computer_specs, number_of_datafiles, try_stdev, \
+from util.dataRetrievalUtil import load_dataset, load_df, get_computer_specs, number_of_datafiles, \
     insert_ivars, file_exists, try_delete_file
-from util.langUtil import craft_instrument_filename, strtodatetime, try_key, remove_special_char, try_divide, try_max, \
-    try_mean, get_test_name, get_file_name, get_instrument_from_filename, \
-    try_min, try_sgn, in_std_range, is_datetimestring
+from util.langUtil import craft_instrument_filename, strtodatetime, remove_special_char, \
+    get_test_name, get_file_name, get_instrument_from_filename, \
+    is_datetimestring
+from util.mathUtil import try_key, try_divide, try_max, try_mean, try_min, try_sgn, in_std_range, in_range, try_limit, \
+    try_normalise, try_stdev
 
 #  Robot
 # from robot import FMACDRobot, TwinSMA
@@ -581,20 +583,29 @@ def create_optim_result(optim_name, result_dict, robot_name: str):
 
 
 def create_optim_series(optim_name, fitness_collection, ivar_collection):
-    # todo create 'index'-series of ivar scores - create optim_series file
     # Fetch keys
     if len(ivar_collection) < 1:
         return pd.DataFrame()
     eg_args_dict = ivar_collection[0]['ivar']
+    if len(ivar_collection) != len(fitness_collection):
+        print("Error encountered with aggregating optimisation fitness data.")
+    min_l = min(len(ivar_collection), len(fitness_collection))
 
     # Build data
     optim_series_data = {
-        'fitness': fitness_collection,
+        'fitness': fitness_collection[0: min_l],
     }
     for key in eg_args_dict.keys():  # For each key, collect their values through
         optim_series_data.update({
-            key: [ivar[key]['default'] for ivar in ivar_collection]
+            key: [ivar[key]['default'] for ivar in ivar_collection][0: min_l]
         })
+    ############################
+    #                          #
+    #   data:                  #
+    #       key(s): [trend]    #   -  values that args take can show trends towards certain directions
+    #       fitness: [trend]   #
+    #                          #
+    ############################
     optim_series = pd.DataFrame(index=[list(range(len(fitness_collection)))], data=optim_series_data)
     return optim_series
 
@@ -720,8 +731,13 @@ def write_optim_meta(optim_name: str, meta_dict, robot_name: str):
 
 def write_optim_series(optim_name: str, optim_sdf, robot_name: str):
     folder = F'{OPTIMISATION_FOLDER}/{robot_name}'
-    meta_path = F'{folder}/{optim_name}__series.csv'
-    pass
+    series_path = F'{folder}/{optim_name}__series.csv'
+
+    if not os.path.exists(folder):
+        os.makedirs(folder)
+
+    optim_sdf.to_csv(series_path)
+    return optim_sdf
 
 
 def load_test_result(test_name: str, robot_name: str):
@@ -852,7 +868,11 @@ class DataTester:
 
     def __init__(self, xvar):
 
-        self.xvar = xvar
+        # Overarching variables
+        self.xvar = xvar  # Settings around the robot (as opposed to IVar)
+        self.ovar = None  # Optimisation variables
+        self.svar = None
+
         self.start_time = None
         self.end_time = None
 
@@ -883,7 +903,7 @@ class DataTester:
         for df in dfs:
             time_index.append(
                 {
-                    'last_index': 0, # some time
+                    'last_index': 0,  # some time
                     'last_time': 0,
                 }
             )
@@ -1234,7 +1254,7 @@ class DataTester:
 
             # Next
             self.algo.next(df[i:i + 1])
-            _df = df[:i+1]
+            _df = df[:i + 1]
             instructions = self.algo.get_instructions()
 
             # Convert dates to indices
@@ -1275,13 +1295,18 @@ class DataTester:
 
     # == Optimise ==
     def optimise(self, ta_name: str, init_ivar: List[float], ds_names: List[str], optim_name: str, store=True,
-                 meta_store=True, canvas=None):
-        # todo makeover ivar['ivar']['name'] to ivar['name']
-        # todo but yet, when storing, store with name
+                 meta_store=True, canvas=None, ovars=None):
         """...
         Note this function uses progress bar #2."""
         ta_name = remove_special_char(ta_name)
         print('Starting optimisation: ' + F'{ta_name}.{ta_name}({init_ivar}) with i:{init_ivar}, x:{self.xvar}')
+
+        # Handle Optimising variables
+        lock_list = []
+        if ovars:
+            # Locked variables are not optimised
+            if 'lock' in ovars:
+                lock_list = ovars['lock']
 
         self.robot = eval(F'{ta_name}.{ta_name}({init_ivar}, {self.xvar})')
         ivar_dict = {
@@ -1298,10 +1323,7 @@ class DataTester:
         args_dict = self.robot.ARGS_DICT  # Basis for optimisation
         # # Manage types of vars
         for key in args_dict.keys():
-            # currently not used
-            if 'type' in args_dict[key]:
-                if args_dict[key]['type'] == 'discrete':  # if discrete, cannot decrease min_step
-                    pass
+            # Future
             args_dict[key]['variability'] = 0  # dec/inc min_step to reach variability average
             args_dict[key]['smoothness'] = 0  # min_step < noise width, inc min_step to ignore noise
 
@@ -1319,9 +1341,9 @@ class DataTester:
 
         # Vector field setup
         optim_field = []  # [{
-        # val_1,...val_i...,val_n
-        # arg_1,...arg_i...,arg_n
-        # },...{}]
+        #                       val_1,...val_i...,val_n
+        #                       arg_1,...arg_i...,arg_n
+        #                   },...{}]
         fitness_collection = []
         ivar_collection = []
         final_ivar_results = []  # {ivar, fitness}
@@ -1372,74 +1394,92 @@ class DataTester:
                 'fitness': float
             }, key2...key_n, origin}"""
 
+            # Descent settings
             main_ivar_dict = spread_results['origin']
             new_ivar = main_ivar_dict['ivar'].copy()
-            step_size = OPTIMISATION_SETTINGS['arg_step_size']  # Size of each full step (x=3,y=4 => d=5)
-
-            diff_dict = {
-                # key: {fitness deviation/val deviation}
-            }
+            overall_step_size = OPTIMISATION_SETTINGS['arg_step_size']  # Size of each full step (x=3,y=4 => d=5)
 
             # Get 'origin'/centre point result
             for key in spread_results.keys():
                 if key == 'origin':
                     spread_results[key].update({
-                        'fitness_diff': 0,
-                        'val_diff': 0,
+                        'fitness_per_step': 0,
                     })
                     continue
-
+                # spread_results[key].update({
+                #     # Negative diff indicates a greater new result
+                #     'fitness_diff': spread_results[key]['fitness'] - main_ivar_dict['fitness'],
+                #     'val_diff': spread_results[key]['ivar'][key]['default'] - main_ivar_dict['ivar'][key]['default'],
+                # })
+                # Fitness diff weighted by number of steps used to achieve this
                 spread_results[key].update({
-                    # Negative diff indicates a greater new result
-                    'fitness_diff': spread_results[key]['fitness'] - main_ivar_dict['fitness'],
-                    'val_diff': spread_results[key]['ivar'][key]['default'] - main_ivar_dict['ivar'][key]['default'],
+                    'fitness_per_step': get_fitness_growth(spread_results, main_ivar_dict, key)
                 })
 
-            normalisation_constant = 0
-            for key in spread_results.keys():
-                normalisation_constant += math.pow(spread_results[key]['fitness_diff'], 2)
-            normalisation_constant = math.pow(normalisation_constant, 0.5)
+            # Determine relative size of all steps
+            normalisation_constant = try_normalise(
+                [spread_results[key]['fitness_per_step'] for key in spread_results.keys()])
 
             for key in spread_results.keys():
-                if key == 'origin':
+                if key == 'origin':  # except origin
                     continue
 
-                min_step = args_dict[key]['step_size']  # min size of step (in coordinate), if applicable
-                # if args_dict['type'] == 'continuous':
-                #     pass
-                # elif args_dict['type'] == 'discrete':
-                #     pass
-                if min_step:
-                    # if val is positive, (result is good) move forward in the current direction
-                    # if val is negative, (result is bad) move away from the current direction
-                    # 'move' is the number of steps to take
-                    move = step_size * min_step \
-                           * try_divide(spread_results[key]['fitness_diff'],
-                                        normalisation_constant)
-                else:  # No minimum step_size,
-                    min_step = 1 / 100.0 * (args_dict[key]['range'][1] - args_dict[key]['step_size'][
-                        0])  # Assume minimum step_size of 1/100
-                    move = step_size * min_step \
-                           * try_divide(spread_results[key]['fitness_diff'],
-                                        normalisation_constant)
+                # Where to move
+                steps = overall_step_size \
+                        * try_divide(spread_results[key]['fitness_per_step'], normalisation_constant)
+                # step_value = args_dict[key]['step_size']
 
-                if abs(move) < min_step:
-                    move = try_divide(move * min_step, abs(move))
-
-                #  sgn(val) represents the original direction. a negative 'move' moves in the opposite direction
-                new_ivar[key]['default'] += move * try_sgn(spread_results[key]['val_diff'])
-                #  If outside range
-                range = args_dict[key]['range']
-                if new_ivar[key]['default'] > range[1]:
-                    new_ivar[key]['default'] = range[1]
-                elif new_ivar[key]['default'] < range[0]:
-                    new_ivar[key]['default'] = range[0]
+                #  Move; sgn(val) represents the original direction. a negative 'move' moves in the opposite direction
+                new_ivar[key]['default'] = move_ivar(new_ivar[key]['default'], key, steps)
 
             # return new ivar
             return {
                 'ivar': new_ivar,
                 'name': F'suggest_{_i}_{_u}'
             }
+
+        def get_fitness_growth(results, origin, key):
+            """Returns fitness per step"""
+            result = results[key]
+            arg = args_dict[key]
+            # Value diff causes fitness diff
+            fitness_diff = result['fitness'] - origin['fitness']
+            step_diff = 0
+            # Calculate 'step_diff', aka number of steps moved
+            if args_dict[key]['type'] in [IVarType.CONTINUOUS, IVarType.DISCRETE]:  # Take direct value
+                step_diff = result['ivar'][key]['default'] - origin['ivar'][key]['default']
+                # Calculate step
+                step_diff /= arg[key]['step_size']
+            elif args_dict[key]['type'] == [IVarType.SEQUENCE, IVarType.ARRAY, IVarType.ENUM]:  # Take index
+                step_diff = result['ivar'][key]['default'] - origin['ivar'][key]['default']
+            elif args_dict[key]['type'] == [IVarType.TEXT, IVarType.NONE]:
+                pass  # no way to optimise at the moment
+            # How much fitness diff per value diff
+            fitness_per_step = try_divide(fitness_diff, step_diff)
+            return fitness_per_step
+
+        def random_one_move(ivar_value, key):
+            """Move in a random direction in 1 step. Returns ivar value. (e.g. indicies for DISCRETE ivars)"""
+            # Roll r
+            r = random.random()
+            t = -1  # Decrease
+            if r > 0.5:
+                t = 1  # Increase
+
+            if args_dict[key]['type'] in [IVarType.CONTINUOUS, IVarType.DISCRETE]:
+                _val = ivar_value + args_dict[key]['step_size'] * t
+                # If value would exceed beyond* bounds, move opposite direction
+                if _val > args_dict[key]['range'][1]:
+                    _val = ivar_value - args_dict[key]['step_size'] * t
+                # Vice versa
+                if _val < args_dict[key]['range'][0]:
+                    _val = ivar_value - args_dict[key]['step_size'] * t
+                return try_limit(_val, args_dict[key]['range'])
+            elif args_dict[key]['type'] == [IVarType.SEQUENCE, IVarType.ARRAY, IVarType.ENUM]:
+                return try_limit(ivar_value + t, [0, len(args_dict[key]['range'])])
+            elif args_dict[key]['type'] == [IVarType.TEXT, IVarType.NONE]:
+                return ivar_value
+            return 0
 
         def random_ivar(_i=0):
             """Create a random initial starting ivar"""
@@ -1481,6 +1521,7 @@ class DataTester:
             return ivar_dict
 
         def ivar_spread(ivar, _i=0, _u=0):
+            # USE MOVE+1
             """Create ivar_spread from starting ivar origin"""
             # Ivar itself
             ivar_key_tuples = {
@@ -1492,31 +1533,13 @@ class DataTester:
             # Test hypersphere around ivar
             for key in args_dict.keys():
                 _ivar = copy.deepcopy(ivar)
-                # _ivar['name'] = key  # name is F'spread_{_i}_{_u}', tuple-key is key
-                range = args_dict[key]['range']
-                curr = ivar[key]['default']
-                step = args_dict[key]['step_size']
+                # # If variability low, increase step
+                # var = args_dict[key]['variability']
+                # if var == 0:
+                #     pass
 
-                # If variability low, increase step
-                var = args_dict[key]['variability']
-                if var == 0:
-                    pass
-
-                # Roll r
-                r = random.random()
-                t = -1  # Decrease
-                if r > 0.5:
-                    t = 1  # Increase
-
-                if curr == range[1]:  # Extreme right, decrease regardless
-                    _ivar[key]['default'] -= step
-                elif curr == range[0]:  # Extreme left, increase regardless
-                    _ivar[key]['default'] += step
-                _ivar[key]['default'] += step * t
-                if curr >= range[1]:  # If reach over the right, set to right bound
-                    _ivar[key]['default'] -= range[1]
-                elif curr <= range[0]:  # If reach over the left, set to left
-                    _ivar[key]['default'] += range[0]
+                # Try random neighbouring value
+                _ivar[key]['default'] = random_one_move(_ivar[key]['default'], key)
 
                 ivar_key_tuples.update({
                     key: {
@@ -1556,6 +1579,66 @@ class DataTester:
                     key: ivar2[key] - ivar[key]
                 })
             return dist
+
+        def move_ivar(ivar_val, key, steps):
+            """Returns new ivar value/index (depends on IVarType) next to current $ivar_val in $direction
+            $direction=1 (Direction now should be accounted for in steps)"""
+            if args_dict[key]['type'] == IVarType.CONTINUOUS:
+                _step_size = args_dict[key]['step_size']
+                _step = _step_size * steps
+                _val = ivar_val + _step
+                # Check bounds
+                return try_limit(_val, args_dict[key]['range'])
+            if args_dict[key]['type'] == IVarType.DISCRETE:
+                steps = round(steps)  # Round off for discrete
+                _step_size = args_dict[key]['step_size']
+                _step = _step_size * steps
+                _val = ivar_val + _step
+                # Check bounds
+                return try_limit(_val, args_dict[key]['range'])
+            if args_dict[key]['type'] == IVarType.SEQUENCE:
+                # Return next array value
+                steps = round(steps)  # Round off for index
+                _range = args_dict['range']
+                _step = steps
+                _idx = int(ivar_val + _step)  # ivar_val must be an idx
+                # Check bounds
+                _idx = try_limit(_idx, [0, len(_range)])
+                return _range[_idx]
+            # ===== ===== ===== ===== =====
+            # The following IVar types are handled dumbly- the next immediate index following the $direction
+            # will be returned as if the IVar contained values in a range. $d=0 returns the same attribute.
+            # That said, when designing ENUM and etc., one should try their best to sort the values
+            # in some meaningful way if possible, for $d to be more sensible.
+            # ===== ===== ===== ===== =====
+            if args_dict[key]['type'] == IVarType.ARRAY:
+                # Return next array value
+                steps = round(steps)  # Round off for index
+                _range = args_dict['range']
+                _step = steps
+                _idx = int(ivar_val + _step)  # ivar_val must be an idx
+                # Check bounds
+                _idx = try_limit(_idx, [0, len(_range)])
+                return _range[_idx]
+            if args_dict[key]['type'] == IVarType.ENUM:
+                # Return 'next' enum
+                steps = round(steps)  # Round off for index
+                _range = args_dict['range']
+                _step = steps
+                _idx = int(ivar_val + _step)  # ivar_val must be an idx
+                # Check bounds
+                _idx = try_limit(_idx, [0, len(_range)])
+                return _range[_idx]
+            # ===== =====
+            # Nothing to do
+            # ===== =====
+            if args_dict[key]['type'] == IVarType.TEXT:
+                # Return new text
+                return ivar_val
+            if args_dict[key]['type'] == IVarType.NONE:
+                # Return default
+                return ivar_val
+            pass
 
         # == Geometric util ==
 
@@ -1711,8 +1794,7 @@ class DataTester:
             self.p_bar_2.setValue(i + 1 / runs)
 
         # Descent Trajectory finals # Easier!
-        trimmed_ivar_results = []
-        final_fitness_scores = [d['fitness'] for d in final_ivar_results]
+        final_fitness_scores, trimmed_ivar_results = [d['fitness'] for d in final_ivar_results], []
         top_fitness_score, btm_fitness_score, avg_fitness_score = \
             try_max(final_fitness_scores), try_min(final_fitness_scores), try_mean(final_fitness_scores)
         std_fitness_score = try_stdev(final_fitness_scores)
@@ -1785,6 +1867,7 @@ class DataTester:
             ivar_result['name'] = optim_name + '_' + ivar_result['name']
         insert_ivars(ta_name, trimmed_ivar_results)
 
+        # Create optim score data file
         optim_series = create_optim_series(optim_name, fitness_collection, ivar_collection)
         write_optim_series(optim_name, optim_series, meta['name'])
 

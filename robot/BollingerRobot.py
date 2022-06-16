@@ -1,4 +1,4 @@
-"""DistSMA Robot"""
+"""BollingerRobot Robot"""
 import math
 from datetime import timedelta
 
@@ -13,14 +13,13 @@ from util.mathUtil import try_mean, try_int, try_width, try_min, \
 from util.robotDataUtil import generate_base_signal_dict
 
 
-class DistSMA(robot):
-    """A robot that trades when the current price is heavily against the current trend.
-    SMAs of different periods are employed for: Measuring trend or variability and determining
-    pullback chance. Each SMA gives a score and the sum of these are measured against the criterion
+
+class BollingerRobot(robot):
+    """A robot that uses bollinger bands as signal generation
     """
 
     VERSION = '0.1'
-    NAME = 'DistSMA'
+    NAME = 'BollingerRobot'
 
     ARGS_DICT = {
         # Main, optimisable
@@ -87,7 +86,6 @@ class DistSMA(robot):
         },
         'ma_type': {
             'default': 0,
-            'step_size': 1,
             'range': ['Simple', 'Exponential', 'Static'],
             'type': IVarType.ENUM,
         },
@@ -95,19 +93,16 @@ class DistSMA(robot):
         'grid_length': {
             'default': 10,
             'range': [5, 20],
-            'step_size': 0.1,
             'type': IVarType.CONTINUOUS,
         },
         'split_count': {
             'default': 3,
             'range': [1, 10],
-            'step_size': 0.01,
             'type': IVarType.DISCRETE,
         },
         'split_step': {
             'default': 1.1,
             'range': [0.5, 2],
-            'step_size': 0.1,
             'type': IVarType.CONTINUOUS,
         },
     }
@@ -116,69 +111,79 @@ class DistSMA(robot):
             'default': 12,
             'range': [10, 15],
             'step_size': 0.1,
+            'type': IVarType.CONTINUOUS,
         },
         'slow_period': {
             'default': 26,
             'range': [25, 30],
             'step_size': 0.1,
+            'type': IVarType.CONTINUOUS,
         },
         'signal_period': {
             'default': 9,
             'range': [8, 10],
             'step_size': 1,
+            'type': IVarType.CONTINUOUS,
         },
         'left_peak': {
             'default': 2,
             'range': [1, 4],
             'step_size': 1,  # Default step size
+            'type': IVarType.CONTINUOUS,
         },
         'right_peak': {
             'default': 2,
             'range': [1, 4],
             'step_size': 1,
+            'type': IVarType.CONTINUOUS,
         },
         'look_back': {
             'default': 20,
             'range': [10, 30],
             'step_size': 1,
+            'type': IVarType.CONTINUOUS,
         },
         'peak_order': {
             'default': 1,
             'range': [1, 5],
             'step_size': 1,
+            'type': IVarType.CONTINUOUS,
         },
         'lots_per_k': {
             'default': 0.0005,
             'range': [0.0001, 0.01],
             'step_size': 0.0001,
+            'type': IVarType.CONTINUOUS,
         },
         'stop_loss_amp': {
             'default': 1.05,
             'range': [0.9, 2],
             'step_size': 0.001,
+            'type': IVarType.CONTINUOUS,
         },
         'stop_loss_flat_amp': {  # in pips
             'default': 0,
             'range': [-100, 100],
             'step_size': 1,
+            'type': IVarType.CONTINUOUS,
         },
         'amp_constant': {
             'default': 0,
             'range': [-100, 100],
             'step_size': 1,
-            'type': 'continuous',
+            'type': IVarType.CONTINUOUS,
         },
         'amp_types': {
             'default': 0,
             'range': [0, 1, 2, 3, 5, 10],
             'step_size': 1,
-            'type': 'array',
+            'type': IVarType.ARRAY,
         },
         'amp_bins': {
             'default': 0,
             'range': [-100, 100],
             'step_size': 1,
-            'type': 'discrete',
+            'type': IVarType.CONTINUOUS,
         }
     }
     # Retrieve Prep

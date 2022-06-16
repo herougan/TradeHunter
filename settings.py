@@ -112,8 +112,13 @@ class IVarType:
     CONTINUOUS = 1
     DISCRETE = 2
     ENUM = 3
-    TEXT = 4
+    TEXT = 4  # Single value, cannot be optimised
     ARRAY = 5  # Enum but for numbers only
+    SEQUENCE = 6  # Same as array but implies trend/pattern while traversing array
+    # Future
+    VECTOR = 7  # Vector of any size
+    SQ_MATRIX = 8  # Matrix of square size
+    PERM = 9  # Permutation of range's values
 
 
 class InputUIType:

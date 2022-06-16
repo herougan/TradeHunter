@@ -45,6 +45,17 @@ def get_arg_dict_defaults(robot):
     return defaults
 
 
+def get_arg_dict_default_value(args_dict, key):
+    arg = args_dict[key]
+    if arg['type'] in [IVarType.CONTINUOUS, IVarType.DISCRETE]:
+        return arg['default']
+    if arg['type'] in [IVarType.ENUM, IVarType.ARRAY]:
+        return arg['range'][arg['default']]
+    if arg['type'] in [IVarType.TEXT, IVarType.NONE]:
+        return arg['default']
+    return arg['default']
+
+
 def generate_base_signal_dict():
     signal = {
         'type': None,  # 0: None/Error, 1: Long, 2: Short

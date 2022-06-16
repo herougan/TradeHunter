@@ -1,4 +1,3 @@
-
 Separate logic into the different util files
 
 DataRetrievalUtil downloads data from many files into static. What it downloads is based on a text file.
@@ -11,12 +10,10 @@ DistSMA does nothing
 
 Bug fixes:
 
--) Move try_X to math_util
-
-0) Create Optim-data -> Successive scores over optimisation
 0*) Can't stop sim once started...
 
 1) Ivar-choices - Optimise/Manual-set - Values (Init at default) (locking ivars)
+
 2) Discrete sliders, if large number of possibilities -> discrete slider in steps only.
 (Continuous ignores steps)
 2a) TextEdit updates value if slider moved, Slider updates if textEdit editted (only on 'edit_complete')

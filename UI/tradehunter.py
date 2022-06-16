@@ -33,8 +33,9 @@ from util.dataTestingUtil import step_test_robot, DataTester, write_test_result,
     load_test_meta, get_tested_robot_list, get_tests_list, get_ivar_vars, delete_test, delete_algo_result, \
     delete_optimisation, get_optimised_robot_list, get_optimisations_list, get_algo_results_list, \
     get_analysed_algo_list, load_optimisation_result, load_optimisation_meta, load_algo_result, load_algo_meta
-from util.langUtil import normify_name, try_int, leverage_to_float, get_test_name, try_float, strtodatetime, \
+from util.langUtil import normify_name, leverage_to_float, get_test_name, strtodatetime, \
     timedeltatoyahootimestr, to_camel_case
+from util.mathUtil import try_int, try_float
 
 
 class TradeHunterApp:
@@ -1496,7 +1497,7 @@ class TradeHunterApp:
                         'type': IVarType.TEXT,
                         'default': "",
                     }
-                }  # todo slider is here
+                }
                 args_dict.update(get_ivar_vars(self.robot))
                 self.args_dict = args_dict
                 self.delete_ivar_options()
@@ -1526,7 +1527,11 @@ class TradeHunterApp:
                         _secondary_label = QLabel(str(arg['default']))
 
                         def update_value(val):
+                            # Slider updating wrong value
                             _secondary_label.setText(str(val))
+
+                        def txt_update_slider(val):
+                            _input.setValue(val)
 
                         _input.doubleValueChanged.connect(update_value)
                     elif _type == IVarType.DISCRETE:
@@ -1550,7 +1555,7 @@ class TradeHunterApp:
                             _input.setCurrentIndex(0)
 
                         _input_type = InputUIType.COMBO_NUMBER
-                    elif _type == IVarType.ENUM:
+                    elif _type in [IVarType.ENUM, IVarType.ARRAY, IVarType.SEQUENCE]:
                         _input = QComboBox()
                         # Insert options
                         i = 0
