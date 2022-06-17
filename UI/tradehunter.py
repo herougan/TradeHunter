@@ -1502,6 +1502,8 @@ class TradeHunterApp:
                 self.args_dict = args_dict
                 self.delete_ivar_options()
 
+                ivar_arg_rows = []
+
                 for key in args_dict.keys():
                     arg = args_dict[key]
                     # todo new layers here; use 30, 70 horizontal layout
@@ -1541,6 +1543,14 @@ class TradeHunterApp:
                         arg_range = arg['range']
                         step = arg['step_size']
 
+                        _slider = DoubleSlider(Qt.Horizontal)
+                        _slider.setMinimum(arg['range'][0])
+                        _slider.setMaximum(arg['range'][1])
+                        _slider.setValue(arg['default'])
+
+                        _text = NumericTextEdit()
+                        _text.setPlainText(str(arg['default']))
+
                         options = range(arg_range[0], arg_range[1] + step, step)
                         i = 0
                         for option in options:
@@ -1554,6 +1564,12 @@ class TradeHunterApp:
                         else:
                             _input.setCurrentIndex(0)
 
+                        def slider_update_value(val):
+                            _text.setPlainText(str(arg['default']))
+
+                        def text_update_value(val):
+                            _slider.setValue(float(arg['default']))
+
                         _input_type = InputUIType.COMBO_NUMBER
                     elif _type in [IVarType.ENUM, IVarType.ARRAY, IVarType.SEQUENCE]:
                         _input = QComboBox()
@@ -1564,7 +1580,7 @@ class TradeHunterApp:
                             i += 1
 
                         _input_type = InputUIType.COMBO
-                    else:
+                    else:  # [IVarType.TEXT, IVarType.None]
                         _input = QTextEdit()
                         _input_type = InputUIType.TEXT
 
@@ -1582,6 +1598,9 @@ class TradeHunterApp:
                     self.left.addWidget(_label)
                     self.right.addWidget(_input)
                     self.right.addWidget(_secondary_label)
+
+                for ivar_arg_row in ivar_arg_rows:
+                    self.left.addLayout(ivar_arg_row)
 
             def get_option_input(self, option_dict):
                 if option_dict['type'] == InputUIType.TEXT:

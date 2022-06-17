@@ -303,3 +303,11 @@ class QuickAlertWindow(QWidget):
 
     def back(self):
         self.close()
+
+
+def SliderAndNTextWindow(Qwidget):
+
+    def __init__():
+        self.slider = None
+        self.text = None
+        pass
