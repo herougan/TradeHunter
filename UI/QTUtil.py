@@ -3,6 +3,7 @@ from PyQt5.QtCore import Qt, pyqtSignal
 from PyQt5.QtWidgets import QTableWidget, QTableWidgetItem, QPlainTextEdit, QSlider, QWidget, QVBoxLayout, QLabel, \
     QHBoxLayout, QPushButton
 from util.langUtil import check_if_valid_timestr
+from util.mathUtil import try_float
 
 
 def get_datatable_sheet(table: QTableWidget):
@@ -153,7 +154,7 @@ ALPHABETS = (Qt.Key_A, Qt.Key_B, Qt.Key_C, Qt.Key_D, Qt.Key_E, Qt.Key_F, Qt.Key_
 NUMERALS = (Qt.Key_1, Qt.Key_2, Qt.Key_3, Qt.Key_4, Qt.Key_5, Qt.Key_6, Qt.Key_7, Qt.Key_8, Qt.Key_9, Qt.Key_0,)
 ALPHANUMERICS = ALPHABETS + NUMERALS
 SPACE_KEYS = (Qt.Key_Return, Qt.Key_Enter, Qt.Key_Tab,)
-SPECIAL_CHARS = (Qt.Key_Exclam, Qt.Key_At,)  # #$%^&*()-_=+[{]};:'",<.>/?\|`~
+SPECIAL_CHARS = (Qt.Key_Exclam, Qt.Key_At, Qt.Key_NumberSign, Qt.Key_Dollar)  # !@#$%^&*()-_=+[{]};:'",<.>/?\|`~
 
 
 class PlainTextEdit(QPlainTextEdit):
@@ -226,7 +227,84 @@ class DoubleSlider(QSlider):
 
 
 class DoubleStepSlider(QSlider):
-    pass
+    doubleValueChanged = pyqtSignal(float)
+
+    def __init__(self, *args, **kargs):
+        super(DoubleStepSlider, self).__init__(*args, **kargs)
+        self._min = 0
+        self._max = 99
+        self.interval = 1
+
+        self.steps = 100
+
+    def emitDoubleValueChanged(self):
+        self.doubleValueChanged.emit(self.value)
+
+    def setSteps(self, steps):
+        self.steps = steps
+
+    def setInterval(self, value):
+        self.value = value
+
+
+class SliderText(QWidget):
+
+    def __init__(self, min, max):
+        super().__init__()
+
+        self.slider = DoubleSlider()
+        self.text = NumericTextEdit()
+
+        self.main_layout = QHBoxLayout()
+
+        self.main_layout.addWidget(self.slider)
+        self.main_layout.addWidget(self.text)
+
+        # Connect events, set style
+        self.slider.doubleValueChanged.connect(self.sliderUpdate)
+        self.text.textChanged.connect(self.textUpdate)
+
+        self.max = max
+        self.min = min
+        self.slider.setMaximum(max)
+        self.slider.setMinimum(min)
+
+    # == Events ==
+
+    def sliderUpdate(self, e):
+        self.text.setPlainText(str(e))
+
+    def textUpdate(self, e):
+        # Check if text is a number
+        if not e == '0' and not try_float(e):
+            self.slider.setValue(0)
+        # Check if within bounds
+        v = try_float(e)
+        if v < self.min:
+            v = self.min
+        if v > self.max:
+            v = self.max
+        self.slider.setValue(v)
+
+    # == Default ==
+
+    def back(self):
+        self.close()
+
+    def setMinimum(self, min):
+        self.slider.setMinimum(min)
+        self.min = min
+
+    def setMaximum(self, max):
+        self.slider.setMaximum(max)
+        self.max = max
+
+    def setValue(self, val):
+        self.slider.setValue(val)
+        self.text.setPlainText(str(val))
+
+    def getValue(self, val):
+        return self.slider.value()
 
 
 # Window
@@ -275,7 +353,7 @@ class ConfirmWindow(QWidget):
 
 
 class QuickAlertWindow(QWidget):
-    # todo on "enter" close window!
+    # todo on "enter" close window! (future?)
 
     def __init__(self, text="Alert!", title="Alert Window", button_text="OK"):
         super().__init__()
@@ -303,11 +381,3 @@ class QuickAlertWindow(QWidget):
 
     def back(self):
         self.close()
-
-
-def SliderAndNTextWindow(Qwidget):
-
-    def __init__():
-        self.slider = None
-        self.text = None
-        pass

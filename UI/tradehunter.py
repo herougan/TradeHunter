@@ -871,10 +871,17 @@ class TradeHunterApp:
             panes = QHBoxLayout()
             left_pane = QVBoxLayout()
 
+            # == Tabs ==
+            algorithm_tab = QTabWidget()
+            trade_tab = QTabWidget()
+
             # === Left Pane ===
             dataset_layout = QHBoxLayout()
             ivar_layout = QHBoxLayout()
             xvar_pane = QHBoxLayout()
+            dataset_layout.setContentsMargins(0, 0, 0, 0)
+            ivar_layout.setContentsMargins(0, 0, 0, 0)
+            xvar_pane.setContentsMargins(0, 0, 0, 0)
 
             # Build Dataset selector and table
             dataset_label = QLabel('Dataset')

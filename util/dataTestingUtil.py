@@ -1332,10 +1332,13 @@ class DataTester:
         # Base options
         runs = OPTIMISATION_SETTINGS['optimisation_width']
         max_depth = OPTIMISATION_SETTINGS['optimisation_depth']
+        learning_rate = OPTIMISATION_SETTINGS['learning_rate']
         if 'optim_depth' in self.xvar:
             runs = self.xvar['optim_depth']
         if 'optim_width' in self.xvar:
             max_depth = self.xvar['optim_width']
+        if 'learning_rate' in self.xvar:
+            learning_rate = self.xvar['learning_rate']
         step_size = OPTIMISATION_SETTINGS['arg_step_size']  # alpha
         approach_size = OPTIMISATION_SETTINGS['approach_step_size']
 

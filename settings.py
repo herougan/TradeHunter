@@ -102,6 +102,7 @@ OPTIMISATION_SETTINGS = {
     'approach_step_size': 3,
     'optimisation_width': 5,
     'optimisation_depth': 3,
+    'learning_rate': 1,
 }
 
 
