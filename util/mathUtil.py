@@ -294,3 +294,23 @@ def to_single_hex(val):
     elif 15 <= _val < 16:
         return 'F'
     return None
+
+
+# Array
+
+def sorted_insert(array: list, value):
+    for i in range(len(array)):
+        if value > array[i]:
+            array.insert(i+1, value)
+            return
+    # Else
+    array.append(value)
+
+
+def sorted_dict_insert(array, value, value_key):
+    for i in range(len(array)):
+        if value > array[i][value_key]:
+            array.insert(i+1, {value_key: value})
+            return
+    # Else
+    array.append({value_key: value})

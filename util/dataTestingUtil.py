@@ -879,6 +879,7 @@ class DataTester:
         # Progress
         self.p_bar_2 = None
         self.p_bar = None
+        self.trimmed_ivar_results = None
 
         # Robot/Algo
         self.algo = None
@@ -1879,8 +1880,79 @@ class DataTester:
             # Write Meta and Result
             write_optim_meta(optim_name, optim_meta, meta['name'])
             write_optim_result(optim_name, optim_result, meta['name'])
+        self.trimmed_ivar_results = trimmed_ivar_results
 
         return trimmed_ivar_results
+
+    def block_optimise(self, ta_name: str, init_ivar: List[float], ds_names: List[str], optim_name: str, store=True,
+                       meta_store=True, canvas=None, ovars=None):
+
+        block_ivar_results = []
+        trimmed_ivar_results = []
+
+        args_dict = self.robot.ARGS_DICT
+        number_to_record = 500
+
+        def get_range_array(key):
+            "Calculate range values to go through during optimisation"
+            return 0
+
+        total_length = 1
+        for key in args_dict.keys():
+            range_array = get_range_array(key)
+            total_length *= len(range_array)
+            args_dict[key].update({'range_array': range_array})
+        # The issue is that storing such huge number of values would take up too much space!
+        results_matrix = []
+        # Only the best_values are stored per 10(?)
+        if total_length < number_to_record:
+            number_to_record = total_length
+        interval = total_length // number_to_record
+
+        def sorted_insert_matrix(value_dict):
+            """(!) Drops elements past number_to_record"""
+            pass
+
+        def get_fitness_score(result):
+            # return result['balance'] / result['capital']
+            if 'growth_factor' in result:
+                return result['growth_factor']
+            return 0
+
+        def get_test_result(_ivar):
+            _result, _meta = self.test(ta_name, _ivar, ds_names, '', False, False)
+            # On any test, add it to fitness and ivar collection
+            _score = get_fitness_score(_result)
+            return _result[-1], _score
+
+        def optimise_remaining(keys, values={}):
+            """Recursive function on arg_dict. Arg_dict must contain range_array
+            values from get_range_array. E.g. IVarType.CONTINUOUS has no array
+            it has to be built from steps and range. Text types range_arrays are
+            the same as their 'range' attribute.
+
+            values represents the ivar dict as it recursively updates its values.
+            At the last arg, the ivar dict is tested and stored."""
+            key = keys[0]
+            # Loop though all values in block
+            for val in args_dict[key]['range_array']:
+                values.update({key: val})
+                if len(keys) > 1:
+                    optimise_remaining(key[1:], values + [val])
+                else:
+                    val = get_test_result(values)
+                    value_matrix = copy.deepcopy(values)
+                    value_matrix.update({
+                        'value': val,
+                    })
+                    # Calculate/Insert values
+                    sorted_insert_matrix(value_matrix)
+                    return 0
+
+        optimise_remaining(args_dict.keys(), [])
+        self.trimmed_ivar_results = trimmed_ivar_results
+
+        return trimmed_ivar_results, block_ivar_results
 
 
 def get_optimisation_types(self):

@@ -17,7 +17,8 @@ import sys
 from matplotlib.figure import Figure
 
 from UI.QTUtil import get_datatable_sheet, set_datatable_sheet, clear_table, set_col_cell_sheet, get_dataset_table, \
-    set_dataset_table, count_table, NumericTextEdit, DoubleSlider, PlainTextEdit, ConfirmWindow, QuickAlertWindow
+    set_dataset_table, count_table, NumericTextEdit, DoubleSlider, PlainTextEdit, ConfirmWindow, QuickAlertWindow, \
+    SliderText
 from settings import IVarType, InputUIType
 from util.dataGraphingUtil import plot_single, candlestick_plot, init_plot, DATE_FORMAT_DICT, get_interval
 from util.dataRetrievalUtil import load_trade_advisor_list, get_dataset_changes, update_specific_dataset_change, \
@@ -1526,6 +1527,7 @@ class TradeHunterApp:
 
                     if _type == IVarType.CONTINUOUS:
                         # _input = NumericTextEdit()
+                        _slider_text = SliderText()
 
                         _input = DoubleSlider(Qt.Horizontal)
                         _input.setMinimum(arg['range'][0])
