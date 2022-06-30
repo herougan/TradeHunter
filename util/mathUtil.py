@@ -157,6 +157,34 @@ def try_stdev(list):
     return stdev(list)
 
 
+def try_mode(list: []):
+    if len(list) < 1:
+        return None
+
+    # Remove NaN, inf and None
+    for l in list:
+        if l is None or math.isnan(l) or math.isinf(l):
+            list.remove(l)
+
+    mode_list = []  # [{ key, count}, ...]
+    while len(list) > 0:
+        mdex = list == list[0]
+        mode_list.append({
+            'key': list[0],
+            'count': len(mdex),
+        })
+        list.remove(mdex)
+        # Something's wrong?
+        if len(mdex) < 1:
+            print("try_mode has encountered an error...", list[0])
+            break
+
+    _key, _count = 0, 0
+    for mode in mode_list:
+        if mode['count'] > _count:
+            _key = mode['key']
+    return _key
+
 def try_radius(list):
     """1D only"""
     pass

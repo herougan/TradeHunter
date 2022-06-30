@@ -303,8 +303,11 @@ class SliderText(QWidget):
         self.slider.setValue(val)
         self.text.setPlainText(str(val))
 
-    def getValue(self, val):
+    def getValue(self):
         return self.slider.value()
+
+    def tickPosition(self):
+        return self.slider.tickPOsition()
 
 
 # Window

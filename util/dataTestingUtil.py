@@ -26,7 +26,7 @@ from util.langUtil import craft_instrument_filename, strtodatetime, remove_speci
     get_test_name, get_file_name, get_instrument_from_filename, \
     is_datetimestring
 from util.mathUtil import try_key, try_divide, try_max, try_mean, try_min, try_sgn, in_std_range, in_range, try_limit, \
-    try_normalise, try_stdev
+    try_normalise, try_stdev, try_mode
 
 #  Robot
 # from robot import FMACDRobot, TwinSMA
@@ -1302,6 +1302,7 @@ class DataTester:
         ta_name = remove_special_char(ta_name)
         print('Starting optimisation: ' + F'{ta_name}.{ta_name}({init_ivar}) with i:{init_ivar}, x:{self.xvar}')
 
+        self.start_time = datetime.now()
         # Handle Optimising variables
         lock_list = []
         if ovars:
@@ -1554,6 +1555,9 @@ class DataTester:
                 ivar_key_tuples[key]['name'] = F'spread_{key}_{_i}_{_u}'
             return ivar_key_tuples
 
+        def test_ivar_spread(ivar_spread):
+            pass
+
         def get_fitness_score(result):
             # return result['balance'] / result['capital']
             if 'growth_factor' in result:
@@ -1707,6 +1711,7 @@ class DataTester:
                 # Get spread to analyse
                 ivar_tuples_to_test = ivar_spread(
                     ivar_dict['ivar'], i, u)  # Initial ivar outside loop or new_ivar from previous loop
+                test_ivar_spread(ivar_tuples_to_test)  # todo yet uncoded, just copy btm
                 # Get spread results
                 for key in ivar_tuples_to_test.keys():
                     if key == 'origin':
@@ -1834,7 +1839,7 @@ class DataTester:
             # ----
         }
         # For each key in ivar, display top (picked) value:
-        top_ivar = final_ivar_results[0]['ivar']
+        top_ivar = final_ivar_results[0]['ivar']  # this is the top_ivar's pick but not the top picked value # todo
         top_score = final_ivar_results[0]['fitness']
         for key in top_ivar.keys():
             # Register #1 value from optimisation
@@ -1850,11 +1855,12 @@ class DataTester:
             result_dict[F'average_{key}'] = 0
         for final_ivar_result in final_ivar_results:
             for key in final_ivar_result['ivar'].keys():
-                if key in ['name', 'fitness', 'type']:
+                if key in ['name', 'fitness', 'type']:  # todo ignore "type"? name?
                     continue  # Current ver. IVars will not contain 'name'
                 result_dict[F'average_{key}'] += final_ivar_result['ivar'][key]['default'] / len(final_ivar_results)
 
         # Create Meta and Result
+        self.end_time = datetime.now()
         meta = {
             'start': self.start_time,
             'end': self.end_time,
@@ -1862,8 +1868,7 @@ class DataTester:
         }
         if meta_store:
             meta.update(self.robot.get_robot_meta())
-        _ivar = {}
-        optim_meta = create_optim_meta(optim_name, ivar, self.xvar, meta, meta_store)
+        optim_meta = create_optim_meta(optim_name, top_ivar, self.xvar, meta, meta_store)
         optim_result = create_optim_result(optim_name, result_dict, meta['name'])
 
         # Create new IVar and insert
@@ -1886,12 +1891,16 @@ class DataTester:
 
     def block_optimise(self, ta_name: str, init_ivar: List[float], ds_names: List[str], optim_name: str, store=True,
                        meta_store=True, canvas=None, ovars=None):
+        ta_name = remove_special_char(ta_name)
+        print('Starting block optimisation: ' + F'{ta_name}.{ta_name}({init_ivar}) with i:{init_ivar}, x:{self.xvar}')
+        self.start_time = datetime.now()
 
         block_ivar_results = []
         trimmed_ivar_results = []
 
         args_dict = self.robot.ARGS_DICT
         number_to_record = 500
+        top_to_record = 100
 
         def get_range_array(key):
             "Calculate range values to go through during optimisation"
@@ -1907,11 +1916,94 @@ class DataTester:
         # Only the best_values are stored per 10(?)
         if total_length < number_to_record:
             number_to_record = total_length
-        interval = total_length // number_to_record
+        ivar_results, value_min, value_max, tested_len, final_len = [], math.inf, 0, 0, 0
+        all_fitness_scores = []
+
+        # ===========================
+        #   IVar Dict diagram
+        # ===========================
+        #
+        #   results_matrix = [{
+        #       key1: val
+        #           ...
+        #       keyn: val
+        #       score: score
+        #   }, ...]
+        #
+        # ===========================
 
         def sorted_insert_matrix(value_dict):
-            """(!) Drops elements past number_to_record"""
-            pass
+            """Does not record in matrix form as there may be too many entries...
+            (!) Drops elements past number_to_record"""
+            if value_dict['block_optimisation_fitness_score'] > value_max:
+                value_max = value_dict['block_optimisation_fitness_score']
+                ivar_results.insert(0, value_dict)
+
+                tested_len += 1
+                if tested_len > number_to_record:
+                    # Remove last value
+                    ivar_results.pop()
+                return
+
+            if value_dict['block_optimisation_fitness_score'] > value_min or tested_len < number_to_record:
+                # Search for position in matrix
+                _len = number_to_record
+                if tested_len < number_to_record:
+                    _len = tested_len
+                i, _max, _min, _index = _len // 2, _len - 1, 0, (_len - 1) // 2
+
+                # Find sorted index
+                while i != _max and i != _min:
+                    if value_dict['block_optimisation_fitness_score'] > ivar_results[i]['score']:
+                        # if value_dict['score'] < ivar_results[i+1]['score']:
+                        #     _index = i
+                        #     ivar_results.insert(i, value_dict)
+                        #     break
+                        _max = i
+                        i = (_min + i) // 2  # Move up the numbers, to the top (0) (Descending order)
+                        # Notes to adjust algorithm (Instead of *that calculation after this):
+                        #       IF _min goes to i, _index is i-1
+                        #       IF i goes to _min, _index is i
+                        #   Similarly
+                        #       IF _max goes to i, _index is i+1
+                        #       IF i goes to _max, _index is i
+                    else:
+                        # if value_dict['score'] > ivar_results[i-1]['score']:
+                        #     _index = i-1
+                        #     break
+                        _min = i
+                        i = (_max + i) // 2  # Move down the numbers
+
+                # Due to // rounding down, _max will equal i at termination (*)
+                if value_dict['block_optimisation_fitness_score'] >= ivar_results[i]['block_optimisation_fitness_score']:
+                    _index = i
+                    # if i == 0:
+                    #     _index = 0
+                    # # Can always test one higher (// favours minimum)
+                    # if value_dict['score'] > ivar_results[i - 1]['score']:
+                    #     _index = i + 1
+                    # else:
+                    #     _index = i
+                elif value_dict['block_optimisation_fitness_score'] < ivar_results[i]['block_optimisation_fitness_score']:
+                    if value_dict['block_optimisation_fitness_score'] < ivar_results[i+1]['block_optimisation_fitness_score']:
+                        # Happens only if < value_min
+                        return
+                    else:
+                        _index = i + 1
+                    # if tested_len >= number_to_record:
+                    #     # Do not insert. This can only happen if < value_min
+                    #     return
+                    # _index = _len  # Insert in last positions
+                    # value_min = value_dict['score']
+
+                ivar_results.insert(_index, value_dict)
+                if _index == _len - 1:
+                    value_min = value_dict['block_optimisation_fitness_score']
+                tested_len += 1
+                if tested_len > number_to_record:
+                    # Remove last value
+                    ivar_results.pop()
+                return
 
         def get_fitness_score(result):
             # return result['balance'] / result['capital']
@@ -1932,27 +2024,193 @@ class DataTester:
             the same as their 'range' attribute.
 
             values represents the ivar dict as it recursively updates its values.
-            At the last arg, the ivar dict is tested and stored."""
+            At the last arg, the ivar dict is tested and stored.
+
+            Stars with all keys, empty values. On each recursion, pick the first key,
+            iterate through its values and call itself with all keys except the first key
+            and the values dict updated with the new iterated value.
+            At the terminal point, there is only one key left so the last key's range is
+            iterated over and the trade advisor/expert is tested with those values + latest range's value.
+
+            Results are then stored if they beat the last $number_to_record's score. (fitness)"""
             key = keys[0]
             # Loop though all values in block
             for val in args_dict[key]['range_array']:
                 values.update({key: val})
                 if len(keys) > 1:
-                    optimise_remaining(key[1:], values + [val])
+                    optimise_remaining(key[1:], values)
                 else:
                     val = get_test_result(values)
                     value_matrix = copy.deepcopy(values)
                     value_matrix.update({
-                        'value': val,
+                        'block_optimisation_fitness_score': val,  # Long time so as to prevent reservation of common
+                        # word
                     })
                     # Calculate/Insert values
                     sorted_insert_matrix(value_matrix)
-                    return 0
+                    all_fitness_scores.append(val)
+                    return
 
-        optimise_remaining(args_dict.keys(), [])
+        final_len = tested_len
+        if tested_len > number_to_record:
+            final_len = number_to_record
+
+        # Create Result dict from Matrix
+        fitness_scores = [value_dict['block_optimisation_fitness_score'] for value_dict in results_matrix]
+        result_dict = {
+            'high': try_max(fitness_scores),  # To understand the algorithm's potential
+            'low': try_min(fitness_scores),
+            'average': try_mean(fitness_scores),
+            'std_deviation': try_stdev(fitness_scores),
+            # ----
+            'average_overall': try_mean(all_fitness_scores),  # To understand the algorithm
+            'low_overall': try_min(all_fitness_scores),
+            'total_tests': tested_len,
+            'total_runs': tested_len,
+            'data': ', '.join(ds_names)[:-2],
+            # ----
+        }
+        # For each key in ivar, display top (picked) value:
+        top_ivar = results_matrix[0]
+        top_score = results_matrix[0]['block_optimisation_fitness_score']
+        for key in top_ivar.keys():
+            # Register #1 value from optimisation
+            result_dict.update(
+                {'top_' + key: top_ivar[key]['default']}
+            )
+        result_dict.update({
+            'top_fitness': top_score,
+        })
+        # Average 'destination' value per ivar
+        for key in results_matrix[0]['ivar'].keys():
+            result_dict[F'average_{key}'] = 0
+            _type = args_dict[key]['dict']
+            if _type in [IVarType.CONTINUOUS, IVarType.DISCRETE, IVarType.ARRAY, IVarType.SEQUENCE]:
+                for result in results_matrix:
+                    result_dict[F'average_{key}'] += result[key]
+                result_dict[F'average_{key}'] /= final_len
+                if _type in [IVarType.ARRAY, IVarType.SEQUENCE]:
+                    result_dict[F'average_{key}'] = math.floor(result_dict[F'average_{key}'])
+            else:
+                # No 'average' can be determined, instead determine mode
+                result_dict[F'average_{key}'] += try_mode([result[key] for result in results_matrix])
+
+        self.end_time = datetime.now()
+        # Create Meta and Result
+        meta = {
+            'start': self.start_time,
+            'end': self.end_time,
+            'time_taken': self.start_time - self.end_time,
+        }  # init_ivar unused
+        if meta_store:
+            meta.update(self.robot.get_robot_meta())
+        optim_meta = create_optim_meta(optim_name, results_matrix[0], self.xvar, meta, meta_store)
+        optim_result = create_optim_result(optim_name, result_dict, meta['name'])
+
+        # Create new IVar and insert
+        top_len = 3
+        if final_len < top_len:
+            top_len = final_len
+        for ivar_result in results_matrix[0: top_len]:
+            ivar_result['name'] = optim_name + '_' + ivar_result['name']
+        insert_ivars(ta_name, trimmed_ivar_results)
+
+        # Create optim score data file
+        optim_series = create_optim_series(optim_name, fitness_scores, results_matrix)
+        write_optim_series(optim_name, optim_series, meta['name'])
+
+        # Save optimisation file
+        if store:
+            # Write Meta and Result
+            write_optim_meta(optim_name, optim_meta, meta['name'])
+            write_optim_result(optim_name, optim_result, meta['name'])
+
+        optimise_remaining(args_dict.keys())
         self.trimmed_ivar_results = trimmed_ivar_results
 
         return trimmed_ivar_results, block_ivar_results
+
+    def random_optimise(self, ta_name: str, init_ivar: List[float], ds_names: List[str], optim_name: str, store=True,
+                        meta_store=True, canvas=None, ovars=None):
+        args_dict = self.robot.ARGS_DICT
+        self.start_time = datetime.now()
+        self.end_time = datetime.now()
+
+        runs = OPTIMISATION_SETTINGS['optimisation_width']
+        max_depth = OPTIMISATION_SETTINGS['optimisation_depth']
+        learning_rate = OPTIMISATION_SETTINGS['learning_rate']
+        if 'optim_depth' in self.xvar:
+            runs = self.xvar['optim_depth']
+        if 'optim_width' in self.xvar:
+            max_depth = self.xvar['optim_width']
+        if 'learning_rate' in self.xvar:
+            learning_rate = self.xvar['learning_rate']
+
+        # Final output
+        final_ivar_results = []
+
+        def random_ivar(_i=0):
+            """Create a random initial starting ivar"""
+            _ivar = {}
+            for key in args_dict.keys():
+                arg_range = args_dict[key]['range']
+                step = args_dict[key]['step_size']
+                r = random.random()
+                # find closest step
+                if step == 0:
+                    value = r * (arg_range[1] - arg_range[0]) + arg_range[0]
+                else:
+                    target = r * (arg_range[1] - arg_range[0]) + arg_range[0]
+                    steps = (arg_range[1] - arg_range[0]) // step
+                    # Binary search
+                    top_step, btm_step = steps, 0
+                    while True:
+                        c_step = (top_step + btm_step) // 2  # 0: c_step = steps // 2
+                        value = step * c_step + arg_range[0]
+                        if abs(value - target) <= step or top_step == btm_step:
+                            break
+                        elif value > target:
+                            if top_step == c_step:
+                                c_step = btm_step
+                            top_step = c_step
+                        elif value < target:
+                            if btm_step == c_step:
+                                c_step = top_step
+                            btm_step = c_step
+                _ivar.update({
+                    key: {
+                        'default': value,
+                    },
+                })
+            ivar_dict = {
+                'ivar': _ivar,
+                'name': F'random_{_i}'
+            }
+            return ivar_dict
+
+        def get_fitness_score(result):
+            # return result['balance'] / result['capital']
+            if 'growth_factor' in result:
+                return result['growth_factor']
+            return 0
+
+        def get_test_result(_ivar):
+            _result, _meta = self.test(ta_name, _ivar, ds_names, '', False, False)
+            # On any test, add it to fitness and ivar collection
+            _score = get_fitness_score(_result)
+            # fitness_collection.append(_score)
+            # ivar_collection.append(_ivar)
+            return _result[-1], _score  # final only
+
+        for i in range(len(runs * max_depth)):
+            # Create random ivar
+            _ivar = random_ivar(i)
+            # Test
+            _result, _score = get_test_result(_ivar)
+            # Collect score
+            final_ivar_results.append()
+
+        return
 
 
 def get_optimisation_types(self):
