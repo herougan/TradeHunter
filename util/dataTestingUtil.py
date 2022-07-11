@@ -17,7 +17,7 @@ from matplotlib import pyplot as plt
 
 from robot.abstract.robot import robot
 from settings import EVALUATION_FOLDER, OPTIMISATION_FOLDER, PLOTTING_SETTINGS, TESTING_SETTINGS, OPTIMISATION_SETTINGS, \
-    ALGO_ANALYSIS_FOLDER, IVarType
+    ALGO_ANALYSIS_FOLDER, IVarType, ROBOT_FOLDER
 from util.dataGraphingUtil import plot_robot_instructions, plot_signals, plot_open_signals, candlestick_plot, \
     get_interval, DATE_FORMAT_DICT, plot_line, plot_optimisations
 from util.dataRetrievalUtil import load_dataset, load_df, get_computer_specs, number_of_datafiles, \
@@ -148,6 +148,39 @@ def base_summary_dict():
     }
 
     return summary_dict
+
+
+# Robot/Algos eval
+
+
+def get_ivar_vars(ta_name: str):
+    pre_path = 'robot'
+
+    # Import robot py
+    module = importlib.import_module(F'{pre_path}.{ta_name}')
+    globals().update(
+        {n: getattr(module, n) for n in module.__all__} if hasattr(module, '__all__')
+        else
+        {k: v for (k, v) in module.__dict__.items() if not k.startswith('_')
+         })
+
+    args_dict = eval(F'{ta_name}.ARGS_DICT')
+    return args_dict
+
+
+def get_algo_ivar_vars(algo_name: str):
+    pre_path = 'algo'
+
+    # Import robot py
+    module = importlib.import_module(F'{pre_path}.{algo_name}')
+    globals().update(
+        {n: getattr(module, n) for n in module.__all__} if hasattr(module, '__all__')
+        else
+        {k: v for (k, v) in module.__dict__.items() if not k.startswith('_')
+         })
+
+    args_dict = eval(F'{algo_name}.ARGS_DICT')
+    return args_dict
 
 
 # == Testing ==
@@ -846,19 +879,6 @@ def delete_algo_result(result_name: str, algo_name: str):
     meta_path = F'{folder}/{result_name}__meta.csv'
     try_delete_file(path)
     try_delete_file(meta_path)
-
-
-# Robot/Algos eval
-
-
-def get_ivar_vars(robot: str):
-    args_dict = eval(F'{robot}.{robot}.ARGS_DICT')
-    return args_dict
-
-
-def get_algo_ivar_vars(algo: str):
-    args_dict = eval(F'{algo}.{algo}.ARGS_DICT')
-    return args_dict
 
 
 # Stock type

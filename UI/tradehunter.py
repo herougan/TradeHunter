@@ -18,7 +18,7 @@ from matplotlib.figure import Figure
 
 from UI.QTUtil import get_datatable_sheet, set_datatable_sheet, clear_table, set_col_cell_sheet, get_dataset_table, \
     set_dataset_table, count_table, NumericTextEdit, DoubleSlider, PlainTextEdit, ConfirmWindow, QuickAlertWindow, \
-    SliderText
+    SliderText, DiscreteSliderText, TwinLabel
 from settings import IVarType, InputUIType
 from util.dataGraphingUtil import plot_single, candlestick_plot, init_plot, DATE_FORMAT_DICT, get_interval
 from util.dataRetrievalUtil import load_trade_advisor_list, get_dataset_changes, update_specific_dataset_change, \
@@ -31,9 +31,10 @@ from util.dataRetrievalUtil import load_trade_advisor_list, get_dataset_changes,
     load_optim_depth_suggestions, load_setting, remove_ds_df, load_algo_list, load_algo_ivar_list, \
     load_optim_width_suggestions, rename_dataset, rename_ivar, insert_ivar, load_algo_ivar_as_dict
 from util.dataTestingUtil import step_test_robot, DataTester, write_test_result, write_test_meta, load_test_result, \
-    load_test_meta, get_tested_robot_list, get_tests_list, get_ivar_vars, delete_test, delete_algo_result, \
+    load_test_meta, get_tested_robot_list, get_tests_list, delete_test, delete_algo_result, \
     delete_optimisation, get_optimised_robot_list, get_optimisations_list, get_algo_results_list, \
-    get_analysed_algo_list, load_optimisation_result, load_optimisation_meta, load_algo_result, load_algo_meta
+    get_analysed_algo_list, load_optimisation_result, load_optimisation_meta, load_algo_result, load_algo_meta, \
+    get_ivar_vars
 from util.langUtil import normify_name, leverage_to_float, get_test_name, strtodatetime, \
     timedeltatoyahootimestr, to_camel_case
 from util.mathUtil import try_int, try_float
@@ -73,6 +74,7 @@ class TradeHunterApp:
                 self.close()
             elif event.key() == Qt.Key_Escape:
                 self.close()
+            # QGridLayout
             print("Main Window keypress", event.key())
 
         def window(self):
@@ -312,7 +314,7 @@ class TradeHunterApp:
             body.addLayout(left)
             body.addLayout(right)
             body.setStretchFactor(left, 1)
-            body.setStretchFactor(right, 1.5)
+            body.setStretchFactor(right, 2)
 
             # Window buttons
             back_button = QPushButton('Back')
@@ -404,9 +406,9 @@ class TradeHunterApp:
                 floor3 = QHBoxLayout()
 
                 # Mid left - Labels
-                floor1.addWidget(QLabel('Symbols'), 0.5)
-                floor2.addWidget(QLabel('Interval'), 0.5)
-                floor3.addWidget(QLabel('Period'), 0.5)
+                floor1.addWidget(QLabel('Symbols'), 1)
+                floor2.addWidget(QLabel('Interval'), 1)
+                floor3.addWidget(QLabel('Period'), 1)
 
                 # Mid mid - list widgets
                 symbol_list = QListWidget()
@@ -1351,15 +1353,15 @@ class TradeHunterApp:
             xvar_left_body.addWidget(optimisation_depth_label, 1)
             xvar_left_body.addWidget(optimisation_width_label, 1)
 
-            xvar_right_body.addWidget(name_text, 1.5)
-            xvar_right_body.addWidget(lag_combo, 1.5)
-            xvar_right_body.addWidget(capital_text, 1.5)
-            xvar_right_body.addWidget(leverage_combo, 1.5)
-            xvar_right_body.addWidget(instrument_combo, 1.5)
-            xvar_right_body.addWidget(type_combo, 1.5)
-            xvar_right_body.addWidget(commission_combo, 1.5)
-            xvar_right_body.addWidget(optimisation_combo, 1.5)
-            xvar_right_body.addWidget(optimisation_w_combo, 1.5)
+            xvar_right_body.addWidget(name_text, 2)
+            xvar_right_body.addWidget(lag_combo, 2)
+            xvar_right_body.addWidget(capital_text, 2)
+            xvar_right_body.addWidget(leverage_combo, 2)
+            xvar_right_body.addWidget(instrument_combo, 2)
+            xvar_right_body.addWidget(type_combo, 2)
+            xvar_right_body.addWidget(commission_combo, 2)
+            xvar_right_body.addWidget(optimisation_combo, 2)
+            xvar_right_body.addWidget(optimisation_w_combo, 2)
 
             xvar_pane.addLayout(xvar_left_body)
             xvar_pane.addLayout(xvar_right_body)
@@ -1409,8 +1411,7 @@ class TradeHunterApp:
                 self.robot = ta_name
                 self.args_dict = {}
                 self.option_elements = {}  # {name, type, label, input}
-                self.left = None
-                self.right = None
+                self.ivar_layout = None
                 self.alert_window = None
 
                 # Rebuild
@@ -1420,15 +1421,10 @@ class TradeHunterApp:
             def window(self):
 
                 main_layout = QVBoxLayout()
-                ivar_layout = QHBoxLayout()
+                self.ivar_layout = QVBoxLayout()
                 button_layout = QHBoxLayout()
 
-                left_layout = QVBoxLayout()
-                right_layout = QVBoxLayout()
-                ivar_layout.addLayout(left_layout)
-                ivar_layout.addLayout(right_layout)
-                self.left = left_layout
-                self.right = right_layout
+                # Create options based on args_dict
                 self.create_ivar_options()
 
                 def back():
@@ -1438,6 +1434,8 @@ class TradeHunterApp:
                     if self.check_input():
                         self.create_ivar()
                         back()
+                    else:
+                        print('Input Error, IVar cannot be created.')
 
                 create_button = QPushButton('Create')
                 cancel_button = QPushButton('Cancel')
@@ -1447,7 +1445,7 @@ class TradeHunterApp:
                 button_layout.addWidget(create_button)
                 button_layout.addWidget(cancel_button)
 
-                main_layout.addLayout(ivar_layout)
+                main_layout.addLayout(self.ivar_layout)
                 main_layout.addLayout(button_layout)
 
                 self.setWindowTitle(F'{self.robot}: Create new IVar')
@@ -1490,7 +1488,7 @@ class TradeHunterApp:
 
             def delete_ivar_options(self):
                 for key in self.option_elements.keys():
-                    option = self.options[key]
+                    option = self.option_elements[key]
                     _label = option['label']
                     _input = option['input']
                     # delete
@@ -1505,79 +1503,38 @@ class TradeHunterApp:
                         'type': IVarType.TEXT,
                         'default': "",
                     }
+                    # key_1 : { default }
+                    # ...
+                    # key_n : { default }
                 }
                 args_dict.update(get_ivar_vars(self.robot))
                 self.args_dict = args_dict
                 self.delete_ivar_options()
 
-                ivar_arg_rows = []
+                rows = []
 
                 for key in args_dict.keys():
                     arg = args_dict[key]
                     # todo new layers here; use 30, 70 horizontal layout
+                    # gameLabel.resize(200, 100);
                     # or 30, 60, 10 layout for sliders
-                    arg_layer = QHBoxLayout()
 
                     # Get type, initiate label/input variables
-                    _type = arg['type']
-                    _label = QLabel(to_camel_case(key))
-                    _input = None
-                    _input_type = InputUIType.TEXT
-                    _secondary_label = None
+                    _row, _label = QHBoxLayout(), QLabel(to_camel_case(key))
+                    _input, _input_type, _type = None, InputUIType.TEXT, arg['type']
 
                     if _type == IVarType.CONTINUOUS:
-                        # _input = NumericTextEdit()
-                        _slider_text = SliderText()
-
-                        _input = DoubleSlider(Qt.Horizontal)
+                        _input = SliderText(Qt.Horizontal)
                         _input.setMinimum(arg['range'][0])
                         _input.setMaximum(arg['range'][1])
                         _input.setValue(arg['default'])
 
                         _input_type = InputUIType.NUMBER
-                        _secondary_label = QLabel(str(arg['default']))
-
-                        def update_value(val):
-                            # Slider updating wrong value
-                            _secondary_label.setText(str(val))
-
-                        def txt_update_slider(val):
-                            _input.setValue(val)
-
-                        _input.doubleValueChanged.connect(update_value)
                     elif _type == IVarType.DISCRETE:
-                        _input = QComboBox()
-                        # Insert options
-                        default = arg['default']
-                        arg_range = arg['range']
-                        step = arg['step_size']
-
-                        _slider = DoubleSlider(Qt.Horizontal)
-                        _slider.setMinimum(arg['range'][0])
-                        _slider.setMaximum(arg['range'][1])
-                        _slider.setValue(arg['default'])
-
-                        _text = NumericTextEdit()
-                        _text.setPlainText(str(arg['default']))
-
-                        options = range(arg_range[0], arg_range[1] + step, step)
-                        i = 0
-                        for option in options:
-                            _input.insertItem(option, i)
-                            i += 1
-
-                        # Find default value in range:
-                        if arg_range[0] < default < arg_range[1]:
-                            default_steps = (default - arg_range[0]) // step
-                            _input.setCurrentIndex(default_steps)
-                        else:
-                            _input.setCurrentIndex(0)
-
-                        def slider_update_value(val):
-                            _text.setPlainText(str(arg['default']))
-
-                        def text_update_value(val):
-                            _slider.setValue(float(arg['default']))
+                        _input = DiscreteSliderText(Qt.Horizontal)
+                        _input.setMinimum(arg['range'][0])
+                        _input.setMaximum(arg['range'][1])
+                        _input.setValue(arg['default'])
 
                         _input_type = InputUIType.COMBO_NUMBER
                     elif _type in [IVarType.ENUM, IVarType.ARRAY, IVarType.SEQUENCE]:
@@ -1585,7 +1542,7 @@ class TradeHunterApp:
                         # Insert options
                         i = 0
                         for r in arg['range']:
-                            _input.insertItem(r, i)
+                            _input.insertItem(i, r)
                             i += 1
 
                         _input_type = InputUIType.COMBO
@@ -1593,8 +1550,8 @@ class TradeHunterApp:
                         _input = QTextEdit()
                         _input_type = InputUIType.TEXT
 
-                    _label.setFixedHeight(20)
-                    _input.setFixedHeight(20)
+                    _label.setFixedHeight(30)
+                    _input.setFixedHeight(30)
                     self.option_elements.update({
                         key: {
                             'type': _input_type,
@@ -1604,12 +1561,15 @@ class TradeHunterApp:
                         }
                     })
 
-                    self.left.addWidget(_label)
-                    self.right.addWidget(_input)
-                    self.right.addWidget(_secondary_label)
+                    _row.addWidget(_label)
+                    _row.addWidget(_input)
+                    rows.append(_row)
+                    # self.left.addWidget(_label)
+                    # self.right.addWidget(_input)
+                    # self.right.addWidget(_secondary_label)
 
-                for ivar_arg_row in ivar_arg_rows:
-                    self.left.addLayout(ivar_arg_row)
+                for row in rows:
+                    self.ivar_layout.addLayout(row)
 
             def get_option_input(self, option_dict):
                 if option_dict['type'] == InputUIType.TEXT:

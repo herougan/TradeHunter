@@ -1,9 +1,9 @@
 import pandas as pd
 from PyQt5.QtCore import Qt, pyqtSignal
 from PyQt5.QtWidgets import QTableWidget, QTableWidgetItem, QPlainTextEdit, QSlider, QWidget, QVBoxLayout, QLabel, \
-    QHBoxLayout, QPushButton
+    QHBoxLayout, QPushButton, QGroupBox
 from util.langUtil import check_if_valid_timestr
-from util.mathUtil import try_float
+from util.mathUtil import try_float, try_int
 
 
 def get_datatable_sheet(table: QTableWidget):
@@ -180,11 +180,15 @@ class TextEditForm(QPlainTextEdit):
     pass
 
 
+class DiscreteSlider(QSlider):
+    pass
+
+
 class DoubleSlider(QSlider):
     doubleValueChanged = pyqtSignal(float)
 
-    def __init__(self, *args, **kargs):
-        super(DoubleSlider, self).__init__(*args, **kargs)
+    def __init__(self, *args, **kwargs):
+        super(DoubleSlider, self).__init__(*args, **kwargs)
         self._min = 0
         self._max = 99
         self.interval = 1
@@ -226,33 +230,46 @@ class DoubleSlider(QSlider):
         super(DoubleSlider, self).setMaximum(number_of_steps)
 
 
-class DoubleStepSlider(QSlider):
-    doubleValueChanged = pyqtSignal(float)
-
-    def __init__(self, *args, **kargs):
-        super(DoubleStepSlider, self).__init__(*args, **kargs)
-        self._min = 0
-        self._max = 99
-        self.interval = 1
-
-        self.steps = 100
-
-    def emitDoubleValueChanged(self):
-        self.doubleValueChanged.emit(self.value)
-
-    def setSteps(self, steps):
-        self.steps = steps
-
-    def setInterval(self, value):
-        self.value = value
+# class DoubleStepSlider(QSlider):
+#     doubleValueChanged = pyqtSignal(float)
+#
+#     def __init__(self, *args, **kargs):
+#         super(DoubleStepSlider, self).__init__(*args, **kargs)
+#         self._min = 0
+#         self._max = 99
+#         self.interval = 1
+#
+#         self.steps = 100
+#
+#     def emitDoubleValueChanged(self):
+#         self.doubleValueChanged.emit(self.value)
+#
+#     def setSteps(self, steps):
+#         self.steps = steps
+#
+#     def setInterval(self, value):
+#         self.value = value
 
 
 class SliderText(QWidget):
 
-    def __init__(self, min, max):
+    def __init__(self, _min=0, _max=1, orientation=Qt.Horizontal):
         super().__init__()
 
-        self.slider = DoubleSlider()
+        self.slider = None
+        self.text = None
+        self.main_layout = None
+        # self.box = None
+        self.box_layout = None
+        self.max = _max
+        self.min = _min
+        self.orientation = orientation
+
+        self.window()
+
+    def window(self):
+
+        self.slider = DoubleSlider(self.orientation)
         self.text = NumericTextEdit()
 
         self.main_layout = QHBoxLayout()
@@ -260,22 +277,38 @@ class SliderText(QWidget):
         self.main_layout.addWidget(self.slider)
         self.main_layout.addWidget(self.text)
 
+        # Group boxing
+        # self.box = QGroupBox()
+        # self.box.setLayout(self.main_layout)
+        # self.box_layout = QHBoxLayout()
+        # self.box_layout.addWidget(self.box)
+
         # Connect events, set style
         self.slider.doubleValueChanged.connect(self.sliderUpdate)
+        # self.slider.valueChanged.connect(self.sliderUpdate)
         self.text.textChanged.connect(self.textUpdate)
 
-        self.max = max
-        self.min = min
-        self.slider.setMaximum(max)
-        self.slider.setMinimum(min)
+        self.slider.setMaximum(self.max)
+        self.slider.setMinimum(self.min)
+
+        # init values
+        self.slider.setValue(self.min)
+        self.text.setPlainText(str(self.min))
+
+        # self.setLayout(self.box_layout)
+        self.setLayout(self.main_layout)
+        self.setWindowTitle('Testing here!')
+        self.show()
 
     # == Events ==
 
-    def sliderUpdate(self, e):
-        self.text.setPlainText(str(e))
+    def sliderUpdate(self):
+        self.text.setPlainText(str(self.slider.value))
+        print('SLIDER UPDATE')
 
-    def textUpdate(self, e):
+    def textUpdate(self):
         # Check if text is a number
+        e = self.text.document().toPlainText()
         if not e == '0' and not try_float(e):
             self.slider.setValue(0)
         # Check if within bounds
@@ -285,19 +318,27 @@ class SliderText(QWidget):
         if v > self.max:
             v = self.max
         self.slider.setValue(v)
+        # self.text.setPlainText(str(v))
+        print('TEXT UPDATE')
 
     # == Default ==
 
     def back(self):
         self.close()
 
-    def setMinimum(self, min):
-        self.slider.setMinimum(min)
-        self.min = min
+    def setMinimum(self, value):
+        # if min > self.slider.maximum:
+        #     self.slider.setMinimum(self.slider.Maximum)
+        self.slider.setMinimum(value)
+        self.min = value
+        if self.slider.value() < self.min:
+            self.slider.setValue(self.min)
 
-    def setMaximum(self, max):
-        self.slider.setMaximum(max)
-        self.max = max
+    def setMaximum(self, value):
+        self.slider.setMaximum(value)
+        self.max = value
+        if self.slider.value() > self.max:
+            self.slider.setValue(self.max)
 
     def setValue(self, val):
         self.slider.setValue(val)
@@ -308,6 +349,112 @@ class SliderText(QWidget):
 
     def tickPosition(self):
         return self.slider.tickPOsition()
+
+    def setFixedHeight(self, h: int) -> None:
+        self.slider.setFixedHeight(h)
+        self.text.setFixedHeight(h)
+
+
+class DiscreteSliderText(QWidget):
+
+    def __init__(self, _min=0, _max=1, orientation=Qt.Horizontal):
+        super().__init__()
+
+        self.slider = DiscreteSlider(orientation)
+        self.text = NumericTextEdit()
+
+        self.main_layout = QHBoxLayout()
+
+        self.main_layout.addWidget(self.slider)
+        self.main_layout.addWidget(self.text)
+
+        # Connect events, set style
+        self.slider.valueChanged.connect(self.sliderUpdate)
+        self.text.textChanged.connect(self.textUpdate)
+
+        self.orientation = orientation
+        self.max = _max
+        self.min = _min
+        self.slider.setMaximum(_max)
+        self.slider.setMinimum(_min)
+
+        self.setLayout(self.main_layout)
+
+    # == Default ==
+
+    def back(self):
+        self.close()
+
+    def setMinimum(self, min):
+        # if min > self.slider.maximum:
+        #     self.slider.setMinimum(self.slider.Maximum)
+        self.slider.setMinimum(min)
+        self.min = min
+        if self.slider.value() < self.min:
+            self.slider.setValue(self.min)
+
+    def setMaximum(self, max):
+        self.slider.setMaximum(max)
+        self.max = max
+        if self.slider.value() > self.max:
+            self.slider.setValue(self.max)
+
+    def setValue(self, val):
+        self.slider.setValue(val)
+        self.text.setPlainText(str(val))
+
+    def getValue(self):
+        return self.slider.value()
+
+    def tickPosition(self):
+        return self.slider.tickPOsition()
+
+    def setInterval(self, val):
+        # To avoid division by zero
+        self.slider.setTickInterval(val)
+        self.slider.setSingleStep(val)  # arrow-key step-size
+        self.slider.setPageStep(val)  # mouse-wheel/page-key step-size
+
+    # == Events ==
+
+    def sliderUpdate(self):
+        e = self.slider.value
+        self.text.setPlainText(str(e))
+
+    def textUpdate(self):
+        e = self.text.document().toPlainText()
+        # Check if text is a number
+        if not e == '0' and not try_int(e):
+            self.slider.setValue(0)
+        # Check if within bounds
+        v = try_int(e)
+        if v < self.min:
+            v = self.min
+        if v > self.max:
+            v = self.max
+        self.slider.setValue(v)
+
+    def setFixedHeight(self, h: int) -> None:
+        self.slider.setFixedHeight(h)
+        self.text.setFixedHeight(h)
+
+
+class TwinLabel(QWidget):
+    """Test widget for testing multi-labels and multi-widgets in general"""
+
+    def __init__(self):
+        super().__init__()
+        self.window()
+
+    def window(self):
+        hbox = QHBoxLayout()
+        label1 = QLabel('Label1')
+        label2 = QLabel('Label2')
+        hbox.addWidget(label1)
+        hbox.addWidget(label2)
+        self.setLayout(hbox)
+
+        self.show()
 
 
 # Window

@@ -6,16 +6,14 @@ COMMON_INTERVALS_PATH = F'static/common/datasetchanges.txt'
 COMMON_PERIODS_PATH = F'static/common/datasetchanges.txt'
 
 DATASETDEF_FOLDER = F'static/datasetdef'
-DATA_FOLDER = F''
+DATA_FOLDER = F'static/data'
 RESULTS_FOLDER = F''
 TESTS_FOLDER = F''
-ROBOTS_FOLDER = F''
 BUILDER_FOLDER = F''
 
 EVALUATION_FOLDER = F'static/results/evaluation'
 OPTIMISATION_FOLDER = F'static/results/optimisation'
 ALGO_ANALYSIS_FOLDER = F'static/results/algo'
-DATA_FOLDER = F'static/data'
 
 ROBOT_FOLDER = F'robot'
 ALGO_FOLDER = F'algo'
@@ -111,7 +109,7 @@ OPTIMISATION_SETTINGS = {
 class IVarType:
     NONE = 0
     CONTINUOUS = 1
-    DISCRETE = 2
+    DISCRETE = 2  # Integer type is discrete but with step_size 1
     ENUM = 3
     TEXT = 4  # Single value, cannot be optimised
     ARRAY = 5  # Enum but for numbers only
@@ -120,6 +118,8 @@ class IVarType:
     VECTOR = 7  # Vector of any size
     SQ_MATRIX = 8  # Matrix of square size
     PERM = 9  # Permutation of range's values
+
+    INTEGER = 92
 
 
 class InputUIType:

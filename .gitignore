@@ -1,7 +1,8 @@
 # Downloaded from https://github.com/github/gitignore/blob/main/Python.gitignore
 
 # Static timeseries files
-static/data/
+static/data/*
+static/datasetdef/*
 
 # Byte-compiled / optimized / DLL files
 __pycache__/

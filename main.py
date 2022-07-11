@@ -15,7 +15,7 @@ from util.langUtil import strtotimedelta
 
 sys.path.append('util')
 from util.dataRetrievalUtil import retrieve, load_df, load_df_list, init_common, force_overwrite_common, \
-    load_trade_advisor_list
+    load_trade_advisor_list, init_folders
 
 # Settings
 import settings

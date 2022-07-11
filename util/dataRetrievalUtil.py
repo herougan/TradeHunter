@@ -213,6 +213,10 @@ def load_dataset(ds_name: str) -> pd.DataFrame:
 def load_dataset_list():
     """Load list of dataset files in datasetdef."""
     path = settings.DATASETDEF_FOLDER
+
+    if not os.path.isdir(path):
+        os.mkdir(path)
+
     # Get list of files that end with .csv
     df_list = [f for f in listdir(path) if isfile(join(path, f)) and f.endswith('.csv')]
     df_list.sort()
@@ -662,11 +666,32 @@ def generate_ivar(ta_name: str):
 
 
 def generate_algo_ivar(algo_name: str):
+    """Algorithms do not have ivar files."""
     folder = F'{settings.ALGO_FOLDER}{settings.IVAR_SUB_FOLDER}'
     ivar_file = F'{algo_name}_ivar'
     path = F'{folder}/{ivar_file}.csv'
-    # todo
-    pass
+    module = importlib.import_module(F'algo.{algo_name}')
+    globals().update(
+        {n: getattr(module, n) for n in module.__all__} if hasattr(module, '__all__')
+        else
+        {k: v for (k, v) in module.__dict__.items() if not k.startswith('_')
+         })
+    args_dict = eval(F'{algo_name}.ARGS_DICT')
+    data = {
+        # meta
+        'name': ['*Default'],
+        'fitness': [-1],
+        'type': ['default'],
+    }
+    # for i in range(len(args_str)):
+    #     data.update({args_str[i]: args[i]})
+    for key in args_dict.keys():
+        data.update({
+            key: [args_dict[key]['default']]
+        })
+    df = pd.DataFrame.from_dict(data)
+    # df.to_csv(path, index=False)
+    return data
 
 
 def ivar_to_arr(idf: pd.DataFrame):
@@ -947,6 +972,8 @@ def init_common():
     common_periods = F'{os.getcwd()}/static/common/common_periods.txt'
     common_symbols = F'{os.getcwd()}/static/common/common_symbols.txt'
 
+    init_folders()
+
     if not file_exists(datasetchanges) or file_is_empty(datasetchanges):
         df = pd.DataFrame({
             'name': load_dataset_list()
@@ -1052,6 +1079,18 @@ def get_computer_specs():
 
     return specs
 
+
+def init_folders():
+    dataset_path = settings.DATASETDEF_FOLDER
+    data_path = settings.DATA_FOLDER
+    ivar_folder = settings.ROBOT_FOLDER + settings.IVAR_SUB_FOLDER
+
+    if not os.path.isdir(dataset_path):
+        os.mkdir(dataset_path)
+    if not os.path.isdir(data_path):
+        os.mkdir(data_path)
+    if not os.path.isdir(ivar_folder):
+        os.mkdir(ivar_folder)
 
 # Stats
 
