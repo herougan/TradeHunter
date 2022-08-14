@@ -1,5 +1,5 @@
 import pandas as pd
-from PyQt5.QtCore import Qt, pyqtSignal
+from PyQt5.QtCore import Qt, pyqtSignal, pyqtBoundSignal
 from PyQt5.QtWidgets import QTableWidget, QTableWidgetItem, QPlainTextEdit, QSlider, QWidget, QVBoxLayout, QLabel, \
     QHBoxLayout, QPushButton, QGroupBox
 from util.langUtil import check_if_valid_timestr
@@ -186,15 +186,18 @@ class DiscreteSlider(QSlider):
 
 class DoubleSlider(QSlider):
     doubleValueChanged = pyqtSignal(float)
+    # doubleValueChanged = pyqtBoundSignal(float)
 
     def __init__(self, *args, **kwargs):
         super(DoubleSlider, self).__init__(*args, **kwargs)
         self._min = 0
         self._max = 99
         self.interval = 1
+        # super().valueChanged()
+        super().valueChanged.connect(self.emitDoubleValueChanged)
 
     def emitDoubleValueChanged(self):
-        self.doubleValueChanged.emit(self.value)
+        self.doubleValueChanged.emit(self.value())
 
     def setValue(self, value):
         index = round((value - self._min) / self.interval)
@@ -265,6 +268,8 @@ class SliderText(QWidget):
         self.min = _min
         self.orientation = orientation
 
+        self.edited = False
+
         self.window()
 
     def window(self):
@@ -284,7 +289,7 @@ class SliderText(QWidget):
         # self.box_layout.addWidget(self.box)
 
         # Connect events, set style
-        self.slider.doubleValueChanged.connect(self.sliderUpdate)
+        self.slider.doubleValueChanged.connect(self.sliderUpdate)  # double value changed error happens here
         # self.slider.valueChanged.connect(self.sliderUpdate)
         self.text.textChanged.connect(self.textUpdate)
 
@@ -303,23 +308,39 @@ class SliderText(QWidget):
     # == Events ==
 
     def sliderUpdate(self):
-        self.text.setPlainText(str(self.slider.value))
-        print('SLIDER UPDATE')
+        e = self.text.document().toPlainText()
+        v = self.slider.value()
+        print(F"(Slider) Compare between {e} and {v}")
+        if e != str(v):
+            self.edited = False
+        if not self.edited:
+            print(F"Setting text to slide value {str(self.slider.value())}")
+            self.text.setPlainText(str(self.slider.value()))
+            self.edited = True
 
     def textUpdate(self):
-        # Check if text is a number
         e = self.text.document().toPlainText()
-        if not e == '0' and not try_float(e):
-            self.slider.setValue(0)
-        # Check if within bounds
-        v = try_float(e)
-        if v < self.min:
-            v = self.min
-        if v > self.max:
-            v = self.max
-        self.slider.setValue(v)
-        # self.text.setPlainText(str(v))
-        print('TEXT UPDATE')
+        v = self.slider.value()
+        print(F"(Text) Compare between {e} and {v}")
+        if e != str(v):
+            self.edited = False
+
+        if not self.edited:
+            # Check if text is a number
+            e = self.text.document().toPlainText()
+            if not e == '0' and not try_float(e):
+                e = 0
+            # Check if within bounds
+            v = try_float(e)
+            if v < self.min:
+                v = self.min
+            if v > self.max:
+                v = self.max
+            print(F"Setting slider to {v}")
+            self.slider.setValue(v)
+            # self.text.setPlainText(str(v)) # infinite loop
+            self.edited = True
+            # check if same, if yes, self.edited = False
 
     # == Default ==
 
@@ -341,8 +362,9 @@ class SliderText(QWidget):
             self.slider.setValue(self.max)
 
     def setValue(self, val):
+        print("Setting all values to " + str(val))
         self.slider.setValue(val)
-        self.text.setPlainText(str(val))
+        self.text.setPlainText(str(val))  # weird this one only activates for variability constant
 
     def getValue(self):
         return self.slider.value()
@@ -418,21 +440,39 @@ class DiscreteSliderText(QWidget):
     # == Events ==
 
     def sliderUpdate(self):
-        e = self.slider.value
-        self.text.setPlainText(str(e))
+        e = self.text.document().toPlainText()
+        v = self.slider.value()
+        print(F"(Slider) Compare between {e} and {v}")
+        if e != str(v):
+            self.edited = False
+        if not self.edited:
+            print(F"Setting text to slide value {str(self.slider.value())}")
+            self.text.setPlainText(str(self.slider.value()))
+            self.edited = True
 
     def textUpdate(self):
         e = self.text.document().toPlainText()
-        # Check if text is a number
-        if not e == '0' and not try_int(e):
-            self.slider.setValue(0)
-        # Check if within bounds
-        v = try_int(e)
-        if v < self.min:
-            v = self.min
-        if v > self.max:
-            v = self.max
-        self.slider.setValue(v)
+        v = self.slider.value()
+        print(F"(Text) Compare between {e} and {v}")
+        if e != str(v):
+            self.edited = False
+
+        if not self.edited:
+            # Check if text is a number
+            e = self.text.document().toPlainText()
+            if not e == '0' and not try_float(e):
+                e = 0
+            # Check if within bounds
+            v = try_float(e)
+            if v < self.min:
+                v = self.min
+            if v > self.max:
+                v = self.max
+            print(F"Setting slider to {v}")
+            self.slider.setValue(v)  # which will inadvertently change this again
+            # self.text.setPlainText(str(v)) # infinite loop
+            self.edited = True
+            # check if same, if yes, self.edited = False
 
     def setFixedHeight(self, h: int) -> None:
         self.slider.setFixedHeight(h)

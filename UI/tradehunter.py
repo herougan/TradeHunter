@@ -1514,6 +1514,8 @@ class TradeHunterApp:
                 rows = []
 
                 for key in args_dict.keys():
+                    # debuggy
+                    print(F"{key} in {args_dict[key]}")
                     arg = args_dict[key]
                     # todo new layers here; use 30, 70 horizontal layout
                     # gameLabel.resize(200, 100);
@@ -1524,6 +1526,7 @@ class TradeHunterApp:
                     _input, _input_type, _type = None, InputUIType.TEXT, arg['type']
 
                     if _type == IVarType.CONTINUOUS:
+                        print(F"Setting default: {str(arg['default'])} from {str(arg['range'][0])} to {str(arg['range'][1])}")
                         _input = SliderText(Qt.Horizontal)
                         _input.setMinimum(arg['range'][0])
                         _input.setMaximum(arg['range'][1])
@@ -2218,7 +2221,7 @@ class TradeHunterApp:
             type_label = QLabel('Type')
             type_combo = QComboBox()
             for type in ['Robot', 'Optim.', 'Test.', 'Datafile', 'Algo']:
-                type_combo.insertItem(type, 0)
+                type_combo.insertItem(0, type)
             type_combo.setCurrentIndex(0)
             type_layout.addWidget(type_label)
             type_layout.addWidget(type_combo)
@@ -2446,16 +2449,16 @@ class TradeHunterApp:
             sim_label = QLabel('Speed')
             sim_speed = QComboBox()  # Sim Variables
 
-            df_left_layout.addWidget(df_label, 0.25)
-            df_left_layout.addWidget(type_label, 0.25)
-            df_left_layout.addWidget(robot_label, 0.25)
-            df_left_layout.addWidget(ivar_label, 0.25)
-            df_left_layout.addWidget(sim_label, 0.25)
-            df_right_layout.addWidget(df_select, 0.25)
-            df_right_layout.addWidget(type_select, 0.25)
-            df_right_layout.addWidget(robot_select, 0.25)
-            df_right_layout.addWidget(ivar_select, 0.25)
-            df_right_layout.addWidget(sim_speed, 0.25)
+            df_left_layout.addWidget(df_label, 1)
+            df_left_layout.addWidget(type_label, 1)
+            df_left_layout.addWidget(robot_label, 1)
+            df_left_layout.addWidget(ivar_label, 1)
+            df_left_layout.addWidget(sim_label, 1)
+            df_right_layout.addWidget(df_select, 1)
+            df_right_layout.addWidget(type_select, 1)
+            df_right_layout.addWidget(robot_select, 1)
+            df_right_layout.addWidget(ivar_select, 1)
+            df_right_layout.addWidget(sim_speed, 1)
 
             df_paths = load_df_list()
             df_paths.sort()
@@ -2711,12 +2714,12 @@ class TradeHunterApp:
             xvar_left_layout.addWidget(test_label, 1)
             xvar_left_layout.addWidget(commission_label, 1)
 
-            xvar_right_layout.addWidget(lag_combo, 1.5)
-            xvar_right_layout.addWidget(capital_combo, 1.5)
-            xvar_right_layout.addWidget(leverage_combo, 1.5)
-            xvar_right_layout.addWidget(instrument_combo, 1.5)
-            xvar_right_layout.addWidget(test_combo, 1.5)
-            xvar_right_layout.addWidget(commission_combo, 1.5)
+            xvar_right_layout.addWidget(lag_combo, 2)
+            xvar_right_layout.addWidget(capital_combo, 2)
+            xvar_right_layout.addWidget(leverage_combo, 2)
+            xvar_right_layout.addWidget(instrument_combo, 2)
+            xvar_right_layout.addWidget(test_combo, 2)
+            xvar_right_layout.addWidget(commission_combo, 2)
 
             xvar_layout.addLayout(xvar_left_layout, 1)
             xvar_layout.addLayout(xvar_right_layout, 1)
