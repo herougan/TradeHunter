@@ -159,7 +159,7 @@ SPECIAL_CHARS = (Qt.Key_Exclam, Qt.Key_At, Qt.Key_NumberSign, Qt.Key_Dollar)  # 
 
 class PlainTextEdit(QPlainTextEdit):
     def keyPressEvent(self, event):
-        if event.key not in ALPHANUMERICS:
+        if event.key() not in ALPHANUMERICS:
             return
         super().keyPressEvent(event)
 
@@ -429,7 +429,7 @@ class DiscreteSliderText(QWidget):
         return self.slider.value()
 
     def tickPosition(self):
-        return self.slider.tickPOsition()
+        return self.slider.tickPosition()
 
     def setInterval(self, val):
         # To avoid division by zero
@@ -442,18 +442,15 @@ class DiscreteSliderText(QWidget):
     def sliderUpdate(self):
         e = self.text.document().toPlainText()
         v = self.slider.value()
-        print(F"(Slider) Compare between {e} and {v}")
         if e != str(v):
             self.edited = False
         if not self.edited:
-            print(F"Setting text to slide value {str(self.slider.value())}")
             self.text.setPlainText(str(self.slider.value()))
             self.edited = True
 
     def textUpdate(self):
         e = self.text.document().toPlainText()
         v = self.slider.value()
-        print(F"(Text) Compare between {e} and {v}")
         if e != str(v):
             self.edited = False
 
@@ -468,8 +465,7 @@ class DiscreteSliderText(QWidget):
                 v = self.min
             if v > self.max:
                 v = self.max
-            print(F"Setting slider to {v}")
-            self.slider.setValue(v)  # which will inadvertently change this again
+            self.slider.setValue(int(v))  # which will inadvertently change this again
             # self.text.setPlainText(str(v)) # infinite loop
             self.edited = True
             # check if same, if yes, self.edited = False

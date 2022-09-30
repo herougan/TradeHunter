@@ -907,7 +907,7 @@ class TradeHunterApp:
 
             # Dataset combo adds dataset into table on select
             def add_dataset():
-                print(F'Adding {dataset_combo.currentText()} into {dataset_table}')
+                # print(F'Adding {dataset_combo.currentText()} into {dataset_table}')
                 ds_names = get_dataset_table(dataset_table)
                 ds_names.append(dataset_combo.currentText())
                 set_dataset_table(dataset_table, ds_names)
@@ -1596,7 +1596,6 @@ class TradeHunterApp:
                         # If has value
                         if not option_dict['input'].document():
                             complaints.append(F'{key}\'s field is empty')
-                            return False
                         # If correct type of value
                         # if True:
                         #     self.summon_alert('wrong')

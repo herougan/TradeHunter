@@ -29,7 +29,7 @@ from util.mathUtil import try_key, try_divide, try_max, try_mean, try_min, try_s
     try_normalise, try_stdev, try_mode
 
 #  Robot
-# from robot import FMACDRobot, TwinSMA
+# from robot import FMACDRobot
 from util.mathUtil import date_to_index_arr
 
 
@@ -882,7 +882,8 @@ def delete_algo_result(result_name: str, algo_name: str):
 
 
 # Stock type
-
+# todo only store 1 ivar per optimisation - while re-reading code
+#
 
 class DataTester:
 
@@ -941,7 +942,13 @@ class DataTester:
         ta_name = remove_special_char(ta_name)
 
         print('Going to test: ' + F'{ta_name}.{ta_name}({ivar}) with i:{ivar}, x:{self.xvar}')
-        self.robot = eval(F'{ta_name}.{ta_name}({ivar}, {self.xvar})')
+        module = importlib.import_module(F'robot.{ta_name}')
+        globals().update(
+            {n: getattr(module, n) for n in module.__all__} if hasattr(module, '__all__')
+            else
+            {k: v for (k, v) in module.__dict__.items() if not k.startswith('_')
+             })
+        self.robot = eval(F'{ta_name}({ivar}, {self.xvar})')
 
         if self.p_bar:
             self.p_bar.setMaximum(number_of_datafiles(ds_names) + 1)
@@ -1133,6 +1140,8 @@ class DataTester:
             else:
                 # xlim = [_df.index[0] - 1, _df.index[-1] + 1]
                 xlim = [0, scope]
+
+            if True:
             # Adjust profit data in case of length mismatch
             # adjusted = []
             # for data in [profit, equity, balance, margin]:
@@ -1162,11 +1171,12 @@ class DataTester:
             #     o = [balance[0] for i in range(len(df) - len(balance))]
             #     o.extend(balance)
             #     balance = o
+                pass
 
             # === Plot data ===
 
             # Plot
-            plot_robot_instructions(axes, instructions, xlim)
+            plot_robot_instructions(axes, instructions, xlim) # todo no axes
             if len(signals) > 0:
                 plot_signals(main_ax, signals, xlim)
             if len(signals) > 0:
@@ -1917,6 +1927,9 @@ class DataTester:
 
         block_ivar_results = []
         trimmed_ivar_results = []
+
+        tested_len = 0;
+        value_max = 0;
 
         args_dict = self.robot.ARGS_DICT
         number_to_record = 500
