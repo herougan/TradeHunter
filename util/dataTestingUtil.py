@@ -975,6 +975,7 @@ class DataTester:
 
                 # Testing dataframe here
                 # self.p_window.setWindowTitle(F'Testing against {d_name}')
+                # test_data will return an error if robot does not return anything in finish()
                 stats_dict, signals_dict, robot_dict = test_data(df, row['symbol'], row['interval'], row['period'])
                 summary_dict_list.append(create_summary_df_from_list(stats_dict, signals_dict, df))
 
@@ -1928,9 +1929,6 @@ class DataTester:
         block_ivar_results = []
         trimmed_ivar_results = []
 
-        tested_len = 0;
-        value_max = 0;
-
         args_dict = self.robot.ARGS_DICT
         number_to_record = 500
         top_to_record = 100
@@ -1949,8 +1947,12 @@ class DataTester:
         # Only the best_values are stored per 10(?)
         if total_length < number_to_record:
             number_to_record = total_length
-        ivar_results, value_min, value_max, tested_len, final_len = [], math.inf, 0, 0, 0
+        ivar_results, tested_len, final_len = [], 0, 0
+        value_min: float
+        value_max: float = math.inf, 0
         all_fitness_scores = []
+        opp: str = "ds" # TODO
+        app: int = 1
 
         # ===========================
         #   IVar Dict diagram
